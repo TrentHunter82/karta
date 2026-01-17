@@ -22,10 +22,14 @@ export function Canvas() {
   const activeTool = useCanvasStore((state) => state.activeTool);
   const setViewport = useCanvasStore((state) => state.setViewport);
   const setSelection = useCanvasStore((state) => state.setSelection);
+  const updateObjects = useCanvasStore((state) => state.updateObjects);
 
   const [isPanning, setIsPanning] = useState(false);
   const [isSpacePressed, setIsSpacePressed] = useState(false);
+  const [isDragging, setIsDragging] = useState(false);
+  const [hoveredObjectId, setHoveredObjectId] = useState<string | null>(null);
   const lastMousePos = useRef({ x: 0, y: 0 });
+  const dragStartCanvasPos = useRef({ x: 0, y: 0 });
 
   // Resize canvas to fill container
   const resizeCanvas = useCallback(() => {
@@ -401,12 +405,13 @@ export function Canvas() {
       return;
     }
 
-    // Left click with select tool - selection
+    // Left click with select tool - selection and dragging
     if (e.button === 0 && activeTool === 'select') {
       const hitObject = hitTest(screenX, screenY);
+      const canvasPos = screenToCanvas(screenX, screenY);
 
       if (hitObject) {
-        // Click on object - select it
+        // Click on object
         if (e.shiftKey) {
           // Shift+click - toggle selection
           if (selectedIds.has(hitObject.id)) {
@@ -416,39 +421,98 @@ export function Canvas() {
             setSelection([...Array.from(selectedIds), hitObject.id]);
           }
         } else {
-          // Normal click - select only this object
-          setSelection([hitObject.id]);
+          // Normal click - check if clicking on already selected object
+          if (selectedIds.has(hitObject.id)) {
+            // Start dragging the selection
+            setIsDragging(true);
+            dragStartCanvasPos.current = { x: canvasPos.x, y: canvasPos.y };
+            lastMousePos.current = { x: e.clientX, y: e.clientY };
+          } else {
+            // Select only this object and start dragging
+            setSelection([hitObject.id]);
+            setIsDragging(true);
+            dragStartCanvasPos.current = { x: canvasPos.x, y: canvasPos.y };
+            lastMousePos.current = { x: e.clientX, y: e.clientY };
+          }
         }
       } else {
         // Click on empty canvas - deselect all
         setSelection([]);
       }
     }
-  }, [isSpacePressed, activeTool, hitTest, selectedIds, setSelection]);
+  }, [isSpacePressed, activeTool, hitTest, selectedIds, setSelection, screenToCanvas]);
 
-  // Handle mouse move for panning
+  // Handle mouse move for panning, dragging, and hover detection
   const handleMouseMove = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
-    if (!isPanning) return;
+    const canvas = canvasRef.current;
+    if (!canvas) return;
 
-    const dx = e.clientX - lastMousePos.current.x;
-    const dy = e.clientY - lastMousePos.current.y;
+    const rect = canvas.getBoundingClientRect();
+    const screenX = e.clientX - rect.left;
+    const screenY = e.clientY - rect.top;
 
-    setViewport({
-      x: viewport.x + dx / viewport.zoom,
-      y: viewport.y + dy / viewport.zoom,
-    });
+    // Handle panning
+    if (isPanning) {
+      const dx = e.clientX - lastMousePos.current.x;
+      const dy = e.clientY - lastMousePos.current.y;
 
-    lastMousePos.current = { x: e.clientX, y: e.clientY };
-  }, [isPanning, viewport, setViewport]);
+      setViewport({
+        x: viewport.x + dx / viewport.zoom,
+        y: viewport.y + dy / viewport.zoom,
+      });
 
-  // Handle mouse up to stop panning
+      lastMousePos.current = { x: e.clientX, y: e.clientY };
+      return;
+    }
+
+    // Handle dragging selected objects
+    if (isDragging && selectedIds.size > 0) {
+      const dx = (e.clientX - lastMousePos.current.x) / viewport.zoom;
+      const dy = (e.clientY - lastMousePos.current.y) / viewport.zoom;
+
+      // Update all selected objects' positions
+      const updates = Array.from(selectedIds).map((id) => {
+        const obj = objects.get(id);
+        if (!obj) return null;
+        return {
+          id,
+          changes: {
+            x: obj.x + dx,
+            y: obj.y + dy,
+          },
+        };
+      }).filter((u): u is { id: string; changes: { x: number; y: number } } => u !== null);
+
+      if (updates.length > 0) {
+        updateObjects(updates);
+      }
+
+      lastMousePos.current = { x: e.clientX, y: e.clientY };
+      return;
+    }
+
+    // Hover detection for move cursor (only when not dragging/panning)
+    if (activeTool === 'select' && !isSpacePressed) {
+      const hitObject = hitTest(screenX, screenY);
+      if (hitObject && selectedIds.has(hitObject.id)) {
+        setHoveredObjectId(hitObject.id);
+      } else {
+        setHoveredObjectId(null);
+      }
+    }
+  }, [isPanning, isDragging, viewport, setViewport, selectedIds, objects, updateObjects, activeTool, isSpacePressed, hitTest]);
+
+  // Handle mouse up to stop panning and dragging
   const handleMouseUp = useCallback(() => {
     setIsPanning(false);
+    setIsDragging(false);
   }, []);
 
-  // Handle mouse leave to stop panning
+  // Handle mouse leave to stop panning and dragging
   const handleMouseLeave = useCallback(() => {
     setIsPanning(false);
+    setIsDragging(false);
+    setHoveredObjectId(null);
   }, []);
 
   // Prevent context menu on middle click
@@ -461,8 +525,14 @@ export function Canvas() {
   // Determine cursor style
   const getCursorStyle = () => {
     if (isPanning) return 'grabbing';
+    if (isDragging) return 'move';
     if (isSpacePressed || activeTool === 'hand') return 'grab';
-    if (activeTool === 'select') return 'default';
+    if (activeTool === 'select') {
+      if (hoveredObjectId && selectedIds.has(hoveredObjectId)) {
+        return 'move';
+      }
+      return 'default';
+    }
     return 'crosshair';
   };
 

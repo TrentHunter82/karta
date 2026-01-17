@@ -132,12 +132,12 @@ Karta is a lightweight, intuitive visual ideation tool for creating mood boards,
 **Description:** As a user, I want to drag selected objects to reposition them.
 
 **Acceptance Criteria:**
-- [ ] Drag selected object moves it
-- [ ] Multiple selected objects move together
-- [ ] Position updates in real-time during drag
-- [ ] Cursor changes to "move" when hovering selected object
-- [ ] Typecheck passes
-- [ ] Verify changes work in browser
+- [x] Drag selected object moves it
+- [x] Multiple selected objects move together
+- [x] Position updates in real-time during drag
+- [x] Cursor changes to "move" when hovering selected object
+- [x] Typecheck passes
+- [x] Verify changes work in browser
 
 ---
 

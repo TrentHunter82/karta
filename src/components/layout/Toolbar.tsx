@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react';
 import './Toolbar.css';
 import { useCanvasStore } from '../../stores/canvasStore';
 import type { ToolType } from '../../types/canvas';
@@ -6,7 +7,7 @@ interface ToolButton {
   id: ToolType;
   name: string;
   shortcut: string;
-  icon: JSX.Element;
+  icon: ReactNode;
 }
 
 const tools: ToolButton[] = [

@@ -11,6 +11,7 @@ interface CanvasState {
   // Actions
   addObject: (object: CanvasObject) => void;
   updateObject: (id: string, updates: Partial<CanvasObject>) => void;
+  updateObjects: (updates: Array<{ id: string; changes: Partial<CanvasObject> }>) => void;
   deleteObject: (id: string) => void;
   setSelection: (ids: string[]) => void;
   setViewport: (viewport: Partial<Viewport>) => void;
@@ -39,6 +40,18 @@ export const useCanvasStore = create<CanvasState>((set) => ({
 
       const newObjects = new Map(state.objects);
       newObjects.set(id, { ...existingObject, ...updates } as CanvasObject);
+      return { objects: newObjects };
+    }),
+
+  updateObjects: (updates) =>
+    set((state) => {
+      const newObjects = new Map(state.objects);
+      for (const { id, changes } of updates) {
+        const existingObject = newObjects.get(id);
+        if (existingObject) {
+          newObjects.set(id, { ...existingObject, ...changes } as CanvasObject);
+        }
+      }
       return { objects: newObjects };
     }),
 
