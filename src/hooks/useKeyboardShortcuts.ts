@@ -21,6 +21,9 @@ export function useKeyboardShortcuts() {
   const undo = useCanvasStore((state) => state.undo);
   const redo = useCanvasStore((state) => state.redo);
   const deleteSelectedObjects = useCanvasStore((state) => state.deleteSelectedObjects);
+  const copySelection = useCanvasStore((state) => state.copySelection);
+  const paste = useCanvasStore((state) => state.paste);
+  const duplicate = useCanvasStore((state) => state.duplicate);
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -53,6 +56,27 @@ export function useKeyboardShortcuts() {
         if (event.key === 'y' || event.key === 'Y') {
           event.preventDefault();
           redo();
+          return;
+        }
+
+        // Ctrl+C (copy)
+        if (event.key === 'c' || event.key === 'C') {
+          event.preventDefault();
+          copySelection();
+          return;
+        }
+
+        // Ctrl+V (paste)
+        if (event.key === 'v' || event.key === 'V') {
+          event.preventDefault();
+          paste();
+          return;
+        }
+
+        // Ctrl+D (duplicate)
+        if (event.key === 'd' || event.key === 'D') {
+          event.preventDefault();
+          duplicate();
           return;
         }
 
@@ -109,5 +133,5 @@ export function useKeyboardShortcuts() {
     return () => {
       window.removeEventListener('keydown', handleKeyDown);
     };
-  }, [setActiveTool, setViewport, undo, redo, deleteSelectedObjects]);
+  }, [setActiveTool, setViewport, undo, redo, deleteSelectedObjects, copySelection, paste, duplicate]);
 }

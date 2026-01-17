@@ -547,12 +547,12 @@ Karta is a lightweight, intuitive visual ideation tool for creating mood boards,
 **Description:** As a user, I want to copy and paste objects.
 
 **Acceptance Criteria:**
-- [ ] Ctrl+C copies selected objects to clipboard (internal)
-- [ ] Ctrl+V pastes with slight offset (10px, 10px)
-- [ ] Ctrl+D duplicates in place
-- [ ] Pasted objects become new selection
-- [ ] Typecheck passes
-- [ ] Verify changes work in browser
+- [x] Ctrl+C copies selected objects to clipboard (internal)
+- [x] Ctrl+V pastes with slight offset (10px, 10px)
+- [x] Ctrl+D duplicates in place
+- [x] Pasted objects become new selection
+- [x] Typecheck passes
+- [x] Verify changes work in browser
 
 ---
 

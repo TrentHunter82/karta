@@ -25,6 +25,9 @@ interface CanvasState {
   historyIndex: number;
   isUndoRedoing: boolean;
 
+  // Clipboard state for copy/paste
+  clipboard: CanvasObject[];
+
   // Actions
   addObject: (object: CanvasObject) => void;
   updateObject: (id: string, updates: Partial<CanvasObject>) => void;
@@ -45,6 +48,11 @@ interface CanvasState {
   redo: () => void;
   canUndo: () => boolean;
   canRedo: () => boolean;
+
+  // Clipboard actions
+  copySelection: () => void;
+  paste: () => void;
+  duplicate: () => void;
 }
 
 // Get Yjs shared types for objects
@@ -107,6 +115,9 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
   history: [],
   historyIndex: -1,
   isUndoRedoing: false,
+
+  // Clipboard state
+  clipboard: [],
 
   // Initialize Yjs synchronization
   initializeYjsSync: () => {
@@ -619,5 +630,131 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
   canRedo: () => {
     const state = get();
     return state.historyIndex < state.history.length - 2;
+  },
+
+  // Clipboard actions
+  copySelection: () => {
+    const state = get();
+    if (state.selectedIds.size === 0) {
+      return;
+    }
+
+    // Copy selected objects (deep clone)
+    const copiedObjects: CanvasObject[] = [];
+    for (const id of state.selectedIds) {
+      const obj = state.objects.get(id);
+      if (obj) {
+        copiedObjects.push(JSON.parse(JSON.stringify(obj)));
+      }
+    }
+
+    set({ clipboard: copiedObjects });
+    console.log(`[CanvasStore] Copied ${copiedObjects.length} objects to clipboard`);
+  },
+
+  paste: () => {
+    const state = get();
+    if (state.clipboard.length === 0) {
+      return;
+    }
+
+    // Push history before pasting
+    get().pushHistory();
+
+    const newIds: string[] = [];
+    let nextZIndex = get().getNextZIndex();
+
+    for (const clipObj of state.clipboard) {
+      // Create new ID and apply offset
+      const newId = crypto.randomUUID();
+      const newObj: CanvasObject = {
+        ...clipObj,
+        id: newId,
+        x: clipObj.x + 10,
+        y: clipObj.y + 10,
+        zIndex: nextZIndex++,
+      };
+
+      // Add to local state
+      set((s) => {
+        const newObjects = new Map(s.objects);
+        newObjects.set(newId, newObj);
+        return { objects: newObjects };
+      });
+
+      // Sync to Yjs
+      ydoc.transact(() => {
+        const yMap = new Y.Map<unknown>();
+        const plainObj = objectToYjs(newObj);
+        for (const [key, value] of Object.entries(plainObj)) {
+          yMap.set(key, value);
+        }
+        yObjects.set(newId, yMap);
+      });
+
+      newIds.push(newId);
+    }
+
+    // Update clipboard with new positions (for successive pastes)
+    const updatedClipboard = state.clipboard.map((obj) => ({
+      ...obj,
+      x: obj.x + 10,
+      y: obj.y + 10,
+    }));
+
+    // Select pasted objects
+    set({ selectedIds: new Set(newIds), clipboard: updatedClipboard });
+
+    console.log(`[CanvasStore] Pasted ${newIds.length} objects`);
+  },
+
+  duplicate: () => {
+    const state = get();
+    if (state.selectedIds.size === 0) {
+      return;
+    }
+
+    // Push history before duplicating
+    get().pushHistory();
+
+    const newIds: string[] = [];
+    let nextZIndex = get().getNextZIndex();
+
+    for (const id of state.selectedIds) {
+      const obj = state.objects.get(id);
+      if (!obj) continue;
+
+      // Create new ID - duplicate in place (no offset)
+      const newId = crypto.randomUUID();
+      const newObj: CanvasObject = {
+        ...JSON.parse(JSON.stringify(obj)),
+        id: newId,
+        zIndex: nextZIndex++,
+      };
+
+      // Add to local state
+      set((s) => {
+        const newObjects = new Map(s.objects);
+        newObjects.set(newId, newObj);
+        return { objects: newObjects };
+      });
+
+      // Sync to Yjs
+      ydoc.transact(() => {
+        const yMap = new Y.Map<unknown>();
+        const plainObj = objectToYjs(newObj);
+        for (const [key, value] of Object.entries(plainObj)) {
+          yMap.set(key, value);
+        }
+        yObjects.set(newId, yMap);
+      });
+
+      newIds.push(newId);
+    }
+
+    // Select duplicated objects
+    set({ selectedIds: new Set(newIds) });
+
+    console.log(`[CanvasStore] Duplicated ${newIds.length} objects`);
   },
 }));
