@@ -127,3 +127,150 @@
   - Use window.addEventListener for global keyboard shortcuts
   - Remember to clean up listeners in useEffect return
 ---
+
+## Iteration 7 - US-007: Implement selection tool with click-to-select
+- What was implemented:
+  - Hit testing function to detect clicks on objects (with rotation support)
+  - Click on object selects it (updates selectedIds in store)
+  - Click on empty canvas deselects all
+  - Selection box with 8 resize handles + rotation handle
+  - Selection highlight color: blue (#0066ff)
+  - Shift+click toggles selection (add/remove from selection)
+  - Coordinate conversion helpers: canvasToScreen, screenToCanvas
+  - Object rendering for all types: rectangle, ellipse, text, frame, path
+- Files changed:
+  - src/components/layout/Canvas.tsx (added hitTest, drawObject, drawSelectionBox, selection handling)
+  - PRD.md (marked task complete)
+- Learnings for future iterations:
+  - Hit testing with rotation: translate point relative to object center, apply inverse rotation, then check bounds
+  - Draw selection boxes after objects so they appear on top
+  - Handle positions array pattern: corners and edge midpoints for 8 handles
+  - Rotation handle: positioned above top-center with connecting line
+  - Store selectors: use separate selectors to avoid unnecessary re-renders
+---
+
+## Iteration 8 - US-008: Implement selection tool drag-to-move
+- What was implemented:
+  - Added updateObjects batch action to store for efficient multi-object updates
+  - Drag state tracking (isDragging, hoveredObjectId) in Canvas component
+  - Drag-to-move for selected objects with real-time position updates
+  - Multiple selected objects move together using batch updates
+  - Hover detection for move cursor on selected objects
+  - Added test objects in App.tsx for development testing
+  - Fixed JSX.Element type to use ReactNode in Toolbar
+- Files changed:
+  - src/stores/canvasStore.ts (added updateObjects batch action)
+  - src/components/layout/Canvas.tsx (added drag handling and hover detection)
+  - src/components/layout/Toolbar.tsx (fixed JSX.Element type)
+  - src/App.tsx (added test objects for development)
+  - PRD.md (marked task complete)
+- Learnings for future iterations:
+  - Use batch updates (updateObjects) for moving multiple objects to avoid re-render overhead
+  - Track drag state with refs (lastMousePos, dragStartCanvasPos) to avoid state update lag
+  - Movement delta = (screen delta) / zoom for correct canvas coordinate translation
+  - Cursor style logic: check isDragging first, then hoveredObjectId for hover state
+---
+
+## Iteration 9 - US-009: Implement marquee selection
+- What was implemented:
+  - Marquee selection state tracking (isMarqueeSelecting, marqueeStart, marqueeEnd refs)
+  - Drag on empty canvas draws selection rectangle with dashed blue border and semi-transparent blue fill
+  - Objects intersecting marquee rectangle are selected on mouse up (AABB intersection check)
+  - Shift+drag adds to existing selection (preserves current selection)
+  - Fixed ESLint error: added braces around case 'text' block for lexical declaration
+- Files changed:
+  - src/components/layout/Canvas.tsx (added marquee selection logic)
+  - PRD.md (marked task complete)
+- Learnings for future iterations:
+  - Use refs (marqueeStart, marqueeEnd, marqueeShiftKey) for tracking marquee state during drag
+  - AABB intersection check: !(obj.x > maxX || objRight < minX || obj.y > maxY || objBottom < minY)
+  - Force redraw during marquee drag by calling draw() directly to show marquee rectangle
+  - ctx.setLineDash([4, 4]) creates dashed border effect
+  - Remember to handle mouseLeave to cancel marquee selection if mouse leaves canvas
+---
+
+## Iteration 10 - US-010: Implement resize via selection handles
+- What was implemented:
+  - HandleType type definition for 8 handle types (nw, n, ne, e, se, s, sw, w)
+  - HANDLE_POSITIONS array with position getters for each handle
+  - HANDLE_CURSORS map for appropriate resize cursors
+  - hitTestHandle function to detect clicks on resize handles with rotation support
+  - Resize logic for all 8 handles with proportional/free resize support
+  - Corner handles: proportional resize by default, Shift for free resize
+  - Edge handles: single dimension resize only
+  - Minimum size enforcement (10x10px MIN_OBJECT_SIZE constant)
+  - Cursor changes to resize cursors on handle hover
+  - State: isResizing, activeResizeHandle, hoveredHandle
+  - Refs: resizeHandle, resizeStartObjState, resizeShiftKey
+- Files changed:
+  - src/components/layout/Canvas.tsx (added resize handle types, hit testing, resize logic)
+  - PRD.md (marked task complete)
+- Learnings for future iterations:
+  - Use state (activeResizeHandle) instead of ref for cursor style to avoid ESLint ref-during-render errors
+  - Handle hit testing: transform click point to object's local coordinate system using inverse rotation
+  - Resize proportionally: use aspect ratio and decide which dimension to follow based on larger delta
+  - For handles that affect position (nw, n, ne, w, sw), recalculate x/y based on new dimensions
+  - Enforce minimum size by clamping dimensions and recalculating position for affected handles
+---
+
+## Iteration 11 - US-011: Implement rotation via handle
+- What was implemented:
+  - RotationHandle type definition ('rotation' | null)
+  - hitTestRotationHandle function to detect clicks on rotation handle
+  - Rotation state tracking: isRotating, hoveredRotationHandle, rotationStartAngle, rotationObjStartRotation
+  - Drag rotation handle rotates object around its center
+  - Shift+drag snaps rotation to 15° increments
+  - Cursor changes to 'grab' when hovering rotation handle
+  - Rotation is calculated using Math.atan2 to get angle from object center to mouse position
+- Files changed:
+  - src/components/layout/Canvas.tsx (added rotation handle types, hit testing, rotation logic)
+  - PRD.md (marked task complete)
+- Learnings for future iterations:
+  - Use Math.atan2(dy, dx) to calculate angle from center to mouse position
+  - Add +90 offset because rotation handle is at top (not right side like 0° in atan2)
+  - Track rotation start angle and object's starting rotation to calculate delta
+  - Normalize rotation to 0-360 range: ((rotation % 360) + 360) % 360
+  - Snap to increments: Math.round(value / increment) * increment
+  - Check rotation handle hit test BEFORE resize handles since rotation handle is above object
+---
+
+## Iteration 12 - US-012: Implement rectangle tool
+- What was implemented:
+  - Rectangle tool drawing functionality in Canvas.tsx
+  - State: isDrawingRect to track when user is drawing
+  - Refs: rectDrawStart, rectDrawEnd, rectDrawShiftKey for tracking draw state
+  - drawRectPreview function to show rectangle preview while drawing
+  - On mouse down with rectangle tool: start drawing at click position
+  - On mouse move: update preview, Shift constrains to square
+  - On mouse up: create rectangle object with default fill (#4a4a4a), add to store
+  - Tool automatically switches to Select after drawing
+  - Minimum size check (10x10px) before creating rectangle
+  - Uses crypto.randomUUID() for generating unique object IDs
+- Files changed:
+  - src/components/layout/Canvas.tsx (added rectangle tool logic)
+  - PRD.md (marked task complete)
+- Learnings for future iterations:
+  - Import RectangleObject type from types/canvas for typed object creation
+  - Use refs for tracking draw start/end to avoid state update lag during drag
+  - crypto.randomUUID() is built into modern browsers, no need for nanoid
+  - Square constraint: Math.max(abs(width), abs(height)) for both dimensions with sign preserved
+  - Normalize negative dimensions: x = width >= 0 ? start.x : start.x + width
+  - Remember to add isDrawingRect to all relevant dependency arrays
+---
+
+## Iteration 13 - US-013: Implement ellipse shape variant
+- What was implemented:
+  - Alt+Rectangle tool draws ellipse instead of rectangle
+  - Ellipse preview shown while drawing when Alt is held
+  - Shift constrains to circle (both for preview and final shape)
+  - Alt key is tracked during mouse down, move, and up events
+  - EllipseObject type imported and used for ellipse creation
+- Files changed:
+  - src/components/layout/Canvas.tsx (added Alt key tracking and ellipse drawing logic)
+  - PRD.md (marked task complete)
+- Learnings for future iterations:
+  - Use rectDrawAltKey ref to track Alt key state during drawing operation
+  - Ellipse rendering uses ctx.ellipse() with center position and radii
+  - Alt key can be toggled during drawing to switch between rectangle and ellipse preview
+  - EllipseObject type already existed in canvas.ts, rendering was also already implemented
+---

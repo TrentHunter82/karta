@@ -1,6 +1,6 @@
 import { useRef, useEffect, useState, useCallback } from 'react';
 import { useCanvasStore } from '../../stores/canvasStore';
-import type { CanvasObject, RectangleObject } from '../../types/canvas';
+import type { CanvasObject, RectangleObject, EllipseObject } from '../../types/canvas';
 import './Canvas.css';
 
 const MIN_ZOOM = 0.1; // 10%
@@ -79,6 +79,7 @@ export function Canvas() {
   const rectDrawStart = useRef({ x: 0, y: 0 });
   const rectDrawEnd = useRef({ x: 0, y: 0 });
   const rectDrawShiftKey = useRef(false);
+  const rectDrawAltKey = useRef(false); // Alt key for ellipse mode
 
   // Resize canvas to fill container
   const resizeCanvas = useCallback(() => {
@@ -311,7 +312,7 @@ export function Canvas() {
     [isMarqueeSelecting, canvasToScreen]
   );
 
-  // Draw rectangle preview while drawing
+  // Draw rectangle/ellipse preview while drawing
   const drawRectPreview = useCallback(
     (ctx: CanvasRenderingContext2D) => {
       if (!isDrawingRect) return;
@@ -319,12 +320,13 @@ export function Canvas() {
       const start = rectDrawStart.current;
       const end = rectDrawEnd.current;
       const shiftKey = rectDrawShiftKey.current;
+      const altKey = rectDrawAltKey.current;
 
       // Calculate dimensions
       let width = end.x - start.x;
       let height = end.y - start.y;
 
-      // Constrain to square if shift is held
+      // Constrain to square/circle if shift is held
       if (shiftKey) {
         const size = Math.max(Math.abs(width), Math.abs(height));
         width = width >= 0 ? size : -size;
@@ -343,15 +345,37 @@ export function Canvas() {
 
       ctx.save();
 
-      // Draw rectangle with default fill
-      ctx.fillStyle = '#4a4a4a';
-      ctx.fillRect(screenPos.x, screenPos.y, screenWidth, screenHeight);
+      if (altKey) {
+        // Draw ellipse preview
+        ctx.beginPath();
+        ctx.ellipse(
+          screenPos.x + screenWidth / 2,
+          screenPos.y + screenHeight / 2,
+          screenWidth / 2,
+          screenHeight / 2,
+          0,
+          0,
+          Math.PI * 2
+        );
+        ctx.fillStyle = '#4a4a4a';
+        ctx.fill();
 
-      // Draw a border to show the drawing area
-      ctx.strokeStyle = SELECTION_COLOR;
-      ctx.lineWidth = 1;
-      ctx.setLineDash([4, 4]);
-      ctx.strokeRect(screenPos.x, screenPos.y, screenWidth, screenHeight);
+        // Draw a border to show the drawing area
+        ctx.strokeStyle = SELECTION_COLOR;
+        ctx.lineWidth = 1;
+        ctx.setLineDash([4, 4]);
+        ctx.stroke();
+      } else {
+        // Draw rectangle with default fill
+        ctx.fillStyle = '#4a4a4a';
+        ctx.fillRect(screenPos.x, screenPos.y, screenWidth, screenHeight);
+
+        // Draw a border to show the drawing area
+        ctx.strokeStyle = SELECTION_COLOR;
+        ctx.lineWidth = 1;
+        ctx.setLineDash([4, 4]);
+        ctx.strokeRect(screenPos.x, screenPos.y, screenWidth, screenHeight);
+      }
 
       ctx.restore();
     },
@@ -733,12 +757,13 @@ export function Canvas() {
       }
     }
 
-    // Left click with rectangle tool - draw rectangle
+    // Left click with rectangle tool - draw rectangle/ellipse
     if (e.button === 0 && activeTool === 'rectangle') {
       const canvasPos = screenToCanvas(screenX, screenY);
       rectDrawStart.current = { x: canvasPos.x, y: canvasPos.y };
       rectDrawEnd.current = { x: canvasPos.x, y: canvasPos.y };
       rectDrawShiftKey.current = e.shiftKey;
+      rectDrawAltKey.current = e.altKey; // Track Alt key for ellipse mode
       setIsDrawingRect(true);
       setSelection([]); // Clear selection when drawing
     }
@@ -955,12 +980,13 @@ export function Canvas() {
       return;
     }
 
-    // Handle rectangle drawing
+    // Handle rectangle/ellipse drawing
     if (isDrawingRect) {
       const canvasPos = screenToCanvas(screenX, screenY);
       rectDrawEnd.current = { x: canvasPos.x, y: canvasPos.y };
       rectDrawShiftKey.current = e.shiftKey;
-      // Force redraw to show rectangle preview
+      rectDrawAltKey.current = e.altKey; // Track Alt key for ellipse mode
+      // Force redraw to show rectangle/ellipse preview
       draw();
       return;
     }
@@ -1022,17 +1048,18 @@ export function Canvas() {
       setIsMarqueeSelecting(false);
     }
 
-    // Finalize rectangle drawing
+    // Finalize rectangle/ellipse drawing
     if (isDrawingRect) {
       const start = rectDrawStart.current;
       const end = rectDrawEnd.current;
       const shiftKey = rectDrawShiftKey.current;
+      const altKey = rectDrawAltKey.current;
 
       // Calculate dimensions
       let width = end.x - start.x;
       let height = end.y - start.y;
 
-      // Constrain to square if shift was held
+      // Constrain to square/circle if shift was held
       if (shiftKey) {
         const size = Math.max(Math.abs(width), Math.abs(height));
         width = width >= 0 ? size : -size;
@@ -1042,25 +1069,44 @@ export function Canvas() {
       // Normalize to positive width/height
       const x = width >= 0 ? start.x : start.x + width;
       const y = height >= 0 ? start.y : start.y + height;
-      const rectWidth = Math.abs(width);
-      const rectHeight = Math.abs(height);
+      const shapeWidth = Math.abs(width);
+      const shapeHeight = Math.abs(height);
 
-      // Only create rectangle if it has meaningful size
-      if (rectWidth >= MIN_OBJECT_SIZE && rectHeight >= MIN_OBJECT_SIZE) {
-        const newRect: RectangleObject = {
-          id: crypto.randomUUID(),
-          type: 'rectangle',
-          x,
-          y,
-          width: rectWidth,
-          height: rectHeight,
-          rotation: 0,
-          opacity: 1,
-          fill: '#4a4a4a',
-        };
+      // Only create shape if it has meaningful size
+      if (shapeWidth >= MIN_OBJECT_SIZE && shapeHeight >= MIN_OBJECT_SIZE) {
+        if (altKey) {
+          // Create ellipse
+          const newEllipse: EllipseObject = {
+            id: crypto.randomUUID(),
+            type: 'ellipse',
+            x,
+            y,
+            width: shapeWidth,
+            height: shapeHeight,
+            rotation: 0,
+            opacity: 1,
+            fill: '#4a4a4a',
+          };
 
-        addObject(newRect);
-        setSelection([newRect.id]);
+          addObject(newEllipse);
+          setSelection([newEllipse.id]);
+        } else {
+          // Create rectangle
+          const newRect: RectangleObject = {
+            id: crypto.randomUUID(),
+            type: 'rectangle',
+            x,
+            y,
+            width: shapeWidth,
+            height: shapeHeight,
+            rotation: 0,
+            opacity: 1,
+            fill: '#4a4a4a',
+          };
+
+          addObject(newRect);
+          setSelection([newRect.id]);
+        }
       }
 
       // Switch to select tool after drawing

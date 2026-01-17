@@ -198,12 +198,12 @@ Karta is a lightweight, intuitive visual ideation tool for creating mood boards,
 **Description:** As a user, I want to draw ellipses/circles.
 
 **Acceptance Criteria:**
-- [ ] Shape tool has dropdown or modifier for ellipse
-- [ ] Alt+Rectangle tool draws ellipse instead
-- [ ] Shift constrains to circle
-- [ ] Ellipse renders correctly with fill/stroke
-- [ ] Typecheck passes
-- [ ] Verify changes work in browser
+- [x] Shape tool has dropdown or modifier for ellipse
+- [x] Alt+Rectangle tool draws ellipse instead
+- [x] Shift constrains to circle
+- [x] Ellipse renders correctly with fill/stroke
+- [x] Typecheck passes
+- [x] Verify changes work in browser
 
 ---
 
