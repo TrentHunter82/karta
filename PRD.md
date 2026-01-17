@@ -158,12 +158,12 @@ Karta is a lightweight, intuitive visual ideation tool for creating mood boards,
 **Description:** As a user, I want to drag handles to resize objects.
 
 **Acceptance Criteria:**
-- [ ] Drag corner handles resizes proportionally (with Shift for free resize)
-- [ ] Drag edge handles resizes in one dimension
-- [ ] Minimum size enforced (10x10px)
-- [ ] Cursor changes to resize cursor on handle hover
-- [ ] Typecheck passes
-- [ ] Verify changes work in browser
+- [x] Drag corner handles resizes proportionally (with Shift for free resize)
+- [x] Drag edge handles resizes in one dimension
+- [x] Minimum size enforced (10x10px)
+- [x] Cursor changes to resize cursor on handle hover
+- [x] Typecheck passes
+- [x] Verify changes work in browser
 
 ---
 

@@ -10,6 +10,34 @@ const GRID_SIZE = 20;
 const HANDLE_SIZE = 8;
 const ROTATION_HANDLE_OFFSET = 20;
 const SELECTION_COLOR = '#0066ff';
+const MIN_OBJECT_SIZE = 10;
+
+// Handle types for resize
+type HandleType = 'nw' | 'n' | 'ne' | 'e' | 'se' | 's' | 'sw' | 'w' | null;
+
+// Handle positions with their types
+const HANDLE_POSITIONS: { type: HandleType; getPos: (w: number, h: number) => { x: number; y: number } }[] = [
+  { type: 'nw', getPos: () => ({ x: 0, y: 0 }) },
+  { type: 'n', getPos: (w) => ({ x: w / 2, y: 0 }) },
+  { type: 'ne', getPos: (w) => ({ x: w, y: 0 }) },
+  { type: 'e', getPos: (w, h) => ({ x: w, y: h / 2 }) },
+  { type: 'se', getPos: (w, h) => ({ x: w, y: h }) },
+  { type: 's', getPos: (w, h) => ({ x: w / 2, y: h }) },
+  { type: 'sw', getPos: (_, h) => ({ x: 0, y: h }) },
+  { type: 'w', getPos: (_, h) => ({ x: 0, y: h / 2 }) },
+];
+
+// Cursor styles for each handle type
+const HANDLE_CURSORS: Record<NonNullable<HandleType>, string> = {
+  nw: 'nwse-resize',
+  n: 'ns-resize',
+  ne: 'nesw-resize',
+  e: 'ew-resize',
+  se: 'nwse-resize',
+  s: 'ns-resize',
+  sw: 'nesw-resize',
+  w: 'ew-resize',
+};
 
 export function Canvas() {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -28,12 +56,18 @@ export function Canvas() {
   const [isSpacePressed, setIsSpacePressed] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
   const [isMarqueeSelecting, setIsMarqueeSelecting] = useState(false);
+  const [isResizing, setIsResizing] = useState(false);
+  const [activeResizeHandle, setActiveResizeHandle] = useState<HandleType>(null);
   const [hoveredObjectId, setHoveredObjectId] = useState<string | null>(null);
+  const [hoveredHandle, setHoveredHandle] = useState<HandleType>(null);
   const lastMousePos = useRef({ x: 0, y: 0 });
   const dragStartCanvasPos = useRef({ x: 0, y: 0 });
   const marqueeStart = useRef({ x: 0, y: 0 });
   const marqueeEnd = useRef({ x: 0, y: 0 });
   const marqueeShiftKey = useRef(false);
+  const resizeHandle = useRef<HandleType>(null);
+  const resizeStartObjState = useRef<{ x: number; y: number; width: number; height: number } | null>(null);
+  const resizeShiftKey = useRef(false);
 
   // Resize canvas to fill container
   const resizeCanvas = useCallback(() => {
@@ -399,6 +433,41 @@ export function Canvas() {
     [objects, screenToCanvas]
   );
 
+  // Hit test for resize handles on a selected object
+  const hitTestHandle = useCallback(
+    (screenX: number, screenY: number, obj: CanvasObject): HandleType => {
+      const { zoom } = viewport;
+      const screenPos = canvasToScreen(obj.x, obj.y);
+      const width = obj.width * zoom;
+      const height = obj.height * zoom;
+
+      // Transform click point to object's local coordinate system
+      const cos = Math.cos((-obj.rotation * Math.PI) / 180);
+      const sin = Math.sin((-obj.rotation * Math.PI) / 180);
+
+      // Translate relative to object's screen position
+      const dx = screenX - screenPos.x;
+      const dy = screenY - screenPos.y;
+
+      // Apply inverse rotation
+      const localX = dx * cos - dy * sin;
+      const localY = dx * sin + dy * cos;
+
+      // Check each handle
+      const hitRadius = HANDLE_SIZE / 2 + 2; // Add a bit of tolerance
+      for (const { type, getPos } of HANDLE_POSITIONS) {
+        const handlePos = getPos(width, height);
+        const distSq = (localX - handlePos.x) ** 2 + (localY - handlePos.y) ** 2;
+        if (distSq <= hitRadius ** 2) {
+          return type;
+        }
+      }
+
+      return null;
+    },
+    [viewport, canvasToScreen]
+  );
+
   // Check if an object intersects with a rectangle (for marquee selection)
   const objectIntersectsRect = useCallback(
     (obj: CanvasObject, rectX1: number, rectY1: number, rectX2: number, rectY2: number): boolean => {
@@ -480,6 +549,31 @@ export function Canvas() {
 
     // Left click with select tool - selection and dragging
     if (e.button === 0 && activeTool === 'select') {
+      // Check if clicking on a resize handle of a selected object (only single selection)
+      if (selectedIds.size === 1) {
+        const selectedId = Array.from(selectedIds)[0];
+        const selectedObj = objects.get(selectedId);
+        if (selectedObj) {
+          const handle = hitTestHandle(screenX, screenY, selectedObj);
+          if (handle) {
+            // Start resizing
+            setIsResizing(true);
+            setActiveResizeHandle(handle);
+            resizeHandle.current = handle;
+            resizeStartObjState.current = {
+              x: selectedObj.x,
+              y: selectedObj.y,
+              width: selectedObj.width,
+              height: selectedObj.height,
+            };
+            resizeShiftKey.current = e.shiftKey;
+            lastMousePos.current = { x: e.clientX, y: e.clientY };
+            dragStartCanvasPos.current = screenToCanvas(screenX, screenY);
+            return;
+          }
+        }
+      }
+
       const hitObject = hitTest(screenX, screenY);
       const canvasPos = screenToCanvas(screenX, screenY);
 
@@ -522,7 +616,7 @@ export function Canvas() {
         }
       }
     }
-  }, [isSpacePressed, activeTool, hitTest, selectedIds, setSelection, screenToCanvas]);
+  }, [isSpacePressed, activeTool, hitTest, hitTestHandle, selectedIds, setSelection, screenToCanvas, objects]);
 
   // Handle mouse move for panning, dragging, and hover detection
   const handleMouseMove = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
@@ -573,6 +667,120 @@ export function Canvas() {
       return;
     }
 
+    // Handle resizing
+    if (isResizing && selectedIds.size === 1 && resizeHandle.current && resizeStartObjState.current) {
+      const selectedId = Array.from(selectedIds)[0];
+      const canvasPos = screenToCanvas(screenX, screenY);
+      const startState = resizeStartObjState.current;
+      const handle = resizeHandle.current;
+
+      // Calculate delta in canvas coordinates from drag start
+      const deltaX = canvasPos.x - dragStartCanvasPos.current.x;
+      const deltaY = canvasPos.y - dragStartCanvasPos.current.y;
+
+      let newX = startState.x;
+      let newY = startState.y;
+      let newWidth = startState.width;
+      let newHeight = startState.height;
+
+      // Calculate aspect ratio for proportional resize
+      const aspectRatio = startState.width / startState.height;
+      const isCornerHandle = handle === 'nw' || handle === 'ne' || handle === 'sw' || handle === 'se';
+      // Corner handles: proportional by default, Shift for free resize
+      // Edge handles: always single dimension
+      const useProportional = isCornerHandle && !e.shiftKey;
+
+      // Apply resize based on handle type
+      switch (handle) {
+        case 'nw': // top-left
+          newWidth = startState.width - deltaX;
+          newHeight = startState.height - deltaY;
+          if (useProportional) {
+            // Use the larger dimension change and maintain aspect ratio
+            if (Math.abs(deltaX) > Math.abs(deltaY)) {
+              newHeight = newWidth / aspectRatio;
+            } else {
+              newWidth = newHeight * aspectRatio;
+            }
+          }
+          newX = startState.x + startState.width - newWidth;
+          newY = startState.y + startState.height - newHeight;
+          break;
+        case 'n': // top
+          newHeight = startState.height - deltaY;
+          newY = startState.y + startState.height - newHeight;
+          break;
+        case 'ne': // top-right
+          newWidth = startState.width + deltaX;
+          newHeight = startState.height - deltaY;
+          if (useProportional) {
+            if (Math.abs(deltaX) > Math.abs(deltaY)) {
+              newHeight = newWidth / aspectRatio;
+            } else {
+              newWidth = newHeight * aspectRatio;
+            }
+          }
+          newY = startState.y + startState.height - newHeight;
+          break;
+        case 'e': // right
+          newWidth = startState.width + deltaX;
+          break;
+        case 'se': // bottom-right
+          newWidth = startState.width + deltaX;
+          newHeight = startState.height + deltaY;
+          if (useProportional) {
+            if (Math.abs(deltaX) > Math.abs(deltaY)) {
+              newHeight = newWidth / aspectRatio;
+            } else {
+              newWidth = newHeight * aspectRatio;
+            }
+          }
+          break;
+        case 's': // bottom
+          newHeight = startState.height + deltaY;
+          break;
+        case 'sw': // bottom-left
+          newWidth = startState.width - deltaX;
+          newHeight = startState.height + deltaY;
+          if (useProportional) {
+            if (Math.abs(deltaX) > Math.abs(deltaY)) {
+              newHeight = newWidth / aspectRatio;
+            } else {
+              newWidth = newHeight * aspectRatio;
+            }
+          }
+          newX = startState.x + startState.width - newWidth;
+          break;
+        case 'w': // left
+          newWidth = startState.width - deltaX;
+          newX = startState.x + startState.width - newWidth;
+          break;
+      }
+
+      // Enforce minimum size
+      if (newWidth < MIN_OBJECT_SIZE) {
+        newWidth = MIN_OBJECT_SIZE;
+        // Recalculate X for left-side handles
+        if (handle === 'nw' || handle === 'w' || handle === 'sw') {
+          newX = startState.x + startState.width - MIN_OBJECT_SIZE;
+        }
+      }
+      if (newHeight < MIN_OBJECT_SIZE) {
+        newHeight = MIN_OBJECT_SIZE;
+        // Recalculate Y for top-side handles
+        if (handle === 'nw' || handle === 'n' || handle === 'ne') {
+          newY = startState.y + startState.height - MIN_OBJECT_SIZE;
+        }
+      }
+
+      updateObjects([{
+        id: selectedId,
+        changes: { x: newX, y: newY, width: newWidth, height: newHeight },
+      }]);
+
+      return;
+    }
+
     // Handle marquee selection
     if (isMarqueeSelecting) {
       const canvasPos = screenToCanvas(screenX, screenY);
@@ -582,8 +790,24 @@ export function Canvas() {
       return;
     }
 
-    // Hover detection for move cursor (only when not dragging/panning)
+    // Hover detection for resize handles and move cursor (only when not dragging/panning/resizing)
     if (activeTool === 'select' && !isSpacePressed) {
+      // First check for handle hover on selected objects
+      if (selectedIds.size === 1) {
+        const selectedId = Array.from(selectedIds)[0];
+        const selectedObj = objects.get(selectedId);
+        if (selectedObj) {
+          const handle = hitTestHandle(screenX, screenY, selectedObj);
+          if (handle) {
+            setHoveredHandle(handle);
+            setHoveredObjectId(null);
+            return;
+          }
+        }
+      }
+      setHoveredHandle(null);
+
+      // Then check for object hover
       const hitObject = hitTest(screenX, screenY);
       if (hitObject && selectedIds.has(hitObject.id)) {
         setHoveredObjectId(hitObject.id);
@@ -591,7 +815,7 @@ export function Canvas() {
         setHoveredObjectId(null);
       }
     }
-  }, [isPanning, isDragging, isMarqueeSelecting, viewport, setViewport, selectedIds, objects, updateObjects, activeTool, isSpacePressed, hitTest, screenToCanvas, draw]);
+  }, [isPanning, isDragging, isResizing, isMarqueeSelecting, viewport, setViewport, selectedIds, objects, updateObjects, activeTool, isSpacePressed, hitTest, hitTestHandle, screenToCanvas, draw]);
 
   // Handle mouse up to stop panning, dragging, and finalize marquee selection
   const handleMouseUp = useCallback(() => {
@@ -614,6 +838,10 @@ export function Canvas() {
 
     setIsPanning(false);
     setIsDragging(false);
+    setIsResizing(false);
+    setActiveResizeHandle(null);
+    resizeHandle.current = null;
+    resizeStartObjState.current = null;
   }, [isMarqueeSelecting, getObjectsInMarquee, selectedIds, setSelection]);
 
   // Handle mouse leave to stop panning and dragging
@@ -621,7 +849,12 @@ export function Canvas() {
     setIsPanning(false);
     setIsDragging(false);
     setIsMarqueeSelecting(false);
+    setIsResizing(false);
+    setActiveResizeHandle(null);
     setHoveredObjectId(null);
+    setHoveredHandle(null);
+    resizeHandle.current = null;
+    resizeStartObjState.current = null;
   }, []);
 
   // Prevent context menu on middle click
@@ -634,10 +867,15 @@ export function Canvas() {
   // Determine cursor style
   const getCursorStyle = () => {
     if (isPanning) return 'grabbing';
+    if (isResizing && activeResizeHandle) return HANDLE_CURSORS[activeResizeHandle];
     if (isDragging) return 'move';
     if (isMarqueeSelecting) return 'crosshair';
     if (isSpacePressed || activeTool === 'hand') return 'grab';
     if (activeTool === 'select') {
+      // Check for resize handle hover
+      if (hoveredHandle) {
+        return HANDLE_CURSORS[hoveredHandle];
+      }
       if (hoveredObjectId && selectedIds.has(hoveredObjectId)) {
         return 'move';
       }
