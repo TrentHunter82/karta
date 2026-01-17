@@ -1,11 +1,12 @@
 import { create } from 'zustand';
-import type { CanvasObject, Viewport } from '../types/canvas';
+import type { CanvasObject, Viewport, ToolType } from '../types/canvas';
 
 interface CanvasState {
   // State
   objects: Map<string, CanvasObject>;
   selectedIds: Set<string>;
   viewport: Viewport;
+  activeTool: ToolType;
 
   // Actions
   addObject: (object: CanvasObject) => void;
@@ -13,6 +14,7 @@ interface CanvasState {
   deleteObject: (id: string) => void;
   setSelection: (ids: string[]) => void;
   setViewport: (viewport: Partial<Viewport>) => void;
+  setActiveTool: (tool: ToolType) => void;
 }
 
 export const useCanvasStore = create<CanvasState>((set) => ({
@@ -20,6 +22,7 @@ export const useCanvasStore = create<CanvasState>((set) => ({
   objects: new Map(),
   selectedIds: new Set(),
   viewport: { x: 0, y: 0, zoom: 1 },
+  activeTool: 'select',
 
   // Actions
   addObject: (object) =>
@@ -58,5 +61,10 @@ export const useCanvasStore = create<CanvasState>((set) => ({
   setViewport: (viewportUpdates) =>
     set((state) => ({
       viewport: { ...state.viewport, ...viewportUpdates },
+    })),
+
+  setActiveTool: (tool) =>
+    set(() => ({
+      activeTool: tool,
     })),
 }));

@@ -14,3 +14,71 @@
   align-items: center;
   gap: 4px;
 }
+
+.tool-button {
+  position: relative;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 6px;
+  color: var(--color-text-secondary);
+  transition: background-color 0.15s, color 0.15s;
+}
+
+.tool-button:hover {
+  background-color: var(--color-bg-tertiary);
+  color: var(--color-text-primary);
+}
+
+.tool-button.active {
+  background-color: var(--color-accent);
+  color: white;
+}
+
+.tool-button.active:hover {
+  background-color: var(--color-accent);
+}
+
+/* Tooltip */
+.tool-tooltip {
+  position: absolute;
+  left: calc(100% + 8px);
+  top: 50%;
+  transform: translateY(-50%);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  background-color: var(--color-bg-tertiary);
+  border: 1px solid var(--color-border);
+  border-radius: 4px;
+  white-space: nowrap;
+  font-size: 12px;
+  color: var(--color-text-primary);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.15s;
+  z-index: 100;
+}
+
+.tool-button:hover .tool-tooltip {
+  opacity: 1;
+}
+
+.tool-shortcut {
+  padding: 2px 5px;
+  background-color: var(--color-bg-secondary);
+  border-radius: 3px;
+  font-size: 11px;
+  color: var(--color-text-muted);
+}
+
+/* Divider */
+.toolbar-divider {
+  width: 24px;
+  height: 1px;
+  background-color: var(--color-border);
+  margin: 4px 0;
+}

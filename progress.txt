@@ -90,3 +90,22 @@
   - Object types: rectangle, ellipse, text, frame, path, image, video
   - Tool types: select, hand, rectangle, text, frame, pen
 ---
+
+## Iteration 5 - US-005: Build left toolbar with tool buttons
+- What was implemented:
+  - Added activeTool state and setActiveTool action to Zustand store
+  - Vertical toolbar with 6 tool buttons: Select (V), Hand (H), Rectangle (R), Text (T), Frame (F), Pen (P)
+  - Each button has a custom SVG icon
+  - Active tool highlighted with accent color (--color-accent: #0066ff)
+  - Tooltips on hover showing tool name + keyboard shortcut
+  - Divider line after Text tool to separate tool groups
+- Files changed:
+  - src/stores/canvasStore.ts (added activeTool state and setActiveTool action)
+  - src/components/layout/Toolbar.tsx (added tool buttons with icons)
+  - src/components/layout/Toolbar.css (added styles for buttons, active state, tooltips, divider)
+- Learnings for future iterations:
+  - Tool buttons use position: relative with tooltip positioned absolutely to the right
+  - Tooltip appears on hover with opacity transition
+  - Store state selector: `useCanvasStore((state) => state.activeTool)`
+  - setActiveTool can be called with ToolType to switch tools
+---

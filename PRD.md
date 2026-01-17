@@ -89,13 +89,13 @@ Karta is a lightweight, intuitive visual ideation tool for creating mood boards,
 **Description:** As a user, I want a toolbar so I can select different tools.
 
 **Acceptance Criteria:**
-- [ ] Vertical toolbar with icon buttons
-- [ ] Tools: Select (V), Hand (H), Rectangle (R), Text (T), Frame (F), Pen (P)
-- [ ] Active tool highlighted with accent color
-- [ ] Tooltip on hover showing tool name + shortcut
-- [ ] Divider line separating tool groups (after Text)
-- [ ] Typecheck passes
-- [ ] Verify changes work in browser
+- [x] Vertical toolbar with icon buttons
+- [x] Tools: Select (V), Hand (H), Rectangle (R), Text (T), Frame (F), Pen (P)
+- [x] Active tool highlighted with accent color
+- [x] Tooltip on hover showing tool name + shortcut
+- [x] Divider line separating tool groups (after Text)
+- [x] Typecheck passes
+- [x] Verify changes work in browser
 
 ---
 
