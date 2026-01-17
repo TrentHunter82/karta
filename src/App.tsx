@@ -2,53 +2,37 @@ import { useEffect } from 'react';
 import { Toolbar, TopBar, PropertiesPanel, Canvas, StatusBar } from './components/layout';
 import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts';
 import { useCanvasStore } from './stores/canvasStore';
+import { useCollaborationStore } from './stores/collaborationStore';
 import './App.css';
 
 function App() {
   // Set up global keyboard shortcuts for tool switching
   useKeyboardShortcuts();
 
-  const addObject = useCanvasStore((state) => state.addObject);
+  const initializeYjsSync = useCanvasStore((state) => state.initializeYjsSync);
+  const isInitialized = useCanvasStore((state) => state.isInitialized);
+  const connect = useCollaborationStore((state) => state.connect);
+  const connectionStatus = useCollaborationStore((state) => state.connectionStatus);
 
-  // Add test objects for development
+  // Initialize collaboration and Yjs sync
   useEffect(() => {
-    addObject({
-      id: 'test-rect-1',
-      type: 'rectangle',
-      x: 100,
-      y: 100,
-      width: 150,
-      height: 100,
-      rotation: 0,
-      opacity: 1,
-      zIndex: 0,
-      fill: '#4a90d9',
-    });
-    addObject({
-      id: 'test-rect-2',
-      type: 'rectangle',
-      x: 300,
-      y: 150,
-      width: 120,
-      height: 80,
-      rotation: 15,
-      opacity: 1,
-      zIndex: 1,
-      fill: '#d94a4a',
-    });
-    addObject({
-      id: 'test-ellipse-1',
-      type: 'ellipse',
-      x: 500,
-      y: 100,
-      width: 100,
-      height: 100,
-      rotation: 0,
-      opacity: 1,
-      zIndex: 2,
-      fill: '#4ad97a',
-    });
-  }, [addObject]);
+    // Get room ID from URL hash, or generate a random one
+    let roomId = window.location.hash.slice(1);
+    if (!roomId) {
+      roomId = Math.random().toString(36).substring(2, 10);
+      window.location.hash = roomId;
+    }
+
+    // Connect to collaboration server
+    connect(roomId);
+  }, [connect]);
+
+  // Initialize Yjs sync once connected
+  useEffect(() => {
+    if (connectionStatus === 'connected' && !isInitialized) {
+      initializeYjsSync();
+    }
+  }, [connectionStatus, isInitialized, initializeYjsSync]);
 
   return (
     <div className="app">

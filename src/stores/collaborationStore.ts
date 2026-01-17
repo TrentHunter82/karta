@@ -111,8 +111,8 @@ export const useCollaborationStore = create<CollaborationState>((set, get) => ({
       });
 
       // Handle connection errors
-      provider.on('connection-error', (error: Error) => {
-        console.error('[Collaboration] Connection error:', error);
+      provider.on('connection-error', (event: Event) => {
+        console.error('[Collaboration] Connection error:', event);
       });
 
       set({ provider });

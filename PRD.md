@@ -467,12 +467,12 @@ Karta is a lightweight, intuitive visual ideation tool for creating mood boards,
 **Description:** As a user, I want my changes to sync with other users in real-time.
 
 **Acceptance Criteria:**
-- [ ] Object creation syncs to other clients
-- [ ] Object updates (move, resize, property changes) sync
-- [ ] Object deletion syncs
-- [ ] No conflicts or data loss during concurrent edits
-- [ ] Typecheck passes
-- [ ] Verify changes work in browser (with 2 tabs)
+- [x] Object creation syncs to other clients
+- [x] Object updates (move, resize, property changes) sync
+- [x] Object deletion syncs
+- [x] No conflicts or data loss during concurrent edits
+- [x] Typecheck passes
+- [x] Verify changes work in browser (with 2 tabs)
 
 ---
 
