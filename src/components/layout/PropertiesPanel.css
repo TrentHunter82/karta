@@ -168,6 +168,46 @@
   border-color: var(--color-accent);
 }
 
+/* Size Row with Constrain Toggle */
+.size-row {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  position: relative;
+}
+
+.size-row .property-row {
+  flex: 1;
+}
+
+.constrain-toggle {
+  position: absolute;
+  right: -4px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 20px;
+  height: 32px;
+  background: transparent;
+  border: none;
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  opacity: 0.6;
+  transition: opacity 0.15s ease;
+}
+
+.constrain-toggle:hover {
+  opacity: 1;
+}
+
+.constrain-toggle.active {
+  color: var(--color-accent);
+  opacity: 1;
+}
+
 /* Hierarchy Section */
 .hierarchy-info {
   font-size: 10px;

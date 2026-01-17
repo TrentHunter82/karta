@@ -57,13 +57,6 @@ function EditablePropertyRow({ label, value, disabled = false, onChange }: Edita
   const inputRef = useRef<HTMLInputElement>(null);
   const originalValueRef = useRef(value);
 
-  // Update editValue when value prop changes (e.g., object moved on canvas)
-  useEffect(() => {
-    if (!isEditing) {
-      setEditValue(value);
-    }
-  }, [value, isEditing]);
-
   const handleClick = () => {
     if (disabled || value === '---') return;
     originalValueRef.current = value;
@@ -104,6 +97,8 @@ function EditablePropertyRow({ label, value, disabled = false, onChange }: Edita
     commitChange();
   };
 
+  // When not editing, display the prop value directly (no sync needed)
+  // When editing, display the local editValue
   return (
     <div className="property-row">
       <span className="property-label">{label}</span>
@@ -131,6 +126,7 @@ function EditablePropertyRow({ label, value, disabled = false, onChange }: Edita
 
 export function PropertiesPanel() {
   const [isCollapsed, setIsCollapsed] = useState(false);
+  const [constrainProportions, setConstrainProportions] = useState(true);
   const selectedIds = useCanvasStore((state) => state.selectedIds);
   const objects = useCanvasStore((state) => state.objects);
   const updateObject = useCanvasStore((state) => state.updateObject);
@@ -202,14 +198,65 @@ export function PropertiesPanel() {
                 }
               }}
             />
-            <PropertyRow
-              label="WIDTH"
-              value={getDisplayValue(() => Math.round(singleSelection!.width).toString())}
-            />
-            <PropertyRow
-              label="HEIGHT"
-              value={getDisplayValue(() => Math.round(singleSelection!.height).toString())}
-            />
+            <div className="size-row">
+              <EditablePropertyRow
+                label="WIDTH"
+                value={getMultiSelectValue((obj) => obj.width)}
+                disabled={!hasSelection}
+                onChange={(value) => {
+                  if (singleSelection) {
+                    if (constrainProportions && singleSelection.width > 0) {
+                      const aspectRatio = singleSelection.height / singleSelection.width;
+                      updateObject(singleSelection.id, {
+                        width: value,
+                        height: Math.round(value * aspectRatio)
+                      });
+                    } else {
+                      updateObject(singleSelection.id, { width: value });
+                    }
+                  }
+                }}
+              />
+              <button
+                className={`constrain-toggle ${constrainProportions ? 'active' : ''}`}
+                onClick={() => setConstrainProportions(!constrainProportions)}
+                title={constrainProportions ? 'Constrain proportions: ON' : 'Constrain proportions: OFF'}
+                aria-label="Toggle constrain proportions"
+              >
+                <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.5">
+                  {constrainProportions ? (
+                    <>
+                      <path d="M3 4V2.5C3 1.67 3.67 1 4.5 1h3C8.33 1 9 1.67 9 2.5V4" />
+                      <path d="M3 8v1.5c0 .83.67 1.5 1.5 1.5h3c.83 0 1.5-.67 1.5-1.5V8" />
+                      <path d="M6 4v4" />
+                    </>
+                  ) : (
+                    <>
+                      <path d="M3 4V2.5C3 1.67 3.67 1 4.5 1h3C8.33 1 9 1.67 9 2.5V4" />
+                      <path d="M3 8v1.5c0 .83.67 1.5 1.5 1.5h3c.83 0 1.5-.67 1.5-1.5V8" />
+                    </>
+                  )}
+                </svg>
+              </button>
+              <EditablePropertyRow
+                label="HEIGHT"
+                value={getMultiSelectValue((obj) => obj.height)}
+                disabled={!hasSelection}
+                onChange={(value) => {
+                  if (singleSelection) {
+                    if (constrainProportions && singleSelection.height > 0) {
+                      const aspectRatio = singleSelection.width / singleSelection.height;
+                      updateObject(singleSelection.id, {
+                        height: value,
+                        width: Math.round(value * aspectRatio)
+                      });
+                    } else {
+                      updateObject(singleSelection.id, { height: value });
+                    }
+                  }
+                }}
+              />
+            </div>
             <PropertyRow
               label="ROTATION"
               value={getDisplayValue(() => `${Math.round(singleSelection!.rotation)}°`)}

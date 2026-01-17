@@ -293,12 +293,12 @@ Karta is a lightweight, intuitive visual ideation tool for creating mood boards,
 **Description:** As a user, I want to see and edit object dimensions numerically.
 
 **Acceptance Criteria:**
-- [ ] WIDTH and HEIGHT input fields
-- [ ] Values update when object selected
-- [ ] Typing in field updates object size
-- [ ] Constrain proportions toggle (chain link icon)
-- [ ] Typecheck passes
-- [ ] Verify changes work in browser
+- [x] WIDTH and HEIGHT input fields
+- [x] Values update when object selected
+- [x] Typing in field updates object size
+- [x] Constrain proportions toggle (chain link icon)
+- [x] Typecheck passes
+- [x] Verify changes work in browser
 
 ---
 

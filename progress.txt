@@ -378,3 +378,23 @@
   - Type narrowing with 'text' in obj pattern for accessing type-specific properties
   - Next tasks (US-019 to US-024) will need editable inputs instead of read-only PropertyRow
 ---
+
+## Iteration 19 - US-019: Implement transform section (position)
+- What was implemented:
+  - EditablePropertyRow component for editable numeric inputs
+  - X-POS and Y-POS input fields that show current object position
+  - Click to edit, Enter commits, Escape reverts
+  - Values sync with canvas when object is moved
+  - getMultiSelectValue function: shows "---" when multiple objects have different values
+  - CSS styles for editable inputs with hover state
+- Files changed:
+  - src/components/layout/PropertiesPanel.tsx (added EditablePropertyRow, getMultiSelectValue, updateObject usage)
+  - src/components/layout/PropertiesPanel.css (added .property-value.editable and .property-input styles)
+  - PRD.md (marked task complete)
+- Learnings for future iterations:
+  - EditablePropertyRow pattern: useState for isEditing/editValue, useRef for input/originalValue
+  - Track originalValue on edit start to support Escape revert
+  - Use useEffect to sync editValue with prop when not editing
+  - stopPropagation on keydown to prevent tool shortcuts from firing
+  - getMultiSelectValue checks if all selected objects have same value
+---
