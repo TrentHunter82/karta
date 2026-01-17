@@ -508,13 +508,13 @@ Karta is a lightweight, intuitive visual ideation tool for creating mood boards,
 **Description:** As a user, I want to export my work as an image.
 
 **Acceptance Criteria:**
-- [ ] "EXPORT SELECTION" button in properties panel
-- [ ] If selection: exports selected objects with padding
-- [ ] If no selection: exports entire canvas content
-- [ ] Downloads as PNG file
-- [ ] Transparent background option
-- [ ] Typecheck passes
-- [ ] Verify changes work in browser
+- [x] "EXPORT SELECTION" button in properties panel
+- [x] If selection: exports selected objects with padding
+- [x] If no selection: exports entire canvas content
+- [x] Downloads as PNG file
+- [x] Transparent background option
+- [x] Typecheck passes
+- [x] Verify changes work in browser
 
 ---
 

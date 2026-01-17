@@ -1,6 +1,170 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { useCanvasStore } from '../../stores/canvasStore';
+import type { CanvasObject, ImageObject, VideoObject } from '../../types/canvas';
 import './PropertiesPanel.css';
+
+// Image cache for export (reusing same approach as Canvas.tsx)
+const exportImageCache = new Map<string, HTMLImageElement>();
+const exportVideoThumbnailCache = new Map<string, HTMLCanvasElement>();
+
+// Load an image and cache it
+function loadImage(src: string): Promise<HTMLImageElement> {
+  return new Promise((resolve, reject) => {
+    const cached = exportImageCache.get(src);
+    if (cached && cached.complete && cached.naturalWidth > 0) {
+      resolve(cached);
+      return;
+    }
+    const img = new Image();
+    img.onload = () => {
+      exportImageCache.set(src, img);
+      resolve(img);
+    };
+    img.onerror = reject;
+    img.src = src;
+  });
+}
+
+// Load video thumbnail
+function loadVideoThumbnail(src: string): Promise<HTMLCanvasElement> {
+  return new Promise((resolve, reject) => {
+    const cached = exportVideoThumbnailCache.get(src);
+    if (cached) {
+      resolve(cached);
+      return;
+    }
+    const video = document.createElement('video');
+    video.crossOrigin = 'anonymous';
+    video.muted = true;
+    video.preload = 'metadata';
+
+    video.onloadeddata = () => {
+      video.currentTime = 0;
+    };
+
+    video.onseeked = () => {
+      const thumbCanvas = document.createElement('canvas');
+      thumbCanvas.width = video.videoWidth;
+      thumbCanvas.height = video.videoHeight;
+      const thumbCtx = thumbCanvas.getContext('2d');
+      if (thumbCtx) {
+        thumbCtx.drawImage(video, 0, 0);
+        exportVideoThumbnailCache.set(src, thumbCanvas);
+        resolve(thumbCanvas);
+      } else {
+        reject(new Error('Failed to get canvas context'));
+      }
+    };
+
+    video.onerror = reject;
+    video.src = src;
+  });
+}
+
+// Draw a single object to export canvas (simplified version without viewport transform)
+async function drawObjectForExport(
+  ctx: CanvasRenderingContext2D,
+  obj: CanvasObject,
+  offsetX: number,
+  offsetY: number
+): Promise<void> {
+  const x = obj.x - offsetX;
+  const y = obj.y - offsetY;
+
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.rotate((obj.rotation * Math.PI) / 180);
+  ctx.globalAlpha = obj.opacity;
+
+  switch (obj.type) {
+    case 'rectangle':
+      if (obj.fill) {
+        ctx.fillStyle = obj.fill;
+        ctx.fillRect(0, 0, obj.width, obj.height);
+      }
+      if (obj.stroke && obj.strokeWidth) {
+        ctx.strokeStyle = obj.stroke;
+        ctx.lineWidth = obj.strokeWidth;
+        ctx.strokeRect(0, 0, obj.width, obj.height);
+      }
+      break;
+    case 'ellipse':
+      ctx.beginPath();
+      ctx.ellipse(obj.width / 2, obj.height / 2, obj.width / 2, obj.height / 2, 0, 0, Math.PI * 2);
+      if (obj.fill) {
+        ctx.fillStyle = obj.fill;
+        ctx.fill();
+      }
+      if (obj.stroke && obj.strokeWidth) {
+        ctx.strokeStyle = obj.stroke;
+        ctx.lineWidth = obj.strokeWidth;
+        ctx.stroke();
+      }
+      break;
+    case 'text': {
+      ctx.fillStyle = obj.fill || '#ffffff';
+      ctx.font = `${obj.fontSize}px ${obj.fontFamily}`;
+      ctx.textAlign = obj.textAlign;
+      ctx.textBaseline = 'top';
+      const textX = obj.textAlign === 'center' ? obj.width / 2 : obj.textAlign === 'right' ? obj.width : 0;
+      ctx.fillText(obj.text, textX, 0);
+      break;
+    }
+    case 'frame':
+      ctx.fillStyle = obj.fill || '#2a2a2a';
+      ctx.fillRect(0, 0, obj.width, obj.height);
+      ctx.strokeStyle = obj.stroke || '#3a3a3a';
+      ctx.lineWidth = obj.strokeWidth || 1;
+      ctx.strokeRect(0, 0, obj.width, obj.height);
+      // Draw frame label
+      ctx.fillStyle = '#888888';
+      ctx.font = '12px sans-serif';
+      ctx.textBaseline = 'bottom';
+      ctx.fillText(obj.name, 0, -4);
+      break;
+    case 'path':
+      if (obj.points.length > 0) {
+        ctx.beginPath();
+        const firstPoint = obj.points[0];
+        ctx.moveTo(firstPoint.x, firstPoint.y);
+        for (let i = 1; i < obj.points.length; i++) {
+          ctx.lineTo(obj.points[i].x, obj.points[i].y);
+        }
+        ctx.strokeStyle = obj.stroke || '#ffffff';
+        ctx.lineWidth = obj.strokeWidth || 2;
+        ctx.lineCap = 'round';
+        ctx.lineJoin = 'round';
+        ctx.stroke();
+      }
+      break;
+    case 'image': {
+      const imgObj = obj as ImageObject;
+      try {
+        const img = await loadImage(imgObj.src);
+        ctx.drawImage(img, 0, 0, obj.width, obj.height);
+      } catch {
+        // If image fails to load, draw placeholder
+        ctx.fillStyle = '#3a3a3a';
+        ctx.fillRect(0, 0, obj.width, obj.height);
+      }
+      break;
+    }
+    case 'video': {
+      const vidObj = obj as VideoObject;
+      try {
+        const thumbnail = await loadVideoThumbnail(vidObj.src);
+        ctx.drawImage(thumbnail, 0, 0, obj.width, obj.height);
+      } catch {
+        // If thumbnail fails to load, draw placeholder
+        ctx.fillStyle = '#2a2a2a';
+        ctx.fillRect(0, 0, obj.width, obj.height);
+      }
+      break;
+    }
+  }
+
+  ctx.restore();
+}
 
 interface CollapsibleSectionProps {
   title: string;
@@ -927,6 +1091,126 @@ function RotationControl({ value, disabled, onChange }: RotationControlProps) {
   );
 }
 
+interface ExportSectionProps {
+  objects: Map<string, CanvasObject>;
+  selectedIds: Set<string>;
+}
+
+function ExportSection({ objects, selectedIds }: ExportSectionProps) {
+  const [transparentBackground, setTransparentBackground] = useState(false);
+  const [isExporting, setIsExporting] = useState(false);
+
+  const handleExport = useCallback(async () => {
+    if (isExporting) return;
+    setIsExporting(true);
+
+    try {
+      // Determine which objects to export
+      const objectsToExport: CanvasObject[] = [];
+
+      if (selectedIds.size > 0) {
+        // Export selected objects
+        selectedIds.forEach((id) => {
+          const obj = objects.get(id);
+          if (obj) objectsToExport.push(obj);
+        });
+      } else {
+        // Export all objects
+        objects.forEach((obj) => objectsToExport.push(obj));
+      }
+
+      if (objectsToExport.length === 0) {
+        setIsExporting(false);
+        return;
+      }
+
+      // Calculate bounding box of all objects to export
+      const padding = 20; // Add padding around exported content
+      let minX = Infinity;
+      let minY = Infinity;
+      let maxX = -Infinity;
+      let maxY = -Infinity;
+
+      objectsToExport.forEach((obj) => {
+        // Account for rotation by using a larger bounding box
+        const diagonal = Math.sqrt(obj.width * obj.width + obj.height * obj.height);
+        const centerX = obj.x + obj.width / 2;
+        const centerY = obj.y + obj.height / 2;
+
+        minX = Math.min(minX, centerX - diagonal / 2);
+        minY = Math.min(minY, centerY - diagonal / 2);
+        maxX = Math.max(maxX, centerX + diagonal / 2);
+        maxY = Math.max(maxY, centerY + diagonal / 2);
+      });
+
+      const width = Math.ceil(maxX - minX) + padding * 2;
+      const height = Math.ceil(maxY - minY) + padding * 2;
+      const offsetX = minX - padding;
+      const offsetY = minY - padding;
+
+      // Create export canvas
+      const exportCanvas = document.createElement('canvas');
+      exportCanvas.width = width;
+      exportCanvas.height = height;
+      const ctx = exportCanvas.getContext('2d');
+
+      if (!ctx) {
+        setIsExporting(false);
+        return;
+      }
+
+      // Fill background if not transparent
+      if (!transparentBackground) {
+        ctx.fillStyle = '#1a1a1a';
+        ctx.fillRect(0, 0, width, height);
+      }
+
+      // Sort objects by zIndex and draw them
+      const sortedObjects = [...objectsToExport].sort((a, b) => a.zIndex - b.zIndex);
+
+      for (const obj of sortedObjects) {
+        await drawObjectForExport(ctx, obj, offsetX, offsetY);
+      }
+
+      // Download the image
+      const dataUrl = exportCanvas.toDataURL('image/png');
+      const link = document.createElement('a');
+      link.download = selectedIds.size > 0 ? 'selection.png' : 'canvas.png';
+      link.href = dataUrl;
+      link.click();
+    } finally {
+      setIsExporting(false);
+    }
+  }, [objects, selectedIds, transparentBackground, isExporting]);
+
+  const hasContent = objects.size > 0;
+  const exportLabel = selectedIds.size > 0 ? 'EXPORT SELECTION' : 'EXPORT CANVAS';
+
+  return (
+    <div className="export-section">
+      <div className="export-option">
+        <label className="export-checkbox-label">
+          <input
+            type="checkbox"
+            className="export-checkbox"
+            checked={transparentBackground}
+            onChange={(e) => setTransparentBackground(e.target.checked)}
+            disabled={!hasContent}
+          />
+          <span className="export-option-text">Transparent background</span>
+        </label>
+      </div>
+      <button
+        className={`export-button ${isExporting ? 'exporting' : ''}`}
+        onClick={handleExport}
+        disabled={!hasContent || isExporting}
+      >
+        {isExporting ? 'Exporting...' : exportLabel}
+      </button>
+    </div>
+  );
+}
+
 function HierarchySection() {
   const objects = useCanvasStore((state) => state.objects);
   const selectedIds = useCanvasStore((state) => state.selectedIds);
@@ -1283,6 +1567,16 @@ export function PropertiesPanel() {
 
           {/* Hierarchy Section */}
           <HierarchySection />
+
+          {/* Export Section */}
+          <div className="section">
+            <div className="section-header export-header">
+              <span className="section-title">EXPORT</span>
+            </div>
+            <div className="section-content">
+              <ExportSection objects={objects} selectedIds={selectedIds} />
+            </div>
+          </div>
         </div>
       )}
     </aside>
