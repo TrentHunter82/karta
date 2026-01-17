@@ -75,11 +75,11 @@ Karta is a lightweight, intuitive visual ideation tool for creating mood boards,
 **Description:** As a developer, I need centralized state management so canvas data is consistent across components.
 
 **Acceptance Criteria:**
-- [ ] Zustand store created with canvas state: `objects`, `selectedIds`, `viewport` (pan, zoom)
-- [ ] Actions: `addObject`, `updateObject`, `deleteObject`, `setSelection`, `setViewport`
-- [ ] Objects have base interface: `id`, `type`, `x`, `y`, `width`, `height`, `rotation`, `opacity`
-- [ ] Store is typed with TypeScript interfaces
-- [ ] Typecheck passes
+- [x] Zustand store created with canvas state: `objects`, `selectedIds`, `viewport` (pan, zoom)
+- [x] Actions: `addObject`, `updateObject`, `deleteObject`, `setSelection`, `setViewport`
+- [x] Objects have base interface: `id`, `type`, `x`, `y`, `width`, `height`, `rotation`, `opacity`
+- [x] Store is typed with TypeScript interfaces
+- [x] Typecheck passes
 
 ---
 

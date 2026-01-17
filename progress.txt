@@ -70,3 +70,23 @@
   - Window keydown/keyup listeners for Space key pan mode
   - Grid offset calculation: (panOffset * zoom) % gridSpacing for seamless tiling
 ---
+
+## Iteration 4 - US-004: Create Zustand store for canvas state
+- What was implemented:
+  - Installed Zustand package for state management
+  - Created TypeScript interfaces in src/types/canvas.ts for all canvas object types
+  - Created Zustand store in src/stores/canvasStore.ts with:
+    - State: objects (Map), selectedIds (Set), viewport
+    - Actions: addObject, updateObject, deleteObject, setSelection, setViewport
+  - All object types extend BaseObject with id, type, x, y, width, height, rotation, opacity
+- Files changed:
+  - package.json (added zustand dependency)
+  - src/types/canvas.ts (created - object type definitions)
+  - src/stores/canvasStore.ts (created - Zustand store)
+- Learnings for future iterations:
+  - Store import: `import { useCanvasStore } from '../stores/canvasStore'`
+  - Types import: `import type { CanvasObject, Viewport } from '../types/canvas'`
+  - Using Map and Set for objects/selectedIds for O(1) lookups
+  - Object types: rectangle, ellipse, text, frame, path, image, video
+  - Tool types: select, hand, rectangle, text, frame, pen
+---
