@@ -400,12 +400,12 @@ Karta is a lightweight, intuitive visual ideation tool for creating mood boards,
 **Description:** As a user, I want zoom buttons to control canvas zoom level.
 
 **Acceptance Criteria:**
-- [ ] Bottom-right: + and - buttons
-- [ ] + increases zoom by 25%, - decreases by 25%
-- [ ] Zoom percentage displayed between buttons (optional)
-- [ ] Keyboard shortcuts: Ctrl+= (zoom in), Ctrl+- (zoom out), Ctrl+0 (reset to 100%)
-- [ ] Typecheck passes
-- [ ] Verify changes work in browser
+- [x] Bottom-right: + and - buttons
+- [x] + increases zoom by 25%, - decreases by 25%
+- [x] Zoom percentage displayed between buttons (optional)
+- [x] Keyboard shortcuts: Ctrl+= (zoom in), Ctrl+- (zoom out), Ctrl+0 (reset to 100%)
+- [x] Typecheck passes
+- [x] Verify changes work in browser
 
 ---
 

@@ -12,19 +12,15 @@ const TOOL_SHORTCUTS: Record<string, ToolType> = {
 };
 
 /**
- * Hook that sets up global keyboard shortcuts for tool switching.
+ * Hook that sets up global keyboard shortcuts for tool switching and zoom control.
  * Shortcuts are disabled when typing in input fields.
  */
 export function useKeyboardShortcuts() {
   const setActiveTool = useCanvasStore((state) => state.setActiveTool);
+  const setViewport = useCanvasStore((state) => state.setViewport);
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
-      // Ignore if modifier keys are pressed (for other shortcuts like Ctrl+Z)
-      if (event.ctrlKey || event.metaKey || event.altKey) {
-        return;
-      }
-
       // Ignore if focus is on an input field, textarea, or contenteditable
       const target = event.target as HTMLElement;
       if (
@@ -32,6 +28,42 @@ export function useKeyboardShortcuts() {
         target.tagName === 'TEXTAREA' ||
         target.isContentEditable
       ) {
+        return;
+      }
+
+      // Handle zoom shortcuts (Ctrl/Cmd + key)
+      if (event.ctrlKey || event.metaKey) {
+        const viewport = useCanvasStore.getState().viewport;
+
+        // Ctrl+= or Ctrl++ (zoom in)
+        if (event.key === '=' || event.key === '+') {
+          event.preventDefault();
+          const newZoom = Math.min(5, viewport.zoom * 1.25);
+          setViewport({ zoom: newZoom });
+          return;
+        }
+
+        // Ctrl+- (zoom out)
+        if (event.key === '-') {
+          event.preventDefault();
+          const newZoom = Math.max(0.1, viewport.zoom / 1.25);
+          setViewport({ zoom: newZoom });
+          return;
+        }
+
+        // Ctrl+0 (reset to 100%)
+        if (event.key === '0') {
+          event.preventDefault();
+          setViewport({ zoom: 1 });
+          return;
+        }
+
+        // Other Ctrl/Cmd shortcuts - let them pass through
+        return;
+      }
+
+      // Ignore Alt key for tool shortcuts
+      if (event.altKey) {
         return;
       }
 
@@ -49,5 +81,5 @@ export function useKeyboardShortcuts() {
     return () => {
       window.removeEventListener('keydown', handleKeyDown);
     };
-  }, [setActiveTool]);
+  }, [setActiveTool, setViewport]);
 }

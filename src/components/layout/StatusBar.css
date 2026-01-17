@@ -11,13 +11,62 @@
 }
 
 .statusbar-left,
+.statusbar-center,
 .statusbar-right {
   display: flex;
   align-items: center;
   gap: 16px;
 }
 
+.statusbar-left,
+.statusbar-right {
+  flex: 1;
+}
+
+.statusbar-right {
+  justify-content: flex-end;
+}
+
 .statusbar-item {
   font-family: 'SF Mono', Monaco, 'Cascadia Code', monospace;
   letter-spacing: 0.5px;
+}
+
+/* Zoom Controls */
+.zoom-controls {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.zoom-button {
+  width: 20px;
+  height: 20px;
+  background: var(--color-bg-tertiary);
+  border: 1px solid var(--color-border);
+  border-radius: 4px;
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s ease;
+}
+
+.zoom-button:hover {
+  background: var(--color-bg-hover);
+  color: var(--color-text-primary);
+  border-color: var(--color-border-hover);
+}
+
+.zoom-button:active {
+  transform: scale(0.95);
+}
+
+.zoom-percentage {
+  min-width: 40px;
+  text-align: center;
+  font-family: 'SF Mono', Monaco, 'Cascadia Code', monospace;
+  font-size: 10px;
+  color: var(--color-text-muted);
 }
