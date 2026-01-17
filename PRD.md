@@ -455,11 +455,11 @@ Karta is a lightweight, intuitive visual ideation tool for creating mood boards,
 **Description:** As a developer, I need Yjs infrastructure for real-time sync.
 
 **Acceptance Criteria:**
-- [ ] Yjs document created for canvas state
-- [ ] y-websocket provider connects to collaboration server
-- [ ] Connection status tracked (connected/disconnected)
-- [ ] Graceful handling of connection loss
-- [ ] Typecheck passes
+- [x] Yjs document created for canvas state
+- [x] y-websocket provider connects to collaboration server
+- [x] Connection status tracked (connected/disconnected)
+- [x] Graceful handling of connection loss
+- [x] Typecheck passes
 
 ---
 

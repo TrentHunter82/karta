@@ -1,4 +1,5 @@
-import { useState, useRef, useCallback } from 'react';
+import { useState, useRef, useCallback, useEffect } from 'react';
+import { useCollaborationStore } from '../../stores/collaborationStore';
 import './TopBar.css';
 
 export function TopBar() {
@@ -7,6 +8,18 @@ export function TopBar() {
   const [editValue, setEditValue] = useState('');
   const inputRef = useRef<HTMLInputElement>(null);
   const originalValueRef = useRef('');
+
+  // Collaboration state
+  const connectionStatus = useCollaborationStore((state) => state.connectionStatus);
+  const connect = useCollaborationStore((state) => state.connect);
+  const roomId = useCollaborationStore((state) => state.roomId);
+
+  // Auto-connect on mount with a default room or from URL
+  useEffect(() => {
+    // Check for room ID in URL hash
+    const urlRoomId = window.location.hash.slice(1) || 'default-room';
+    connect(urlRoomId);
+  }, [connect]);
 
   const handleNameClick = useCallback(() => {
     setEditValue(sessionName);
@@ -81,7 +94,16 @@ export function TopBar() {
         )}
       </div>
       <div className="topbar-right">
-        <div className="connection-status connected" title="Connected">
+        <div
+          className={`connection-status ${connectionStatus}`}
+          title={
+            connectionStatus === 'connected'
+              ? `Connected to room: ${roomId}`
+              : connectionStatus === 'connecting'
+                ? 'Connecting...'
+                : 'Disconnected'
+          }
+        >
           <svg
             width="16"
             height="16"
