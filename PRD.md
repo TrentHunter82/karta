@@ -171,12 +171,12 @@ Karta is a lightweight, intuitive visual ideation tool for creating mood boards,
 **Description:** As a user, I want to rotate objects using the rotation handle.
 
 **Acceptance Criteria:**
-- [ ] Rotation handle appears above top-center of selection
-- [ ] Drag rotation handle rotates object around center
-- [ ] Shift+drag snaps to 15° increments
-- [ ] Rotation displayed in properties panel
-- [ ] Typecheck passes
-- [ ] Verify changes work in browser
+- [x] Rotation handle appears above top-center of selection
+- [x] Drag rotation handle rotates object around center
+- [x] Shift+drag snaps to 15° increments
+- [x] Rotation displayed in properties panel
+- [x] Typecheck passes
+- [x] Verify changes work in browser
 
 ---
 

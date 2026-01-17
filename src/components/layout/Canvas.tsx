@@ -14,6 +14,7 @@ const MIN_OBJECT_SIZE = 10;
 
 // Handle types for resize
 type HandleType = 'nw' | 'n' | 'ne' | 'e' | 'se' | 's' | 'sw' | 'w' | null;
+type RotationHandle = 'rotation' | null;
 
 // Handle positions with their types
 const HANDLE_POSITIONS: { type: HandleType; getPos: (w: number, h: number) => { x: number; y: number } }[] = [
@@ -60,6 +61,8 @@ export function Canvas() {
   const [activeResizeHandle, setActiveResizeHandle] = useState<HandleType>(null);
   const [hoveredObjectId, setHoveredObjectId] = useState<string | null>(null);
   const [hoveredHandle, setHoveredHandle] = useState<HandleType>(null);
+  const [isRotating, setIsRotating] = useState(false);
+  const [hoveredRotationHandle, setHoveredRotationHandle] = useState<RotationHandle>(null);
   const lastMousePos = useRef({ x: 0, y: 0 });
   const dragStartCanvasPos = useRef({ x: 0, y: 0 });
   const marqueeStart = useRef({ x: 0, y: 0 });
@@ -68,6 +71,8 @@ export function Canvas() {
   const resizeHandle = useRef<HandleType>(null);
   const resizeStartObjState = useRef<{ x: number; y: number; width: number; height: number } | null>(null);
   const resizeShiftKey = useRef(false);
+  const rotationStartAngle = useRef(0);
+  const rotationObjStartRotation = useRef(0);
 
   // Resize canvas to fill container
   const resizeCanvas = useCallback(() => {
@@ -468,6 +473,40 @@ export function Canvas() {
     [viewport, canvasToScreen]
   );
 
+  // Hit test for rotation handle on a selected object
+  const hitTestRotationHandle = useCallback(
+    (screenX: number, screenY: number, obj: CanvasObject): RotationHandle => {
+      const { zoom } = viewport;
+      const screenPos = canvasToScreen(obj.x, obj.y);
+      const width = obj.width * zoom;
+
+      // Transform click point to object's local coordinate system
+      const cos = Math.cos((-obj.rotation * Math.PI) / 180);
+      const sin = Math.sin((-obj.rotation * Math.PI) / 180);
+
+      // Translate relative to object's screen position
+      const dx = screenX - screenPos.x;
+      const dy = screenY - screenPos.y;
+
+      // Apply inverse rotation
+      const localX = dx * cos - dy * sin;
+      const localY = dx * sin + dy * cos;
+
+      // Rotation handle position (top-center, above the object)
+      const rotationHandleX = width / 2;
+      const rotationHandleY = -ROTATION_HANDLE_OFFSET;
+
+      const hitRadius = HANDLE_SIZE / 2 + 4; // Slightly larger hit area for rotation handle
+      const distSq = (localX - rotationHandleX) ** 2 + (localY - rotationHandleY) ** 2;
+      if (distSq <= hitRadius ** 2) {
+        return 'rotation';
+      }
+
+      return null;
+    },
+    [viewport, canvasToScreen]
+  );
+
   // Check if an object intersects with a rectangle (for marquee selection)
   const objectIntersectsRect = useCallback(
     (obj: CanvasObject, rectX1: number, rectY1: number, rectX2: number, rectY2: number): boolean => {
@@ -549,11 +588,32 @@ export function Canvas() {
 
     // Left click with select tool - selection and dragging
     if (e.button === 0 && activeTool === 'select') {
-      // Check if clicking on a resize handle of a selected object (only single selection)
+      // Check if clicking on a resize or rotation handle of a selected object (only single selection)
       if (selectedIds.size === 1) {
         const selectedId = Array.from(selectedIds)[0];
         const selectedObj = objects.get(selectedId);
         if (selectedObj) {
+          // Check rotation handle first
+          const rotationHandle = hitTestRotationHandle(screenX, screenY, selectedObj);
+          if (rotationHandle) {
+            // Start rotating
+            setIsRotating(true);
+
+            // Calculate the center of the object in screen coordinates
+            const centerX = selectedObj.x + selectedObj.width / 2;
+            const centerY = selectedObj.y + selectedObj.height / 2;
+            const screenCenter = canvasToScreen(centerX, centerY);
+
+            // Calculate initial angle from center to mouse position
+            const angleRad = Math.atan2(
+              screenY - screenCenter.y,
+              screenX - screenCenter.x
+            );
+            rotationStartAngle.current = (angleRad * 180) / Math.PI + 90; // +90 because handle is at top
+            rotationObjStartRotation.current = selectedObj.rotation;
+            return;
+          }
+
           const handle = hitTestHandle(screenX, screenY, selectedObj);
           if (handle) {
             // Start resizing
@@ -616,7 +676,7 @@ export function Canvas() {
         }
       }
     }
-  }, [isSpacePressed, activeTool, hitTest, hitTestHandle, selectedIds, setSelection, screenToCanvas, objects]);
+  }, [isSpacePressed, activeTool, hitTest, hitTestHandle, hitTestRotationHandle, selectedIds, setSelection, screenToCanvas, canvasToScreen, objects]);
 
   // Handle mouse move for panning, dragging, and hover detection
   const handleMouseMove = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
@@ -781,6 +841,45 @@ export function Canvas() {
       return;
     }
 
+    // Handle rotation
+    if (isRotating && selectedIds.size === 1) {
+      const selectedId = Array.from(selectedIds)[0];
+      const selectedObj = objects.get(selectedId);
+      if (selectedObj) {
+        // Calculate the center of the object in screen coordinates
+        const centerX = selectedObj.x + selectedObj.width / 2;
+        const centerY = selectedObj.y + selectedObj.height / 2;
+        const screenCenter = canvasToScreen(centerX, centerY);
+
+        // Calculate current angle from center to mouse position
+        const currentAngleRad = Math.atan2(
+          screenY - screenCenter.y,
+          screenX - screenCenter.x
+        );
+        const currentAngle = (currentAngleRad * 180) / Math.PI + 90; // +90 because handle is at top
+
+        // Calculate rotation delta
+        let rotationDelta = currentAngle - rotationStartAngle.current;
+
+        // Calculate new rotation
+        let newRotation = rotationObjStartRotation.current + rotationDelta;
+
+        // Normalize to 0-360 range
+        newRotation = ((newRotation % 360) + 360) % 360;
+
+        // Shift+drag snaps to 15° increments
+        if (e.shiftKey) {
+          newRotation = Math.round(newRotation / 15) * 15;
+        }
+
+        updateObjects([{
+          id: selectedId,
+          changes: { rotation: newRotation },
+        }]);
+      }
+      return;
+    }
+
     // Handle marquee selection
     if (isMarqueeSelecting) {
       const canvasPos = screenToCanvas(screenX, screenY);
@@ -790,22 +889,33 @@ export function Canvas() {
       return;
     }
 
-    // Hover detection for resize handles and move cursor (only when not dragging/panning/resizing)
+    // Hover detection for resize handles, rotation handle, and move cursor (only when not dragging/panning/resizing)
     if (activeTool === 'select' && !isSpacePressed) {
       // First check for handle hover on selected objects
       if (selectedIds.size === 1) {
         const selectedId = Array.from(selectedIds)[0];
         const selectedObj = objects.get(selectedId);
         if (selectedObj) {
+          // Check rotation handle first
+          const rotHandle = hitTestRotationHandle(screenX, screenY, selectedObj);
+          if (rotHandle) {
+            setHoveredRotationHandle(rotHandle);
+            setHoveredHandle(null);
+            setHoveredObjectId(null);
+            return;
+          }
+
           const handle = hitTestHandle(screenX, screenY, selectedObj);
           if (handle) {
             setHoveredHandle(handle);
+            setHoveredRotationHandle(null);
             setHoveredObjectId(null);
             return;
           }
         }
       }
       setHoveredHandle(null);
+      setHoveredRotationHandle(null);
 
       // Then check for object hover
       const hitObject = hitTest(screenX, screenY);
@@ -815,7 +925,7 @@ export function Canvas() {
         setHoveredObjectId(null);
       }
     }
-  }, [isPanning, isDragging, isResizing, isMarqueeSelecting, viewport, setViewport, selectedIds, objects, updateObjects, activeTool, isSpacePressed, hitTest, hitTestHandle, screenToCanvas, draw]);
+  }, [isPanning, isDragging, isResizing, isRotating, isMarqueeSelecting, viewport, setViewport, selectedIds, objects, updateObjects, activeTool, isSpacePressed, hitTest, hitTestHandle, hitTestRotationHandle, screenToCanvas, canvasToScreen, draw]);
 
   // Handle mouse up to stop panning, dragging, and finalize marquee selection
   const handleMouseUp = useCallback(() => {
@@ -839,6 +949,7 @@ export function Canvas() {
     setIsPanning(false);
     setIsDragging(false);
     setIsResizing(false);
+    setIsRotating(false);
     setActiveResizeHandle(null);
     resizeHandle.current = null;
     resizeStartObjState.current = null;
@@ -850,9 +961,11 @@ export function Canvas() {
     setIsDragging(false);
     setIsMarqueeSelecting(false);
     setIsResizing(false);
+    setIsRotating(false);
     setActiveResizeHandle(null);
     setHoveredObjectId(null);
     setHoveredHandle(null);
+    setHoveredRotationHandle(null);
     resizeHandle.current = null;
     resizeStartObjState.current = null;
   }, []);
@@ -867,11 +980,16 @@ export function Canvas() {
   // Determine cursor style
   const getCursorStyle = () => {
     if (isPanning) return 'grabbing';
+    if (isRotating) return 'grab'; // Could use a custom rotate cursor
     if (isResizing && activeResizeHandle) return HANDLE_CURSORS[activeResizeHandle];
     if (isDragging) return 'move';
     if (isMarqueeSelecting) return 'crosshair';
     if (isSpacePressed || activeTool === 'hand') return 'grab';
     if (activeTool === 'select') {
+      // Check for rotation handle hover
+      if (hoveredRotationHandle) {
+        return 'grab'; // Could use a custom rotate cursor
+      }
       // Check for resize handle hover
       if (hoveredHandle) {
         return HANDLE_CURSORS[hoveredHandle];
