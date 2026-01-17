@@ -5,6 +5,20 @@ import { WebsocketProvider } from 'y-websocket';
 // Connection status type
 export type ConnectionStatus = 'disconnected' | 'connecting' | 'connected';
 
+// User cursor presence data
+export interface UserPresence {
+  clientId: number;
+  user: {
+    name: string;
+    color: string;
+  };
+  cursor: {
+    x: number;
+    y: number;
+  } | null;
+  lastActive: number;
+}
+
 interface CollaborationState {
   // Yjs document and provider
   doc: Y.Doc;
@@ -18,10 +32,17 @@ interface CollaborationState {
   reconnectAttempts: number;
   maxReconnectAttempts: number;
 
+  // User presence
+  localUser: { name: string; color: string };
+  remoteUsers: Map<number, UserPresence>;
+
   // Actions
   connect: (roomId: string, serverUrl?: string) => void;
   disconnect: () => void;
   setConnectionStatus: (status: ConnectionStatus) => void;
+  setLocalCursor: (x: number, y: number) => void;
+  clearLocalCursor: () => void;
+  setLocalUserName: (name: string) => void;
 }
 
 // Default WebSocket server URL (y-websocket demo server)
@@ -31,6 +52,25 @@ const DEFAULT_SERVER_URL = 'wss://demos.yjs.dev/ws';
 // Create a shared Yjs document
 const ydoc = new Y.Doc();
 
+// Generate a random color for user presence
+const generateUserColor = (): string => {
+  const colors = [
+    '#FF6B6B', '#4ECDC4', '#45B7D1', '#96CEB4', '#FFEAA7',
+    '#DDA0DD', '#98D8C8', '#F7DC6F', '#BB8FCE', '#85C1E9',
+    '#F8B500', '#FF6F61', '#6B5B95', '#88B04B', '#F7CAC9',
+  ];
+  return colors[Math.floor(Math.random() * colors.length)];
+};
+
+// Generate a random user name
+const generateUserName = (): string => {
+  const adjectives = ['Happy', 'Swift', 'Bright', 'Calm', 'Bold', 'Keen', 'Noble', 'Witty'];
+  const animals = ['Fox', 'Owl', 'Bear', 'Wolf', 'Deer', 'Hawk', 'Lion', 'Swan'];
+  const adj = adjectives[Math.floor(Math.random() * adjectives.length)];
+  const animal = animals[Math.floor(Math.random() * animals.length)];
+  return `${adj} ${animal}`;
+};
+
 export const useCollaborationStore = create<CollaborationState>((set, get) => ({
   // Initial state
   doc: ydoc,
@@ -39,6 +79,11 @@ export const useCollaborationStore = create<CollaborationState>((set, get) => ({
   roomId: '',
   reconnectAttempts: 0,
   maxReconnectAttempts: 5,
+  localUser: {
+    name: generateUserName(),
+    color: generateUserColor(),
+  },
+  remoteUsers: new Map(),
 
   // Actions
   connect: (roomId: string, serverUrl: string = DEFAULT_SERVER_URL) => {
@@ -115,6 +160,41 @@ export const useCollaborationStore = create<CollaborationState>((set, get) => ({
         console.error('[Collaboration] Connection error:', event);
       });
 
+      // Set up awareness for cursor presence
+      const awareness = provider.awareness;
+      const { localUser } = get();
+
+      // Set initial local state
+      awareness.setLocalStateField('user', localUser);
+      awareness.setLocalStateField('cursor', null);
+
+      // Handle awareness changes (remote users' cursors)
+      const handleAwarenessChange = () => {
+        const states = awareness.getStates();
+        const newRemoteUsers = new Map<number, UserPresence>();
+        const localClientId = awareness.clientID;
+
+        states.forEach((state, clientId) => {
+          // Skip our own client
+          if (clientId === localClientId) return;
+
+          if (state.user) {
+            newRemoteUsers.set(clientId, {
+              clientId,
+              user: state.user as { name: string; color: string },
+              cursor: state.cursor as { x: number; y: number } | null,
+              lastActive: Date.now(),
+            });
+          }
+        });
+
+        set({ remoteUsers: newRemoteUsers });
+      };
+
+      awareness.on('change', handleAwarenessChange);
+      // Initial update
+      handleAwarenessChange();
+
       set({ provider });
 
     } catch (error) {
@@ -135,7 +215,8 @@ export const useCollaborationStore = create<CollaborationState>((set, get) => ({
       provider: null,
       connectionStatus: 'disconnected',
       roomId: '',
-      reconnectAttempts: 0
+      reconnectAttempts: 0,
+      remoteUsers: new Map()
     });
 
     console.log('[Collaboration] Disconnected from room');
@@ -143,6 +224,29 @@ export const useCollaborationStore = create<CollaborationState>((set, get) => ({
 
   setConnectionStatus: (status: ConnectionStatus) => {
     set({ connectionStatus: status });
+  },
+
+  setLocalCursor: (x: number, y: number) => {
+    const { provider } = get();
+    if (provider?.awareness) {
+      provider.awareness.setLocalStateField('cursor', { x, y });
+    }
+  },
+
+  clearLocalCursor: () => {
+    const { provider } = get();
+    if (provider?.awareness) {
+      provider.awareness.setLocalStateField('cursor', null);
+    }
+  },
+
+  setLocalUserName: (name: string) => {
+    const { provider, localUser } = get();
+    const newLocalUser = { ...localUser, name };
+    set({ localUser: newLocalUser });
+    if (provider?.awareness) {
+      provider.awareness.setLocalStateField('user', newLocalUser);
+    }
   },
 }));
 

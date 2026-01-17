@@ -552,3 +552,196 @@
   - Connection status uses CSS classes (connected/disconnected) for color switching
   - Version badge styled as small pill with tertiary background
 ---
+
+## Iteration 27 - US-027: Build bottom status bar
+- What was implemented:
+  - Added cursorPosition state to canvasStore (null when mouse not over canvas)
+  - Added setCursorPosition action to update cursor position
+  - StatusBar reads cursor position and selection count from store
+  - Real-time updates as mouse moves over canvas
+  - Shows canvas coordinates accounting for pan/zoom via screenToCanvas conversion
+  - Selection display: "SEL NONE" / "SEL 1 object" / "SEL X objects"
+- Files changed:
+  - src/stores/canvasStore.ts (added cursorPosition state and setCursorPosition action)
+  - src/components/layout/Canvas.tsx (update cursor position on mouse move, clear on mouse leave)
+  - src/components/layout/StatusBar.tsx (read from store, format display)
+  - PRD.md (marked task complete)
+- Learnings for future iterations:
+  - Use Zustand store to share state between sibling components (Canvas and StatusBar)
+  - screenToCanvas already accounts for pan/zoom, returns correct canvas coordinates
+  - Set cursor position to null on mouse leave to show "---" placeholder
+  - Math.round() for clean integer display of coordinates
+---
+
+## Iteration 28 - US-028: Implement zoom controls
+- What was implemented:
+  - Zoom buttons (+ and -) in bottom-right of status bar
+  - Zoom percentage display between buttons (shows current zoom level)
+  - + button increases zoom by 25% (multiply by 1.25)
+  - - button decreases zoom by 25% (divide by 1.25)
+  - Zoom clamped to 10%-500% range (0.1 to 5.0)
+  - Keyboard shortcuts: Ctrl+= (zoom in), Ctrl+- (zoom out), Ctrl+0 (reset to 100%)
+  - Shortcuts work globally except when in input fields
+- Files changed:
+  - src/components/layout/StatusBar.tsx (added zoom controls UI and handlers)
+  - src/components/layout/StatusBar.css (added zoom button styles, restructured layout)
+  - src/hooks/useKeyboardShortcuts.ts (added Ctrl+=/Ctrl+-/Ctrl+0 zoom shortcuts)
+  - PRD.md (marked task complete)
+- Learnings for future iterations:
+  - StatusBar now has three sections: left (position), center (selection), right (zoom)
+  - Zoom multiplier of 1.25 gives nice 25% increments
+  - Handle both '=' and '+' for zoom in (keyboard layouts differ)
+  - useCanvasStore.getState() can be used inside event handler to get current state
+---
+
+## Iteration 29 - US-029: Implement image import via file picker
+- What was implemented:
+  - Import Image button added to toolbar (below pen tool, after divider)
+  - Hidden file input accepting .png, .jpg, .gif, .webp formats
+  - FileReader reads image as data URL, Image object loads dimensions
+  - Images placed at canvas center accounting for viewport pan/zoom
+  - Large images scaled down to max 800px while maintaining aspect ratio
+  - Canvas now properly renders images instead of placeholder
+  - Image cache (Map<string, HTMLImageElement>) for performance
+  - imageLoadTrigger state to trigger redraws when images finish loading
+- Files changed:
+  - src/components/layout/Toolbar.tsx (added import button, file input, file handling logic)
+  - src/components/layout/Canvas.tsx (added ImageObject import, imageCache, image rendering logic)
+  - PRD.md (marked task complete)
+- Learnings for future iterations:
+  - Use data URLs (FileReader.readAsDataURL) for image storage in objects
+  - Image cache outside component avoids reloading on every render
+  - Use state trigger (imageLoadTrigger) to force redraw when async image loads
+  - Check img.complete && img.naturalWidth > 0 to verify image is fully loaded
+  - Calculate canvas center: -viewport.x + (window.innerWidth / 2) / viewport.zoom
+  - Reset file input value after reading to allow re-selecting same file
+---
+
+## Iteration 30 - US-030: Implement image drag-and-drop
+- What was implemented:
+  - isDragOver state to track when files are being dragged over canvas
+  - handleDragOver, handleDragEnter, handleDragLeave event handlers
+  - handleDrop event handler for processing dropped image files
+  - Drop indicator overlay with blue dashed border and image icon
+  - Images dropped at cursor position (centered under cursor)
+  - Multiple files support: offset each subsequent image by 20px
+  - Filter for valid image types: .png, .jpg, .gif, .webp (MIME type check)
+  - Large images scaled down to max 800px while maintaining aspect ratio
+- Files changed:
+  - src/components/layout/Canvas.tsx (added drag-and-drop handlers, isDragOver state)
+  - src/components/layout/Canvas.css (added .drop-indicator and .drop-indicator-content styles)
+  - PRD.md (marked task complete)
+- Learnings for future iterations:
+  - Use e.dataTransfer.types.includes('Files') to check if drag contains files
+  - Set e.dataTransfer.dropEffect = 'copy' to show copy cursor
+  - Use pointer-events: none on drop indicator overlay so it doesn't block events
+  - Check e.currentTarget === e.target for drag leave to avoid false triggers
+  - Process multiple files with forEach and offset each image position
+  - Reuse same image loading pattern from file picker (FileReader + Image)
+---
+
+## Iteration 31 - US-031: Implement video import and playback
+- What was implemented:
+  - File picker now accepts .mp4 and .webm video files in addition to images
+  - Drag-and-drop supports video files (same formats)
+  - Video thumbnail generation using HTMLVideoElement + canvas snapshot
+  - Video thumbnail cache (videoThumbnailCache) for performance
+  - Video element cache (videoElementCache) for reference
+  - Video rendering on canvas: shows thumbnail with semi-transparent overlay and play button
+  - Click on video object toggles playback state
+  - Video plays inline using HTML5 video element overlaid on canvas
+  - Video player has native controls (play/pause, scrub, volume, fullscreen)
+  - Video stops when it ends (onEnded handler)
+- Files changed:
+  - src/types/canvas.ts (VideoObject already existed, no changes needed)
+  - src/components/layout/Toolbar.tsx (added video file support to file picker, VideoObject import)
+  - src/components/layout/Canvas.tsx (added video caches, video thumbnail rendering, playback state, video player overlay)
+  - src/components/layout/Canvas.css (added .video-player styles)
+  - PRD.md (marked task complete)
+- Learnings for future iterations:
+  - Use document.createElement('video') to create video element for thumbnail generation
+  - Set video.muted = true and video.preload = 'metadata' for quick thumbnail generation
+  - Listen to onloadeddata then seek to currentTime = 0, then onseeked to draw thumbnail
+  - Canvas thumbnail: create canvas same size as video, drawImage(video) to capture frame
+  - Video player uses style position to overlay on canvas at correct position
+  - Remember to add playingVideoId to handleMouseDown dependency array
+  - HTMLVideoElement.videoWidth and videoHeight give video dimensions
+---
+
+## Iteration 32 - US-032: Set up Yjs document and WebSocket provider
+- What was implemented:
+  - Installed yjs and y-websocket npm packages
+  - Created collaborationStore.ts with Zustand store for collaboration state
+  - Yjs document (Y.Doc) created for canvas state with getMap/getArray helpers
+  - WebsocketProvider connects to y-websocket demo server (configurable)
+  - Connection status tracked: 'disconnected', 'connecting', 'connected'
+  - Graceful connection loss handling with reconnection attempts (up to 5)
+  - Auto-connect on app mount using URL hash for room ID
+  - TopBar updated to show real connection status from store
+  - Connection status colors: green (connected), yellow pulsing (connecting), red (disconnected)
+- Files changed:
+  - package.json, package-lock.json (added yjs, y-websocket dependencies)
+  - src/stores/collaborationStore.ts (created - Yjs document, WebSocket provider, connection state)
+  - src/components/layout/TopBar.tsx (added collaboration store integration)
+  - src/components/layout/TopBar.css (added connecting state styles with pulse animation)
+  - PRD.md (marked task complete)
+- Learnings for future iterations:
+  - Use Y.Doc.getMap('name') and Y.Doc.getArray('name') to create shared data types
+  - WebsocketProvider events: 'status', 'sync', 'connection-close', 'connection-error'
+  - Use useEffect with empty deps to connect on mount
+  - Export ydoc from collaborationStore for use in other stores (canvasStore sync)
+  - Room ID prefix 'karta-' avoids conflicts with other Yjs apps on demo server
+  - Next task (US-033) will sync canvasStore objects with Yjs document
+---
+
+## Iteration 33 - US-033: Sync canvas objects via Yjs
+- What was implemented:
+  - Bidirectional sync between canvasStore and Yjs document
+  - Y.Map for each object with all properties synced
+  - Object creation triggers yObjects.set() with new Y.Map
+  - Object updates trigger yMap.set() for changed properties
+  - Object deletion triggers yObjects.delete()
+  - Yjs observe() and observeDeep() handlers for remote changes
+  - isApplyingRemoteChanges flag to prevent sync loops
+  - initializeYjsSync() action to set up observers and load initial state
+  - App.tsx connects to room and initializes sync on connection
+  - Removed test objects - canvas now starts empty or loads from Yjs
+- Files changed:
+  - src/stores/canvasStore.ts (added Yjs sync, initializeYjsSync action, isInitialized state)
+  - src/stores/collaborationStore.ts (fixed Event type for connection-error handler)
+  - src/App.tsx (removed test objects, added sync initialization)
+  - PRD.md (marked task complete)
+- Learnings for future iterations:
+  - Use Y.Map for nested object properties (each canvas object is a Y.Map)
+  - Check event.transaction.local to skip changes we originated
+  - Use isApplyingRemoteChanges flag to prevent sync loops during remote updates
+  - observeDeep() catches property changes within nested Y.Maps
+  - Convert CanvasObject to plain object before storing in Y.Map
+  - Type assertion: `obj as unknown as CanvasObject` for Record<string, unknown>
+  - Initialize sync only after WebSocket connection is established
+---
+
+## Iteration 34 - US-034: Implement cursor presence
+- What was implemented:
+  - Yjs awareness API for broadcasting cursor positions
+  - CursorPresence component that displays other users' cursors
+  - Cursor updates throttled to ~30fps (33ms interval)
+  - Cursors fade out after 5 seconds of inactivity
+  - Random user name and color generation for each session
+  - Remote cursors displayed with colored pointer SVG and name label
+- Files changed:
+  - src/stores/collaborationStore.ts (added UserPresence type, awareness setup, setLocalCursor, clearLocalCursor actions)
+  - src/components/layout/CursorPresence.tsx (created - cursor presence rendering)
+  - src/components/layout/CursorPresence.css (created - cursor styles)
+  - src/components/layout/Canvas.tsx (added CursorPresence component)
+  - src/components/layout/index.ts (exported CursorPresence)
+  - PRD.md (marked task complete)
+- Learnings for future iterations:
+  - Use provider.awareness.setLocalStateField() to broadcast cursor position
+  - Use provider.awareness.on('change') to listen for remote cursor updates
+  - Store timestamps outside React state in module-scope Map to avoid ESLint purity errors
+  - Use useMemo with currentTime state for fade calculations (avoid Date.now() during render)
+  - ESLint rules prohibit: calling impure functions during render, setState in effects, ref access during render
+  - Use functional state updates with setCurrentTime for periodic updates
+  - Cursor presence layer needs pointer-events: none to not block canvas interactions
+---

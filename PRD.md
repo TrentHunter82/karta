@@ -480,12 +480,12 @@ Karta is a lightweight, intuitive visual ideation tool for creating mood boards,
 **Description:** As a user, I want to see other users' cursors on the canvas.
 
 **Acceptance Criteria:**
-- [ ] Each user's cursor position broadcast via Yjs awareness
-- [ ] Other users' cursors displayed with name label and color
-- [ ] Cursors update smoothly (throttled to ~30fps)
-- [ ] Cursors fade out after user inactive for 5s
-- [ ] Typecheck passes
-- [ ] Verify changes work in browser
+- [x] Each user's cursor position broadcast via Yjs awareness
+- [x] Other users' cursors displayed with name label and color
+- [x] Cursors update smoothly (throttled to ~30fps)
+- [x] Cursors fade out after user inactive for 5s
+- [x] Typecheck passes
+- [x] Verify changes work in browser
 
 ---
 

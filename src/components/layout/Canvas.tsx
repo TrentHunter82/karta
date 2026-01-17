@@ -1,6 +1,7 @@
 import { useRef, useEffect, useState, useCallback } from 'react';
 import { useCanvasStore } from '../../stores/canvasStore';
 import type { CanvasObject, RectangleObject, EllipseObject, TextObject, FrameObject, PathObject, PathPoint, ImageObject, VideoObject } from '../../types/canvas';
+import { CursorPresence } from './CursorPresence';
 import './Canvas.css';
 
 // Image cache for loaded images
@@ -2040,6 +2041,7 @@ export function Canvas() {
           onBlur={exitFrameNameEditMode}
         />
       )}
+      <CursorPresence />
     </main>
   );
 }
