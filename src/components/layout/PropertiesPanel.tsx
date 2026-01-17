@@ -263,6 +263,332 @@ function OpacityControl({ value, disabled, onChange }: OpacityControlProps) {
   );
 }
 
+interface FillControlProps {
+  value: string | undefined;
+  enabled: boolean;
+  disabled: boolean;
+  onColorChange: (value: string) => void;
+  onEnabledChange: (enabled: boolean) => void;
+}
+
+function FillControl({ value, enabled, disabled, onColorChange, onEnabledChange }: FillControlProps) {
+  const [isEditing, setIsEditing] = useState(false);
+  const [editValue, setEditValue] = useState(value ?? '#4a4a4a');
+  const [showColorPicker, setShowColorPicker] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const originalValueRef = useRef(value ?? '#4a4a4a');
+  const colorPickerRef = useRef<HTMLDivElement>(null);
+
+  const handleInputClick = () => {
+    if (disabled) return;
+    originalValueRef.current = value ?? '#4a4a4a';
+    setEditValue(value ?? '#4a4a4a');
+    setIsEditing(true);
+  };
+
+  useEffect(() => {
+    if (isEditing && inputRef.current) {
+      inputRef.current.focus();
+      inputRef.current.select();
+    }
+  }, [isEditing]);
+
+  // Close color picker when clicking outside
+  useEffect(() => {
+    if (!showColorPicker) return;
+
+    const handleClickOutside = (e: MouseEvent) => {
+      if (colorPickerRef.current && !colorPickerRef.current.contains(e.target as Node)) {
+        setShowColorPicker(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [showColorPicker]);
+
+  const commitChange = () => {
+    const hexRegex = /^#?([0-9a-fA-F]{6}|[0-9a-fA-F]{3})$/;
+    let cleanValue = editValue.trim();
+    if (!cleanValue.startsWith('#')) {
+      cleanValue = '#' + cleanValue;
+    }
+    if (hexRegex.test(cleanValue)) {
+      // Normalize to 6 digit hex
+      if (cleanValue.length === 4) {
+        cleanValue = '#' + cleanValue[1] + cleanValue[1] + cleanValue[2] + cleanValue[2] + cleanValue[3] + cleanValue[3];
+      }
+      onColorChange(cleanValue.toLowerCase());
+    }
+    setIsEditing(false);
+  };
+
+  const revertChange = () => {
+    setEditValue(originalValueRef.current);
+    setIsEditing(false);
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    e.stopPropagation();
+    if (e.key === 'Enter') {
+      commitChange();
+    } else if (e.key === 'Escape') {
+      revertChange();
+    }
+  };
+
+  const handleBlur = () => {
+    commitChange();
+  };
+
+  const handleSwatchClick = () => {
+    if (disabled) return;
+    setShowColorPicker(!showColorPicker);
+  };
+
+  const displayValue = disabled ? '---' : (value ?? '#4a4a4a');
+  const swatchColor = disabled ? '#4a4a4a' : (value ?? '#4a4a4a');
+
+  return (
+    <div className="fill-control">
+      <div className="property-row fill-row">
+        <div className="fill-left">
+          <input
+            type="checkbox"
+            className="fill-checkbox"
+            checked={!disabled && enabled}
+            disabled={disabled}
+            onChange={(e) => onEnabledChange(e.target.checked)}
+          />
+          <span className="property-label">FILL</span>
+        </div>
+        <div className="fill-right">
+          <button
+            className={`color-swatch ${disabled ? 'disabled' : ''}`}
+            style={{ backgroundColor: swatchColor }}
+            onClick={handleSwatchClick}
+            disabled={disabled}
+            aria-label="Open color picker"
+          />
+          {isEditing ? (
+            <input
+              ref={inputRef}
+              type="text"
+              className="property-input hex-input"
+              value={editValue}
+              onChange={(e) => setEditValue(e.target.value)}
+              onKeyDown={handleKeyDown}
+              onBlur={handleBlur}
+            />
+          ) : (
+            <span
+              className={`property-value ${!disabled ? 'editable' : ''}`}
+              onClick={handleInputClick}
+            >
+              {displayValue}
+            </span>
+          )}
+        </div>
+      </div>
+      {showColorPicker && !disabled && (
+        <div className="color-picker-wrapper" ref={colorPickerRef}>
+          <ColorPicker
+            color={value ?? '#4a4a4a'}
+            onChange={onColorChange}
+          />
+        </div>
+      )}
+    </div>
+  );
+}
+
+// Helper functions for HSV <-> RGB conversion
+function rgbToHsv(r: number, g: number, b: number): [number, number, number] {
+  r /= 255;
+  g /= 255;
+  b /= 255;
+  const max = Math.max(r, g, b);
+  const min = Math.min(r, g, b);
+  const d = max - min;
+  let h = 0;
+  const s = max === 0 ? 0 : d / max;
+  const v = max;
+
+  if (max !== min) {
+    switch (max) {
+      case r:
+        h = ((g - b) / d + (g < b ? 6 : 0)) / 6;
+        break;
+      case g:
+        h = ((b - r) / d + 2) / 6;
+        break;
+      case b:
+        h = ((r - g) / d + 4) / 6;
+        break;
+    }
+  }
+
+  return [h * 360, s * 100, v * 100];
+}
+
+function hsvToRgb(h: number, s: number, v: number): [number, number, number] {
+  h /= 360;
+  s /= 100;
+  v /= 100;
+  let r = 0, g = 0, b = 0;
+
+  const i = Math.floor(h * 6);
+  const f = h * 6 - i;
+  const p = v * (1 - s);
+  const q = v * (1 - f * s);
+  const t = v * (1 - (1 - f) * s);
+
+  switch (i % 6) {
+    case 0: r = v; g = t; b = p; break;
+    case 1: r = q; g = v; b = p; break;
+    case 2: r = p; g = v; b = t; break;
+    case 3: r = p; g = q; b = v; break;
+    case 4: r = t; g = p; b = v; break;
+    case 5: r = v; g = p; b = q; break;
+  }
+
+  return [Math.round(r * 255), Math.round(g * 255), Math.round(b * 255)];
+}
+
+function hexToRgb(hex: string): [number, number, number] {
+  const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+  if (!result) return [74, 74, 74]; // default gray
+  return [
+    parseInt(result[1], 16),
+    parseInt(result[2], 16),
+    parseInt(result[3], 16)
+  ];
+}
+
+function rgbToHex(r: number, g: number, b: number): string {
+  return '#' + [r, g, b].map(x => x.toString(16).padStart(2, '0')).join('');
+}
+
+interface ColorPickerProps {
+  color: string;
+  onChange: (color: string) => void;
+}
+
+function ColorPicker({ color, onChange }: ColorPickerProps) {
+  const [isDraggingSV, setIsDraggingSV] = useState(false);
+  const [isDraggingHue, setIsDraggingHue] = useState(false);
+  const svRef = useRef<HTMLDivElement>(null);
+  const hueRef = useRef<HTMLDivElement>(null);
+
+  // Parse current color to HSV
+  const rgb = hexToRgb(color);
+  const [h, s, v] = rgbToHsv(rgb[0], rgb[1], rgb[2]);
+
+  const updateFromSV = useCallback((clientX: number, clientY: number) => {
+    if (!svRef.current) return;
+    const rect = svRef.current.getBoundingClientRect();
+    const newS = Math.max(0, Math.min(100, ((clientX - rect.left) / rect.width) * 100));
+    const newV = Math.max(0, Math.min(100, 100 - ((clientY - rect.top) / rect.height) * 100));
+    const [r, g, b] = hsvToRgb(h, newS, newV);
+    onChange(rgbToHex(r, g, b));
+  }, [h, onChange]);
+
+  const updateFromHue = useCallback((clientX: number) => {
+    if (!hueRef.current) return;
+    const rect = hueRef.current.getBoundingClientRect();
+    const newH = Math.max(0, Math.min(360, ((clientX - rect.left) / rect.width) * 360));
+    const [r, g, b] = hsvToRgb(newH, s, v);
+    onChange(rgbToHex(r, g, b));
+  }, [s, v, onChange]);
+
+  const handleSVMouseDown = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    setIsDraggingSV(true);
+    updateFromSV(e.clientX, e.clientY);
+  }, [updateFromSV]);
+
+  const handleHueMouseDown = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    setIsDraggingHue(true);
+    updateFromHue(e.clientX);
+  }, [updateFromHue]);
+
+  useEffect(() => {
+    if (!isDraggingSV) return;
+
+    const handleMouseMove = (e: MouseEvent) => {
+      updateFromSV(e.clientX, e.clientY);
+    };
+
+    const handleMouseUp = () => {
+      setIsDraggingSV(false);
+    };
+
+    window.addEventListener('mousemove', handleMouseMove);
+    window.addEventListener('mouseup', handleMouseUp);
+    return () => {
+      window.removeEventListener('mousemove', handleMouseMove);
+      window.removeEventListener('mouseup', handleMouseUp);
+    };
+  }, [isDraggingSV, updateFromSV]);
+
+  useEffect(() => {
+    if (!isDraggingHue) return;
+
+    const handleMouseMove = (e: MouseEvent) => {
+      updateFromHue(e.clientX);
+    };
+
+    const handleMouseUp = () => {
+      setIsDraggingHue(false);
+    };
+
+    window.addEventListener('mousemove', handleMouseMove);
+    window.addEventListener('mouseup', handleMouseUp);
+    return () => {
+      window.removeEventListener('mousemove', handleMouseMove);
+      window.removeEventListener('mouseup', handleMouseUp);
+    };
+  }, [isDraggingHue, updateFromHue]);
+
+  // Get the pure hue color for the SV square background
+  const [hueR, hueG, hueB] = hsvToRgb(h, 100, 100);
+  const hueColor = rgbToHex(hueR, hueG, hueB);
+
+  return (
+    <div className="color-picker">
+      {/* Saturation/Brightness square */}
+      <div
+        ref={svRef}
+        className="color-picker-sv"
+        style={{ backgroundColor: hueColor }}
+        onMouseDown={handleSVMouseDown}
+      >
+        <div className="color-picker-sv-white" />
+        <div className="color-picker-sv-black" />
+        <div
+          className="color-picker-sv-handle"
+          style={{
+            left: `${s}%`,
+            top: `${100 - v}%`
+          }}
+        />
+      </div>
+      {/* Hue slider */}
+      <div
+        ref={hueRef}
+        className="color-picker-hue"
+        onMouseDown={handleHueMouseDown}
+      >
+        <div
+          className="color-picker-hue-handle"
+          style={{ left: `${(h / 360) * 100}%` }}
+        />
+      </div>
+    </div>
+  );
+}
+
 interface RotationControlProps {
   value: number;
   disabled: boolean;
@@ -571,9 +897,26 @@ export function PropertiesPanel() {
                 }
               }}
             />
-            <PropertyRow
-              label="FILL"
-              value={getDisplayValue(() => singleSelection!.fill ?? '---')}
+            <FillControl
+              value={singleSelection?.fill}
+              enabled={singleSelection?.fill !== undefined}
+              disabled={!hasSelection}
+              onColorChange={(color) => {
+                if (singleSelection) {
+                  updateObject(singleSelection.id, { fill: color });
+                }
+              }}
+              onEnabledChange={(enabled) => {
+                if (singleSelection) {
+                  if (enabled) {
+                    // Enable fill with default color
+                    updateObject(singleSelection.id, { fill: '#4a4a4a' });
+                  } else {
+                    // Disable fill by setting to undefined
+                    updateObject(singleSelection.id, { fill: undefined });
+                  }
+                }
+              }}
             />
             <PropertyRow
               label="STROKE"

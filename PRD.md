@@ -331,12 +331,12 @@ Karta is a lightweight, intuitive visual ideation tool for creating mood boards,
 **Description:** As a user, I want to change object fill color.
 
 **Acceptance Criteria:**
-- [ ] Fill row with color swatch and hex input
-- [ ] Checkbox to enable/disable fill
-- [ ] Click swatch opens color picker
-- [ ] Color picker with hue slider and saturation/brightness square
-- [ ] Typecheck passes
-- [ ] Verify changes work in browser
+- [x] Fill row with color swatch and hex input
+- [x] Checkbox to enable/disable fill
+- [x] Click swatch opens color picker
+- [x] Color picker with hue slider and saturation/brightness square
+- [x] Typecheck passes
+- [x] Verify changes work in browser
 
 ---
 
