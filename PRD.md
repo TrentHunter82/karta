@@ -319,11 +319,11 @@ Karta is a lightweight, intuitive visual ideation tool for creating mood boards,
 **Description:** As a user, I want to adjust object opacity.
 
 **Acceptance Criteria:**
-- [ ] Opacity row with percentage input
-- [ ] Slider for visual adjustment (0-100%)
-- [ ] Updates object opacity in real-time
-- [ ] Typecheck passes
-- [ ] Verify changes work in browser
+- [x] Opacity row with percentage input
+- [x] Slider for visual adjustment (0-100%)
+- [x] Updates object opacity in real-time
+- [x] Typecheck passes
+- [x] Verify changes work in browser
 
 ---
 

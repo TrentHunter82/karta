@@ -124,6 +124,145 @@ function EditablePropertyRow({ label, value, disabled = false, onChange }: Edita
   );
 }
 
+interface OpacityControlProps {
+  value: number;
+  disabled: boolean;
+  onChange: (value: number) => void;
+}
+
+function OpacityControl({ value, disabled, onChange }: OpacityControlProps) {
+  const [isEditing, setIsEditing] = useState(false);
+  const [editValue, setEditValue] = useState((value * 100).toString());
+  const [isDragging, setIsDragging] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const sliderRef = useRef<HTMLDivElement>(null);
+  const originalValueRef = useRef(value);
+
+  const handleInputClick = () => {
+    if (disabled) return;
+    originalValueRef.current = value;
+    setEditValue(Math.round(value * 100).toString());
+    setIsEditing(true);
+  };
+
+  useEffect(() => {
+    if (isEditing && inputRef.current) {
+      inputRef.current.focus();
+      inputRef.current.select();
+    }
+  }, [isEditing]);
+
+  const commitChange = () => {
+    let numValue = parseFloat(editValue);
+    if (!isNaN(numValue)) {
+      // Clamp to 0-100 and convert to 0-1
+      numValue = Math.max(0, Math.min(100, numValue)) / 100;
+      onChange(numValue);
+    }
+    setIsEditing(false);
+  };
+
+  const revertChange = () => {
+    setEditValue((originalValueRef.current * 100).toString());
+    setIsEditing(false);
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    e.stopPropagation();
+    if (e.key === 'Enter') {
+      commitChange();
+    } else if (e.key === 'Escape') {
+      revertChange();
+    }
+  };
+
+  const handleBlur = () => {
+    commitChange();
+  };
+
+  // Calculate opacity from mouse position on slider
+  const getOpacityFromMouse = useCallback((clientX: number): number => {
+    if (!sliderRef.current) return 0;
+    const rect = sliderRef.current.getBoundingClientRect();
+    const x = clientX - rect.left;
+    const percentage = Math.max(0, Math.min(1, x / rect.width));
+    return percentage;
+  }, []);
+
+  const handleSliderMouseDown = useCallback((e: React.MouseEvent) => {
+    if (disabled) return;
+    e.preventDefault();
+    setIsDragging(true);
+    const newValue = getOpacityFromMouse(e.clientX);
+    onChange(newValue);
+  }, [disabled, onChange, getOpacityFromMouse]);
+
+  useEffect(() => {
+    if (!isDragging) return;
+
+    const handleMouseMove = (e: MouseEvent) => {
+      const newValue = getOpacityFromMouse(e.clientX);
+      onChange(newValue);
+    };
+
+    const handleMouseUp = () => {
+      setIsDragging(false);
+    };
+
+    window.addEventListener('mousemove', handleMouseMove);
+    window.addEventListener('mouseup', handleMouseUp);
+
+    return () => {
+      window.removeEventListener('mousemove', handleMouseMove);
+      window.removeEventListener('mouseup', handleMouseUp);
+    };
+  }, [isDragging, getOpacityFromMouse, onChange]);
+
+  const displayValue = disabled ? '---' : `${Math.round(value * 100)}%`;
+  const sliderPercentage = value * 100;
+
+  return (
+    <div className="opacity-control">
+      <div className="property-row">
+        <span className="property-label">OPACITY</span>
+        {isEditing ? (
+          <input
+            ref={inputRef}
+            type="text"
+            className="property-input"
+            value={editValue}
+            onChange={(e) => setEditValue(e.target.value)}
+            onKeyDown={handleKeyDown}
+            onBlur={handleBlur}
+          />
+        ) : (
+          <span
+            className={`property-value ${!disabled ? 'editable' : ''}`}
+            onClick={handleInputClick}
+          >
+            {displayValue}
+          </span>
+        )}
+      </div>
+      <div
+        ref={sliderRef}
+        className={`opacity-slider ${disabled ? 'disabled' : ''} ${isDragging ? 'dragging' : ''}`}
+        onMouseDown={handleSliderMouseDown}
+      >
+        <div className="opacity-slider-track" />
+        <div
+          className="opacity-slider-fill"
+          style={{ width: disabled ? '0%' : `${sliderPercentage}%` }}
+        />
+        <div
+          className="opacity-slider-handle"
+          style={{ left: disabled ? '0%' : `${sliderPercentage}%` }}
+        />
+      </div>
+    </div>
+  );
+}
+
 interface RotationControlProps {
   value: number;
   disabled: boolean;
@@ -423,9 +562,14 @@ export function PropertiesPanel() {
 
           {/* Appearance Section */}
           <CollapsibleSection title="APPEARANCE">
-            <PropertyRow
-              label="OPACITY"
-              value={getDisplayValue(() => `${Math.round((singleSelection!.opacity ?? 1) * 100)}%`)}
+            <OpacityControl
+              value={singleSelection?.opacity ?? 1}
+              disabled={!hasSelection}
+              onChange={(value) => {
+                if (singleSelection) {
+                  updateObject(singleSelection.id, { opacity: value });
+                }
+              }}
             />
             <PropertyRow
               label="FILL"

@@ -5,6 +5,8 @@
 - Use `npm create vite@latest temp-folder -- --template react-ts` to avoid non-empty directory issues, then copy files
 - Vite template comes with ESLint pre-configured, just need to add eslint-config-prettier
 - Add safe.directory to git config on Windows for network drives: `git config --global --add safe.directory <path>`
+- Don't use useEffect to setState from props - display prop value directly when not editing
+- Don't use refs during render (e.g. prevValueRef.current in conditionals) - ESLint strict mode disallows this
 
 ---
 
@@ -397,4 +399,63 @@
   - Use useEffect to sync editValue with prop when not editing
   - stopPropagation on keydown to prevent tool shortcuts from firing
   - getMultiSelectValue checks if all selected objects have same value
+---
+
+## Iteration 20 - US-020: Implement transform section (size)
+- What was implemented:
+  - Editable WIDTH and HEIGHT input fields in the Transform section
+  - Values update when object is selected and sync with canvas
+  - Typing in field updates object size (Enter commits, Escape reverts)
+  - Constrain proportions toggle (chain link icon) that maintains aspect ratio
+  - When constrain is ON: changing width proportionally updates height (and vice versa)
+  - Fixed ESLint error by removing useEffect-based value sync
+- Files changed:
+  - src/components/layout/PropertiesPanel.tsx (added size-row wrapper, constrain toggle, updated WIDTH/HEIGHT to EditablePropertyRow)
+  - src/components/layout/PropertiesPanel.css (added .size-row and .constrain-toggle styles)
+  - PRD.md (marked task complete)
+- Learnings for future iterations:
+  - Don't use useEffect to sync editValue with prop - just display prop value directly when not editing
+  - Don't use refs during render - ESLint will error on prevValueRef.current comparisons
+  - Constrain proportions pattern: calculate aspect ratio from current dimensions, multiply new value by ratio
+  - SVG chain link icon: use paths for half-loops and optional connecting line for "linked" state
+---
+
+## Iteration 21 - US-021: Implement transform section (rotation)
+- What was implemented:
+  - RotationControl component with editable degree input field
+  - Circular dial/slider for visual rotation adjustment
+  - Value shows degrees (0-360) with normalization
+  - Dragging dial rotates object in real-time
+  - Click to edit input, Enter commits, Escape reverts
+  - Shows "---" when nothing selected (disabled state)
+- Files changed:
+  - src/components/layout/PropertiesPanel.tsx (added RotationControl component with useCallback)
+  - src/components/layout/PropertiesPanel.css (added .rotation-control, .rotation-dial styles)
+  - PRD.md (marked task complete)
+- Learnings for future iterations:
+  - Rotation dial: use atan2 to calculate angle from center to mouse, add 90 to offset 0° to top
+  - Handle angle wrapping: if delta > 180, subtract 360; if < -180, add 360
+  - Track dragStartAngle and dragStartValue to calculate delta rotation
+  - Use window event listeners for mousemove/mouseup during drag
+  - transform-origin: bottom center for rotating indicator from center
+---
+
+## Iteration 22 - US-022: Implement appearance section (opacity)
+- What was implemented:
+  - OpacityControl component with editable percentage input (0-100%)
+  - Horizontal slider for visual opacity adjustment
+  - Dragging slider updates object opacity in real-time
+  - Click to edit input, Enter commits, Escape reverts
+  - Clamps values to 0-100 range
+  - Shows "---" when nothing selected (disabled state)
+- Files changed:
+  - src/components/layout/PropertiesPanel.tsx (added OpacityControl component)
+  - src/components/layout/PropertiesPanel.css (added .opacity-control and .opacity-slider styles)
+  - PRD.md (marked task complete)
+- Learnings for future iterations:
+  - Slider pattern: track + fill + handle, calculate percentage from mouse X position
+  - Opacity stored as 0-1 internally but displayed as 0-100%
+  - Use getOpacityFromMouse with getBoundingClientRect for position calculation
+  - Similar pattern to RotationControl but with linear slider instead of circular dial
+  - Disable transitions during drag for instant feedback
 ---
