@@ -109,3 +109,21 @@
   - Store state selector: `useCanvasStore((state) => state.activeTool)`
   - setActiveTool can be called with ToolType to switch tools
 ---
+
+## Iteration 6 - US-006: Implement tool state and keyboard shortcuts
+- What was implemented:
+  - Created useKeyboardShortcuts hook in src/hooks/useKeyboardShortcuts.ts
+  - Global keyboard event listener for tool switching shortcuts
+  - Shortcuts: V (select), H (hand), R (rectangle), T (text), F (frame), P (pen)
+  - Shortcuts disabled when typing in input fields, textareas, or contenteditable elements
+  - Shortcuts also disabled when modifier keys (Ctrl/Meta/Alt) are pressed
+  - Wired up hook in App.tsx to enable shortcuts globally
+- Files changed:
+  - src/hooks/useKeyboardShortcuts.ts (created)
+  - src/App.tsx (added hook import and call)
+  - PRD.md (marked task complete)
+- Learnings for future iterations:
+  - Check target.tagName for INPUT/TEXTAREA and target.isContentEditable to disable shortcuts
+  - Use window.addEventListener for global keyboard shortcuts
+  - Remember to clean up listeners in useEffect return
+---

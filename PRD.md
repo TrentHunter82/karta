@@ -103,12 +103,12 @@ Karta is a lightweight, intuitive visual ideation tool for creating mood boards,
 **Description:** As a user, I want keyboard shortcuts so I can quickly switch tools.
 
 **Acceptance Criteria:**
-- [ ] Tool state in Zustand store: `activeTool`
-- [ ] Keyboard shortcuts: V (select), H (hand), R (rectangle), T (text), F (frame), P (pen)
-- [ ] Shortcuts work when canvas is focused
-- [ ] Shortcuts disabled when typing in input fields
-- [ ] Typecheck passes
-- [ ] Verify changes work in browser
+- [x] Tool state in Zustand store: `activeTool`
+- [x] Keyboard shortcuts: V (select), H (hand), R (rectangle), T (text), F (frame), P (pen)
+- [x] Shortcuts work when canvas is focused
+- [x] Shortcuts disabled when typing in input fields
+- [x] Typecheck passes
+- [x] Verify changes work in browser
 
 ---
 
