@@ -279,13 +279,13 @@ Karta is a lightweight, intuitive visual ideation tool for creating mood boards,
 **Description:** As a user, I want to see and edit object position numerically.
 
 **Acceptance Criteria:**
-- [ ] X-POS and Y-POS input fields
-- [ ] Values update when object selected
-- [ ] Typing in field updates object position
-- [ ] Enter commits change, Escape reverts
-- [ ] Shows "---" when multiple objects with different values
-- [ ] Typecheck passes
-- [ ] Verify changes work in browser
+- [x] X-POS and Y-POS input fields
+- [x] Values update when object selected
+- [x] Typing in field updates object position
+- [x] Enter commits change, Escape reverts
+- [x] Shows "---" when multiple objects with different values
+- [x] Typecheck passes
+- [x] Verify changes work in browser
 
 ---
 

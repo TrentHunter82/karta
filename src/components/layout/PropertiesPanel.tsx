@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { useCanvasStore } from '../../stores/canvasStore';
 import './PropertiesPanel.css';
 
@@ -44,14 +44,112 @@ function PropertyRow({ label, value }: PropertyRowProps) {
   );
 }
 
+interface EditablePropertyRowProps {
+  label: string;
+  value: string;
+  disabled?: boolean;
+  onChange: (value: number) => void;
+}
+
+function EditablePropertyRow({ label, value, disabled = false, onChange }: EditablePropertyRowProps) {
+  const [isEditing, setIsEditing] = useState(false);
+  const [editValue, setEditValue] = useState(value);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const originalValueRef = useRef(value);
+
+  // Update editValue when value prop changes (e.g., object moved on canvas)
+  useEffect(() => {
+    if (!isEditing) {
+      setEditValue(value);
+    }
+  }, [value, isEditing]);
+
+  const handleClick = () => {
+    if (disabled || value === '---') return;
+    originalValueRef.current = value;
+    setEditValue(value);
+    setIsEditing(true);
+  };
+
+  useEffect(() => {
+    if (isEditing && inputRef.current) {
+      inputRef.current.focus();
+      inputRef.current.select();
+    }
+  }, [isEditing]);
+
+  const commitChange = () => {
+    const numValue = parseFloat(editValue);
+    if (!isNaN(numValue)) {
+      onChange(Math.round(numValue));
+    }
+    setIsEditing(false);
+  };
+
+  const revertChange = () => {
+    setEditValue(originalValueRef.current);
+    setIsEditing(false);
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    e.stopPropagation(); // Prevent tool shortcuts
+    if (e.key === 'Enter') {
+      commitChange();
+    } else if (e.key === 'Escape') {
+      revertChange();
+    }
+  };
+
+  const handleBlur = () => {
+    commitChange();
+  };
+
+  return (
+    <div className="property-row">
+      <span className="property-label">{label}</span>
+      {isEditing ? (
+        <input
+          ref={inputRef}
+          type="text"
+          className="property-input"
+          value={editValue}
+          onChange={(e) => setEditValue(e.target.value)}
+          onKeyDown={handleKeyDown}
+          onBlur={handleBlur}
+        />
+      ) : (
+        <span
+          className={`property-value ${!disabled && value !== '---' ? 'editable' : ''}`}
+          onClick={handleClick}
+        >
+          {value}
+        </span>
+      )}
+    </div>
+  );
+}
+
 export function PropertiesPanel() {
   const [isCollapsed, setIsCollapsed] = useState(false);
   const selectedIds = useCanvasStore((state) => state.selectedIds);
   const objects = useCanvasStore((state) => state.objects);
+  const updateObject = useCanvasStore((state) => state.updateObject);
 
   const hasSelection = selectedIds.size > 0;
   const selectedObjects = Array.from(selectedIds).map((id) => objects.get(id)).filter(Boolean);
   const singleSelection = selectedObjects.length === 1 ? selectedObjects[0] : null;
+
+  // Check if multiple objects have same value for a property
+  const getMultiSelectValue = (getter: (obj: NonNullable<typeof singleSelection>) => number): string => {
+    if (!hasSelection || selectedObjects.length === 0) return '---';
+    if (selectedObjects.length === 1) {
+      return Math.round(getter(selectedObjects[0]!)).toString();
+    }
+    // Multiple selection - check if all have same value
+    const firstValue = Math.round(getter(selectedObjects[0]!));
+    const allSame = selectedObjects.every((obj) => Math.round(getter(obj!)) === firstValue);
+    return allSame ? firstValue.toString() : '---';
+  };
 
   // Get display values - show "---" when nothing selected, or actual values when single selection
   const getDisplayValue = (getter: () => string): string => {
@@ -84,13 +182,25 @@ export function PropertiesPanel() {
 
           {/* Transform Section */}
           <CollapsibleSection title="TRANSFORM">
-            <PropertyRow
+            <EditablePropertyRow
               label="X-POS"
-              value={getDisplayValue(() => Math.round(singleSelection!.x).toString())}
+              value={getMultiSelectValue((obj) => obj.x)}
+              disabled={!hasSelection}
+              onChange={(value) => {
+                if (singleSelection) {
+                  updateObject(singleSelection.id, { x: value });
+                }
+              }}
             />
-            <PropertyRow
+            <EditablePropertyRow
               label="Y-POS"
-              value={getDisplayValue(() => Math.round(singleSelection!.y).toString())}
+              value={getMultiSelectValue((obj) => obj.y)}
+              disabled={!hasSelection}
+              onChange={(value) => {
+                if (singleSelection) {
+                  updateObject(singleSelection.id, { y: value });
+                }
+              }}
             />
             <PropertyRow
               label="WIDTH"
