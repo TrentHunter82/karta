@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import { useCanvasStore } from '../../stores/canvasStore';
 import './PropertiesPanel.css';
 
@@ -120,6 +120,159 @@ function EditablePropertyRow({ label, value, disabled = false, onChange }: Edita
           {value}
         </span>
       )}
+    </div>
+  );
+}
+
+interface RotationControlProps {
+  value: number;
+  disabled: boolean;
+  onChange: (value: number) => void;
+}
+
+function RotationControl({ value, disabled, onChange }: RotationControlProps) {
+  const [isEditing, setIsEditing] = useState(false);
+  const [editValue, setEditValue] = useState(value.toString());
+  const [isDragging, setIsDragging] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const dialRef = useRef<HTMLDivElement>(null);
+  const originalValueRef = useRef(value);
+  const dragStartAngleRef = useRef(0);
+  const dragStartValueRef = useRef(0);
+
+  const handleInputClick = () => {
+    if (disabled) return;
+    originalValueRef.current = value;
+    setEditValue(Math.round(value).toString());
+    setIsEditing(true);
+  };
+
+  useEffect(() => {
+    if (isEditing && inputRef.current) {
+      inputRef.current.focus();
+      inputRef.current.select();
+    }
+  }, [isEditing]);
+
+  const commitChange = () => {
+    let numValue = parseFloat(editValue);
+    if (!isNaN(numValue)) {
+      // Normalize to 0-360
+      numValue = ((numValue % 360) + 360) % 360;
+      onChange(Math.round(numValue));
+    }
+    setIsEditing(false);
+  };
+
+  const revertChange = () => {
+    setEditValue(originalValueRef.current.toString());
+    setIsEditing(false);
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    e.stopPropagation();
+    if (e.key === 'Enter') {
+      commitChange();
+    } else if (e.key === 'Escape') {
+      revertChange();
+    }
+  };
+
+  const handleBlur = () => {
+    commitChange();
+  };
+
+  // Calculate angle from center of dial to mouse position
+  const getAngleFromMouse = useCallback((clientX: number, clientY: number): number => {
+    if (!dialRef.current) return 0;
+    const rect = dialRef.current.getBoundingClientRect();
+    const centerX = rect.left + rect.width / 2;
+    const centerY = rect.top + rect.height / 2;
+    const dx = clientX - centerX;
+    const dy = clientY - centerY;
+    // atan2 returns angle with 0 at right, we want 0 at top
+    let angle = Math.atan2(dy, dx) * (180 / Math.PI) + 90;
+    // Normalize to 0-360
+    angle = ((angle % 360) + 360) % 360;
+    return angle;
+  }, []);
+
+  const handleDialMouseDown = useCallback((e: React.MouseEvent) => {
+    if (disabled) return;
+    e.preventDefault();
+    setIsDragging(true);
+    dragStartAngleRef.current = getAngleFromMouse(e.clientX, e.clientY);
+    dragStartValueRef.current = value;
+  }, [disabled, value, getAngleFromMouse]);
+
+  useEffect(() => {
+    if (!isDragging) return;
+
+    const handleMouseMove = (e: MouseEvent) => {
+      const currentAngle = getAngleFromMouse(e.clientX, e.clientY);
+      let deltaAngle = currentAngle - dragStartAngleRef.current;
+
+      // Handle wrapping around 0/360
+      if (deltaAngle > 180) deltaAngle -= 360;
+      if (deltaAngle < -180) deltaAngle += 360;
+
+      let newValue = dragStartValueRef.current + deltaAngle;
+      // Normalize to 0-360
+      newValue = ((newValue % 360) + 360) % 360;
+      onChange(Math.round(newValue));
+    };
+
+    const handleMouseUp = () => {
+      setIsDragging(false);
+    };
+
+    window.addEventListener('mousemove', handleMouseMove);
+    window.addEventListener('mouseup', handleMouseUp);
+
+    return () => {
+      window.removeEventListener('mousemove', handleMouseMove);
+      window.removeEventListener('mouseup', handleMouseUp);
+    };
+  }, [isDragging, getAngleFromMouse, onChange]);
+
+  const displayValue = disabled ? '---' : `${Math.round(value)}°`;
+  // Dial indicator angle: rotate from top (0°)
+  const indicatorStyle = disabled ? {} : { transform: `rotate(${value}deg)` };
+
+  return (
+    <div className="rotation-control">
+      <div className="property-row">
+        <span className="property-label">ROTATION</span>
+        {isEditing ? (
+          <input
+            ref={inputRef}
+            type="text"
+            className="property-input"
+            value={editValue}
+            onChange={(e) => setEditValue(e.target.value)}
+            onKeyDown={handleKeyDown}
+            onBlur={handleBlur}
+          />
+        ) : (
+          <span
+            className={`property-value ${!disabled ? 'editable' : ''}`}
+            onClick={handleInputClick}
+          >
+            {displayValue}
+          </span>
+        )}
+      </div>
+      <div
+        ref={dialRef}
+        className={`rotation-dial ${disabled ? 'disabled' : ''} ${isDragging ? 'dragging' : ''}`}
+        onMouseDown={handleDialMouseDown}
+      >
+        <div className="rotation-dial-track" />
+        <div className="rotation-dial-indicator" style={indicatorStyle}>
+          <div className="rotation-dial-handle" />
+        </div>
+        <div className="rotation-dial-center" />
+      </div>
     </div>
   );
 }
@@ -257,9 +410,14 @@ export function PropertiesPanel() {
                 }}
               />
             </div>
-            <PropertyRow
-              label="ROTATION"
-              value={getDisplayValue(() => `${Math.round(singleSelection!.rotation)}°`)}
+            <RotationControl
+              value={singleSelection?.rotation ?? 0}
+              disabled={!hasSelection}
+              onChange={(value) => {
+                if (singleSelection) {
+                  updateObject(singleSelection.id, { rotation: value });
+                }
+              }}
             />
           </CollapsibleSection>
 

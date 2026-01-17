@@ -306,12 +306,12 @@ Karta is a lightweight, intuitive visual ideation tool for creating mood boards,
 **Description:** As a user, I want to see and edit object rotation numerically.
 
 **Acceptance Criteria:**
-- [ ] ROTATION label with degree input field
-- [ ] Circular slider/dial for visual rotation adjustment
-- [ ] Value shows degrees (0-360)
-- [ ] Dragging dial rotates object in real-time
-- [ ] Typecheck passes
-- [ ] Verify changes work in browser
+- [x] ROTATION label with degree input field
+- [x] Circular slider/dial for visual rotation adjustment
+- [x] Value shows degrees (0-360)
+- [x] Dragging dial rotates object in real-time
+- [x] Typecheck passes
+- [x] Verify changes work in browser
 
 ---
 

@@ -208,6 +208,80 @@
   opacity: 1;
 }
 
+/* Rotation Control */
+.rotation-control {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.rotation-dial {
+  width: 60px;
+  height: 60px;
+  margin: 0 auto;
+  position: relative;
+  cursor: grab;
+  user-select: none;
+}
+
+.rotation-dial.dragging {
+  cursor: grabbing;
+}
+
+.rotation-dial.disabled {
+  cursor: default;
+  opacity: 0.5;
+}
+
+.rotation-dial-track {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  border: 2px solid var(--color-border);
+  box-sizing: border-box;
+}
+
+.rotation-dial-indicator {
+  position: absolute;
+  top: 0;
+  left: 50%;
+  width: 2px;
+  height: 50%;
+  transform-origin: bottom center;
+  pointer-events: none;
+}
+
+.rotation-dial-handle {
+  position: absolute;
+  top: 2px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background-color: var(--color-accent);
+  box-shadow: 0 0 4px rgba(0, 102, 255, 0.5);
+}
+
+.rotation-dial.disabled .rotation-dial-handle {
+  background-color: var(--color-text-secondary);
+  box-shadow: none;
+}
+
+.rotation-dial-center {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background-color: var(--color-text-secondary);
+}
+
 /* Hierarchy Section */
 .hierarchy-info {
   font-size: 10px;
