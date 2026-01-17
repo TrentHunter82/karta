@@ -145,12 +145,12 @@ Karta is a lightweight, intuitive visual ideation tool for creating mood boards,
 **Description:** As a user, I want to drag a selection box to select multiple objects.
 
 **Acceptance Criteria:**
-- [ ] Drag on empty canvas draws selection rectangle
-- [ ] Objects intersecting rectangle are selected on mouse up
-- [ ] Shift+drag adds to existing selection
-- [ ] Selection rectangle has dashed blue border
-- [ ] Typecheck passes
-- [ ] Verify changes work in browser
+- [x] Drag on empty canvas draws selection rectangle
+- [x] Objects intersecting rectangle are selected on mouse up
+- [x] Shift+drag adds to existing selection
+- [x] Selection rectangle has dashed blue border
+- [x] Typecheck passes
+- [x] Verify changes work in browser
 
 ---
 

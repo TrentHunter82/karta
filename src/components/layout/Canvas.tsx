@@ -27,9 +27,13 @@ export function Canvas() {
   const [isPanning, setIsPanning] = useState(false);
   const [isSpacePressed, setIsSpacePressed] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
+  const [isMarqueeSelecting, setIsMarqueeSelecting] = useState(false);
   const [hoveredObjectId, setHoveredObjectId] = useState<string | null>(null);
   const lastMousePos = useRef({ x: 0, y: 0 });
   const dragStartCanvasPos = useRef({ x: 0, y: 0 });
+  const marqueeStart = useRef({ x: 0, y: 0 });
+  const marqueeEnd = useRef({ x: 0, y: 0 });
+  const marqueeShiftKey = useRef(false);
 
   // Resize canvas to fill container
   const resizeCanvas = useCallback(() => {
@@ -108,7 +112,7 @@ export function Canvas() {
             ctx.stroke();
           }
           break;
-        case 'text':
+        case 'text': {
           ctx.fillStyle = obj.fill || '#ffffff';
           ctx.font = `${obj.fontSize * zoom}px ${obj.fontFamily}`;
           ctx.textAlign = obj.textAlign;
@@ -116,6 +120,7 @@ export function Canvas() {
           const textX = obj.textAlign === 'center' ? width / 2 : obj.textAlign === 'right' ? width : 0;
           ctx.fillText(obj.text, textX, 0);
           break;
+        }
         case 'frame':
           ctx.fillStyle = obj.fill || '#2a2a2a';
           ctx.fillRect(0, 0, width, height);
@@ -231,6 +236,36 @@ export function Canvas() {
     [viewport, canvasToScreen]
   );
 
+  // Draw marquee selection rectangle
+  const drawMarqueeRect = useCallback(
+    (ctx: CanvasRenderingContext2D) => {
+      if (!isMarqueeSelecting) return;
+
+      const startScreen = canvasToScreen(marqueeStart.current.x, marqueeStart.current.y);
+      const endScreen = canvasToScreen(marqueeEnd.current.x, marqueeEnd.current.y);
+
+      const x = Math.min(startScreen.x, endScreen.x);
+      const y = Math.min(startScreen.y, endScreen.y);
+      const width = Math.abs(endScreen.x - startScreen.x);
+      const height = Math.abs(endScreen.y - startScreen.y);
+
+      ctx.save();
+
+      // Fill with semi-transparent blue
+      ctx.fillStyle = 'rgba(0, 102, 255, 0.1)';
+      ctx.fillRect(x, y, width, height);
+
+      // Dashed blue border
+      ctx.strokeStyle = SELECTION_COLOR;
+      ctx.lineWidth = 1;
+      ctx.setLineDash([4, 4]);
+      ctx.strokeRect(x, y, width, height);
+
+      ctx.restore();
+    },
+    [isMarqueeSelecting, canvasToScreen]
+  );
+
   // Draw the canvas content
   const draw = useCallback(() => {
     const canvas = canvasRef.current;
@@ -283,7 +318,10 @@ export function Canvas() {
         drawSelectionBox(ctx, obj);
       }
     });
-  }, [viewport, objects, selectedIds, drawObject, drawSelectionBox]);
+
+    // Draw marquee selection rectangle
+    drawMarqueeRect(ctx);
+  }, [viewport, objects, selectedIds, drawObject, drawSelectionBox, drawMarqueeRect]);
 
   // Handle window resize
   useEffect(() => {
@@ -361,6 +399,41 @@ export function Canvas() {
     [objects, screenToCanvas]
   );
 
+  // Check if an object intersects with a rectangle (for marquee selection)
+  const objectIntersectsRect = useCallback(
+    (obj: CanvasObject, rectX1: number, rectY1: number, rectX2: number, rectY2: number): boolean => {
+      // Normalize rectangle coordinates
+      const minX = Math.min(rectX1, rectX2);
+      const maxX = Math.max(rectX1, rectX2);
+      const minY = Math.min(rectY1, rectY2);
+      const maxY = Math.max(rectY1, rectY2);
+
+      // Simple AABB intersection check (not accounting for rotation)
+      const objRight = obj.x + obj.width;
+      const objBottom = obj.y + obj.height;
+
+      return !(obj.x > maxX || objRight < minX || obj.y > maxY || objBottom < minY);
+    },
+    []
+  );
+
+  // Get all objects that intersect with the marquee rectangle
+  const getObjectsInMarquee = useCallback((): string[] => {
+    const x1 = marqueeStart.current.x;
+    const y1 = marqueeStart.current.y;
+    const x2 = marqueeEnd.current.x;
+    const y2 = marqueeEnd.current.y;
+
+    const intersectingIds: string[] = [];
+    objects.forEach((obj) => {
+      if (objectIntersectsRect(obj, x1, y1, x2, y2)) {
+        intersectingIds.push(obj.id);
+      }
+    });
+
+    return intersectingIds;
+  }, [objects, objectIntersectsRect]);
+
   // Handle mouse wheel zoom
   const handleWheel = useCallback((e: React.WheelEvent<HTMLCanvasElement>) => {
     e.preventDefault();
@@ -436,8 +509,17 @@ export function Canvas() {
           }
         }
       } else {
-        // Click on empty canvas - deselect all
-        setSelection([]);
+        // Click on empty canvas - start marquee selection
+        const canvasPos = screenToCanvas(screenX, screenY);
+        marqueeStart.current = { x: canvasPos.x, y: canvasPos.y };
+        marqueeEnd.current = { x: canvasPos.x, y: canvasPos.y };
+        marqueeShiftKey.current = e.shiftKey;
+        setIsMarqueeSelecting(true);
+
+        // Only clear selection if not holding shift
+        if (!e.shiftKey) {
+          setSelection([]);
+        }
       }
     }
   }, [isSpacePressed, activeTool, hitTest, selectedIds, setSelection, screenToCanvas]);
@@ -491,6 +573,15 @@ export function Canvas() {
       return;
     }
 
+    // Handle marquee selection
+    if (isMarqueeSelecting) {
+      const canvasPos = screenToCanvas(screenX, screenY);
+      marqueeEnd.current = { x: canvasPos.x, y: canvasPos.y };
+      // Force redraw to show marquee rectangle
+      draw();
+      return;
+    }
+
     // Hover detection for move cursor (only when not dragging/panning)
     if (activeTool === 'select' && !isSpacePressed) {
       const hitObject = hitTest(screenX, screenY);
@@ -500,18 +591,36 @@ export function Canvas() {
         setHoveredObjectId(null);
       }
     }
-  }, [isPanning, isDragging, viewport, setViewport, selectedIds, objects, updateObjects, activeTool, isSpacePressed, hitTest]);
+  }, [isPanning, isDragging, isMarqueeSelecting, viewport, setViewport, selectedIds, objects, updateObjects, activeTool, isSpacePressed, hitTest, screenToCanvas, draw]);
 
-  // Handle mouse up to stop panning and dragging
+  // Handle mouse up to stop panning, dragging, and finalize marquee selection
   const handleMouseUp = useCallback(() => {
+    // Finalize marquee selection
+    if (isMarqueeSelecting) {
+      const intersectingIds = getObjectsInMarquee();
+
+      if (marqueeShiftKey.current) {
+        // Shift was held: add to existing selection
+        const newSelection = new Set(selectedIds);
+        intersectingIds.forEach((id) => newSelection.add(id));
+        setSelection(Array.from(newSelection));
+      } else {
+        // Normal marquee: select only intersecting objects
+        setSelection(intersectingIds);
+      }
+
+      setIsMarqueeSelecting(false);
+    }
+
     setIsPanning(false);
     setIsDragging(false);
-  }, []);
+  }, [isMarqueeSelecting, getObjectsInMarquee, selectedIds, setSelection]);
 
   // Handle mouse leave to stop panning and dragging
   const handleMouseLeave = useCallback(() => {
     setIsPanning(false);
     setIsDragging(false);
+    setIsMarqueeSelecting(false);
     setHoveredObjectId(null);
   }, []);
 
@@ -526,6 +635,7 @@ export function Canvas() {
   const getCursorStyle = () => {
     if (isPanning) return 'grabbing';
     if (isDragging) return 'move';
+    if (isMarqueeSelecting) return 'crosshair';
     if (isSpacePressed || activeTool === 'hand') return 'grab';
     if (activeTool === 'select') {
       if (hoveredObjectId && selectedIds.has(hoveredObjectId)) {
