@@ -30,6 +30,7 @@ interface CanvasState {
   updateObject: (id: string, updates: Partial<CanvasObject>) => void;
   updateObjects: (updates: Array<{ id: string; changes: Partial<CanvasObject> }>) => void;
   deleteObject: (id: string) => void;
+  deleteSelectedObjects: () => void;
   setSelection: (ids: string[]) => void;
   setViewport: (viewport: Partial<Viewport>) => void;
   setActiveTool: (tool: ToolType) => void;
@@ -332,6 +333,39 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
     });
 
     console.log(`[CanvasStore] Deleted object: ${id}`);
+  },
+
+  deleteSelectedObjects: () => {
+    // Skip if we're applying remote changes
+    if (isApplyingRemoteChanges) {
+      return;
+    }
+
+    const state = get();
+    const idsToDelete = Array.from(state.selectedIds);
+    if (idsToDelete.length === 0) {
+      return;
+    }
+
+    // Push history once before deleting all selected objects
+    get().pushHistory();
+
+    set((state) => {
+      const newObjects = new Map(state.objects);
+      for (const id of idsToDelete) {
+        newObjects.delete(id);
+      }
+      return { objects: newObjects, selectedIds: new Set() };
+    });
+
+    // Sync to Yjs
+    ydoc.transact(() => {
+      for (const id of idsToDelete) {
+        yObjects.delete(id);
+      }
+    });
+
+    console.log(`[CanvasStore] Deleted ${idsToDelete.length} selected objects`);
   },
 
   setSelection: (ids) =>

@@ -20,6 +20,7 @@ export function useKeyboardShortcuts() {
   const setViewport = useCanvasStore((state) => state.setViewport);
   const undo = useCanvasStore((state) => state.undo);
   const redo = useCanvasStore((state) => state.redo);
+  const deleteSelectedObjects = useCanvasStore((state) => state.deleteSelectedObjects);
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -87,6 +88,13 @@ export function useKeyboardShortcuts() {
         return;
       }
 
+      // Delete or Backspace deletes selected objects
+      if (event.key === 'Delete' || event.key === 'Backspace') {
+        event.preventDefault();
+        deleteSelectedObjects();
+        return;
+      }
+
       const key = event.key.toLowerCase();
       const tool = TOOL_SHORTCUTS[key];
 
@@ -101,5 +109,5 @@ export function useKeyboardShortcuts() {
     return () => {
       window.removeEventListener('keydown', handleKeyDown);
     };
-  }, [setActiveTool, setViewport, undo, redo]);
+  }, [setActiveTool, setViewport, undo, redo, deleteSelectedObjects]);
 }

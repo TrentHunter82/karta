@@ -535,11 +535,11 @@ Karta is a lightweight, intuitive visual ideation tool for creating mood boards,
 **Description:** As a user, I want to delete objects with keyboard.
 
 **Acceptance Criteria:**
-- [ ] Delete or Backspace key deletes selected objects
-- [ ] Multiple selected objects deleted together
-- [ ] Deletion is undoable
-- [ ] Typecheck passes
-- [ ] Verify changes work in browser
+- [x] Delete or Backspace key deletes selected objects
+- [x] Multiple selected objects deleted together
+- [x] Deletion is undoable
+- [x] Typecheck passes
+- [x] Verify changes work in browser
 
 ---
 
