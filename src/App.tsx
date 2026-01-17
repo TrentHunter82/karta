@@ -21,6 +21,7 @@ function App() {
       height: 100,
       rotation: 0,
       opacity: 1,
+      zIndex: 0,
       fill: '#4a90d9',
     });
     addObject({
@@ -32,6 +33,7 @@ function App() {
       height: 80,
       rotation: 15,
       opacity: 1,
+      zIndex: 1,
       fill: '#d94a4a',
     });
     addObject({
@@ -43,6 +45,7 @@ function App() {
       height: 100,
       rotation: 0,
       opacity: 1,
+      zIndex: 2,
       fill: '#4ad97a',
     });
   }, [addObject]);

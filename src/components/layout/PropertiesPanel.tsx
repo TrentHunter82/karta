@@ -30,20 +30,6 @@ function CollapsibleSection({ title, children, defaultOpen = true }: Collapsible
   );
 }
 
-interface PropertyRowProps {
-  label: string;
-  value: string;
-}
-
-function PropertyRow({ label, value }: PropertyRowProps) {
-  return (
-    <div className="property-row">
-      <span className="property-label">{label}</span>
-      <span className="property-value">{value}</span>
-    </div>
-  );
-}
-
 interface EditablePropertyRowProps {
   label: string;
   value: string;
@@ -941,6 +927,162 @@ function RotationControl({ value, disabled, onChange }: RotationControlProps) {
   );
 }
 
+function HierarchySection() {
+  const objects = useCanvasStore((state) => state.objects);
+  const selectedIds = useCanvasStore((state) => state.selectedIds);
+  const setSelection = useCanvasStore((state) => state.setSelection);
+  const reorderObject = useCanvasStore((state) => state.reorderObject);
+
+  const [draggedId, setDraggedId] = useState<string | null>(null);
+  const [dragOverId, setDragOverId] = useState<string | null>(null);
+  const [dragOverPosition, setDragOverPosition] = useState<'above' | 'below' | null>(null);
+
+  // Sort objects by zIndex (highest first for display - top of list = front)
+  const sortedObjects = Array.from(objects.values()).sort((a, b) => b.zIndex - a.zIndex);
+
+  const handleItemClick = (id: string, e: React.MouseEvent) => {
+    if (e.shiftKey && selectedIds.size > 0) {
+      // Shift+click: toggle selection
+      const newSelection = new Set(selectedIds);
+      if (newSelection.has(id)) {
+        newSelection.delete(id);
+      } else {
+        newSelection.add(id);
+      }
+      setSelection(Array.from(newSelection));
+    } else if (e.ctrlKey || e.metaKey) {
+      // Ctrl/Cmd+click: add to selection
+      const newSelection = new Set(selectedIds);
+      if (newSelection.has(id)) {
+        newSelection.delete(id);
+      } else {
+        newSelection.add(id);
+      }
+      setSelection(Array.from(newSelection));
+    } else {
+      // Normal click: select only this object
+      setSelection([id]);
+    }
+  };
+
+  const handleDragStart = (e: React.DragEvent, id: string) => {
+    setDraggedId(id);
+    e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData('text/plain', id);
+  };
+
+  const handleDragOver = (e: React.DragEvent, id: string) => {
+    e.preventDefault();
+    if (draggedId === id) return;
+
+    const rect = (e.target as HTMLElement).getBoundingClientRect();
+    const midY = rect.top + rect.height / 2;
+    const position = e.clientY < midY ? 'above' : 'below';
+
+    setDragOverId(id);
+    setDragOverPosition(position);
+  };
+
+  const handleDragLeave = () => {
+    setDragOverId(null);
+    setDragOverPosition(null);
+  };
+
+  const handleDrop = (e: React.DragEvent, targetId: string) => {
+    e.preventDefault();
+    if (!draggedId || draggedId === targetId) {
+      setDraggedId(null);
+      setDragOverId(null);
+      setDragOverPosition(null);
+      return;
+    }
+
+    const draggedObj = objects.get(draggedId);
+    const targetObj = objects.get(targetId);
+    if (!draggedObj || !targetObj) return;
+
+    // Calculate new zIndex based on drop position
+    // Since we display highest zIndex at top, "above" means higher zIndex
+    let newZIndex: number;
+    if (dragOverPosition === 'above') {
+      // Place above target (higher zIndex)
+      newZIndex = targetObj.zIndex + 1;
+    } else {
+      // Place below target (lower zIndex)
+      newZIndex = targetObj.zIndex;
+    }
+
+    // Clamp zIndex to valid range
+    newZIndex = Math.max(0, Math.min(objects.size - 1, newZIndex));
+
+    reorderObject(draggedId, newZIndex);
+
+    setDraggedId(null);
+    setDragOverId(null);
+    setDragOverPosition(null);
+  };
+
+  const handleDragEnd = () => {
+    setDraggedId(null);
+    setDragOverId(null);
+    setDragOverPosition(null);
+  };
+
+  const getObjectName = (obj: NonNullable<ReturnType<typeof objects.get>>) => {
+    if (obj.type === 'text' && 'text' in obj) {
+      return (obj as { text: string }).text.slice(0, 20) || 'Text';
+    }
+    if (obj.type === 'frame' && 'name' in obj) {
+      return (obj as { name: string }).name;
+    }
+    return obj.type.charAt(0).toUpperCase() + obj.type.slice(1);
+  };
+
+  const getTypeIcon = (type: string) => {
+    switch (type) {
+      case 'rectangle': return '▢';
+      case 'ellipse': return '○';
+      case 'text': return 'T';
+      case 'frame': return '⬚';
+      case 'path': return '✎';
+      case 'image': return '🖼';
+      case 'video': return '▶';
+      default: return '?';
+    }
+  };
+
+  return (
+    <CollapsibleSection title={`HIERARCHY`}>
+      <div className="hierarchy-info">
+        {objects.size > 0 ? `${objects.size} Items` : 'Canvas Empty'}
+      </div>
+      <div className="hierarchy-list">
+        {sortedObjects.map((obj) => (
+          <div
+            key={obj.id}
+            className={`hierarchy-item ${selectedIds.has(obj.id) ? 'selected' : ''} ${draggedId === obj.id ? 'dragging' : ''} ${dragOverId === obj.id ? `drag-over-${dragOverPosition}` : ''}`}
+            onClick={(e) => handleItemClick(obj.id, e)}
+            draggable
+            onDragStart={(e) => handleDragStart(e, obj.id)}
+            onDragOver={(e) => handleDragOver(e, obj.id)}
+            onDragLeave={handleDragLeave}
+            onDrop={(e) => handleDrop(e, obj.id)}
+            onDragEnd={handleDragEnd}
+          >
+            <span className="hierarchy-drag-handle">⋮⋮</span>
+            <span className="hierarchy-icon">
+              {getTypeIcon(obj.type)}
+            </span>
+            <span className="hierarchy-name">
+              {getObjectName(obj)}
+            </span>
+          </div>
+        ))}
+      </div>
+    </CollapsibleSection>
+  );
+}
+
 export function PropertiesPanel() {
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [constrainProportions, setConstrainProportions] = useState(true);
@@ -962,13 +1104,6 @@ export function PropertiesPanel() {
     const firstValue = Math.round(getter(selectedObjects[0]!));
     const allSame = selectedObjects.every((obj) => Math.round(getter(obj!)) === firstValue);
     return allSame ? firstValue.toString() : '---';
-  };
-
-  // Get display values - show "---" when nothing selected, or actual values when single selection
-  const getDisplayValue = (getter: () => string): string => {
-    if (!hasSelection) return '---';
-    if (!singleSelection) return '---'; // Multiple selection shows "---" for now
-    return getter();
   };
 
   return (
@@ -1147,36 +1282,7 @@ export function PropertiesPanel() {
           </CollapsibleSection>
 
           {/* Hierarchy Section */}
-          <CollapsibleSection title="HIERARCHY">
-            <div className="hierarchy-info">
-              {objects.size > 0 ? `${objects.size} Items` : 'Canvas Empty'}
-            </div>
-            <div className="hierarchy-list">
-              {Array.from(objects.values()).map((obj) => (
-                <div
-                  key={obj.id}
-                  className={`hierarchy-item ${selectedIds.has(obj.id) ? 'selected' : ''}`}
-                >
-                  <span className="hierarchy-icon">
-                    {obj.type === 'rectangle' && '▢'}
-                    {obj.type === 'ellipse' && '○'}
-                    {obj.type === 'text' && 'T'}
-                    {obj.type === 'frame' && '⬚'}
-                    {obj.type === 'path' && '✎'}
-                    {obj.type === 'image' && '🖼'}
-                    {obj.type === 'video' && '▶'}
-                  </span>
-                  <span className="hierarchy-name">
-                    {obj.type === 'text' && 'text' in obj
-                      ? (obj as { text: string }).text.slice(0, 20) || 'Text'
-                      : obj.type === 'frame' && 'name' in obj
-                        ? (obj as { name: string }).name
-                        : obj.type.charAt(0).toUpperCase() + obj.type.slice(1)}
-                  </span>
-                </div>
-              ))}
-            </div>
-          </CollapsibleSection>
+          <HierarchySection />
         </div>
       )}
     </aside>

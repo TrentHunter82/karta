@@ -16,6 +16,8 @@ interface CanvasState {
   setSelection: (ids: string[]) => void;
   setViewport: (viewport: Partial<Viewport>) => void;
   setActiveTool: (tool: ToolType) => void;
+  reorderObject: (id: string, newZIndex: number) => void;
+  getNextZIndex: () => number;
 }
 
 export const useCanvasStore = create<CanvasState>((set) => ({
@@ -80,4 +82,48 @@ export const useCanvasStore = create<CanvasState>((set) => ({
     set(() => ({
       activeTool: tool,
     })),
+
+  reorderObject: (id, newZIndex) =>
+    set((state) => {
+      const targetObject = state.objects.get(id);
+      if (!targetObject) return state;
+
+      const oldZIndex = targetObject.zIndex;
+      if (oldZIndex === newZIndex) return state;
+
+      const newObjects = new Map(state.objects);
+
+      // Shift other objects' zIndex values to make room
+      if (newZIndex > oldZIndex) {
+        // Moving up: shift objects between old and new position down
+        for (const [objId, obj] of newObjects) {
+          if (obj.zIndex > oldZIndex && obj.zIndex <= newZIndex) {
+            newObjects.set(objId, { ...obj, zIndex: obj.zIndex - 1 } as CanvasObject);
+          }
+        }
+      } else {
+        // Moving down: shift objects between new and old position up
+        for (const [objId, obj] of newObjects) {
+          if (obj.zIndex >= newZIndex && obj.zIndex < oldZIndex) {
+            newObjects.set(objId, { ...obj, zIndex: obj.zIndex + 1 } as CanvasObject);
+          }
+        }
+      }
+
+      // Set the target object to its new position
+      newObjects.set(id, { ...targetObject, zIndex: newZIndex } as CanvasObject);
+
+      return { objects: newObjects };
+    }),
+
+  getNextZIndex: () => {
+    const state = useCanvasStore.getState();
+    let maxZIndex = -1;
+    for (const obj of state.objects.values()) {
+      if (obj.zIndex > maxZIndex) {
+        maxZIndex = obj.zIndex;
+      }
+    }
+    return maxZIndex + 1;
+  },
 }));

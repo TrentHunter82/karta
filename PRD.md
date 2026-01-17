@@ -357,14 +357,14 @@ Karta is a lightweight, intuitive visual ideation tool for creating mood boards,
 **Description:** As a user, I want to see all objects in a layer list.
 
 **Acceptance Criteria:**
-- [ ] "HIERARCHY" header with item count ("X Items")
-- [ ] List of all objects with name and type icon
-- [ ] Click item selects object on canvas
-- [ ] Selected items highlighted in list
-- [ ] Drag to reorder (changes z-index)
-- [ ] Empty state: "Canvas Empty"
-- [ ] Typecheck passes
-- [ ] Verify changes work in browser
+- [x] "HIERARCHY" header with item count ("X Items")
+- [x] List of all objects with name and type icon
+- [x] Click item selects object on canvas
+- [x] Selected items highlighted in list
+- [x] Drag to reorder (changes z-index)
+- [x] Empty state: "Canvas Empty"
+- [x] Typecheck passes
+- [x] Verify changes work in browser
 
 ---
 

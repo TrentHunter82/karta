@@ -58,6 +58,7 @@ export function Canvas() {
   const updateObject = useCanvasStore((state) => state.updateObject);
   const addObject = useCanvasStore((state) => state.addObject);
   const setActiveTool = useCanvasStore((state) => state.setActiveTool);
+  const getNextZIndex = useCanvasStore((state) => state.getNextZIndex);
 
   const [isPanning, setIsPanning] = useState(false);
   const [isSpacePressed, setIsSpacePressed] = useState(false);
@@ -514,8 +515,9 @@ export function Canvas() {
 
     ctx.restore();
 
-    // Draw objects
-    objects.forEach((obj) => {
+    // Draw objects sorted by zIndex (lowest first so higher zIndex renders on top)
+    const sortedObjects = Array.from(objects.values()).sort((a, b) => a.zIndex - b.zIndex);
+    sortedObjects.forEach((obj) => {
       drawObject(ctx, obj);
     });
 
@@ -581,8 +583,8 @@ export function Canvas() {
     (screenX: number, screenY: number): CanvasObject | null => {
       const canvasPos = screenToCanvas(screenX, screenY);
 
-      // Iterate objects in reverse order (top-most first)
-      const objectsArray = Array.from(objects.values()).reverse();
+      // Iterate objects by zIndex descending (top-most/highest zIndex first)
+      const objectsArray = Array.from(objects.values()).sort((a, b) => b.zIndex - a.zIndex);
 
       for (const obj of objectsArray) {
         // Simple bounding box hit test (doesn't account for rotation)
@@ -903,6 +905,7 @@ export function Canvas() {
         height: 24, // Approximately 16px font + padding
         rotation: 0,
         opacity: 1,
+        zIndex: getNextZIndex(),
         fill: '#ffffff', // White text
         text: '',
         fontSize: 16,
@@ -932,7 +935,7 @@ export function Canvas() {
       setIsDrawingPath(true);
       setSelection([]); // Clear selection when drawing
     }
-  }, [isSpacePressed, activeTool, hitTest, hitTestHandle, hitTestRotationHandle, selectedIds, setSelection, screenToCanvas, canvasToScreen, objects, addObject, setActiveTool]);
+  }, [isSpacePressed, activeTool, hitTest, hitTestHandle, hitTestRotationHandle, selectedIds, setSelection, screenToCanvas, canvasToScreen, objects, addObject, setActiveTool, getNextZIndex]);
 
   // Handle mouse move for panning, dragging, and hover detection
   const handleMouseMove = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
@@ -1268,6 +1271,7 @@ export function Canvas() {
             height: shapeHeight,
             rotation: 0,
             opacity: 1,
+            zIndex: getNextZIndex(),
             fill: '#4a4a4a',
           };
 
@@ -1284,6 +1288,7 @@ export function Canvas() {
             height: shapeHeight,
             rotation: 0,
             opacity: 1,
+            zIndex: getNextZIndex(),
             fill: '#4a4a4a',
           };
 
@@ -1324,6 +1329,7 @@ export function Canvas() {
           height: frameHeight,
           rotation: 0,
           opacity: 1,
+          zIndex: getNextZIndex(),
           fill: '#2a2a2a',
           stroke: '#3a3a3a',
           strokeWidth: 1,
@@ -1375,6 +1381,7 @@ export function Canvas() {
           height: Math.max(maxY - minY, 1), // Ensure minimum height of 1
           rotation: 0,
           opacity: 1,
+          zIndex: getNextZIndex(),
           stroke: '#ffffff', // Default white stroke
           strokeWidth: 2,
           points: normalizedPoints,
@@ -1397,7 +1404,7 @@ export function Canvas() {
     setActiveResizeHandle(null);
     resizeHandle.current = null;
     resizeStartObjState.current = null;
-  }, [isMarqueeSelecting, isDrawingRect, isDrawingFrame, isDrawingPath, getObjectsInMarquee, selectedIds, setSelection, addObject, setActiveTool]);
+  }, [isMarqueeSelecting, isDrawingRect, isDrawingFrame, isDrawingPath, getObjectsInMarquee, selectedIds, setSelection, addObject, setActiveTool, getNextZIndex]);
 
   // Handle mouse leave to stop panning and dragging
   const handleMouseLeave = useCallback(() => {

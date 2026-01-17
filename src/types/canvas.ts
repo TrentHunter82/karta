@@ -13,6 +13,7 @@ export interface BaseObject {
   height: number;
   rotation: number;
   opacity: number;
+  zIndex: number;
   fill?: string;
   stroke?: string;
   strokeWidth?: number;

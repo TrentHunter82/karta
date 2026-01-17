@@ -573,6 +573,8 @@
   padding: 6px 8px;
   border-radius: 4px;
   cursor: pointer;
+  position: relative;
+  transition: background-color 0.1s ease;
 }
 
 .hierarchy-item:hover {
@@ -581,6 +583,48 @@
 
 .hierarchy-item.selected {
   background-color: rgba(0, 102, 255, 0.2);
+}
+
+.hierarchy-item.selected:hover {
+  background-color: rgba(0, 102, 255, 0.3);
+}
+
+.hierarchy-item.dragging {
+  opacity: 0.5;
+}
+
+.hierarchy-item.drag-over-above::before {
+  content: '';
+  position: absolute;
+  top: -1px;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background-color: var(--color-accent);
+  border-radius: 1px;
+}
+
+.hierarchy-item.drag-over-below::after {
+  content: '';
+  position: absolute;
+  bottom: -1px;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background-color: var(--color-accent);
+  border-radius: 1px;
+}
+
+.hierarchy-drag-handle {
+  font-size: 10px;
+  color: var(--color-text-secondary);
+  cursor: grab;
+  opacity: 0.5;
+  user-select: none;
+}
+
+.hierarchy-item:hover .hierarchy-drag-handle {
+  opacity: 1;
 }
 
 .hierarchy-icon {
