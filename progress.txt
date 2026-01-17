@@ -459,3 +459,96 @@
   - Similar pattern to RotationControl but with linear slider instead of circular dial
   - Disable transitions during drag for instant feedback
 ---
+
+## Iteration 23 - US-023: Implement appearance section (fill)
+- What was implemented:
+  - FillControl component with checkbox, color swatch, and hex input
+  - Checkbox enables/disables fill (setting fill to undefined when disabled)
+  - Color swatch button opens/closes color picker popup
+  - Editable hex input with validation and normalization (3-digit and 6-digit hex)
+  - ColorPicker component with HSV color model
+  - Saturation/brightness square with white-to-transparent and black-to-transparent gradients
+  - Horizontal hue slider with rainbow gradient (0-360 degrees)
+  - Real-time color updates during drag operations
+  - Helper functions: rgbToHsv, hsvToRgb, hexToRgb, rgbToHex
+- Files changed:
+  - src/components/layout/PropertiesPanel.tsx (added FillControl, ColorPicker, HSV/RGB conversion functions)
+  - src/components/layout/PropertiesPanel.css (added .fill-control, .color-swatch, .color-picker styles)
+  - PRD.md (marked task complete)
+- Learnings for future iterations:
+  - HSV color model: Hue (0-360), Saturation (0-100), Value/Brightness (0-100)
+  - SV picker: background color = pure hue, white gradient left-to-right, black gradient bottom-to-top
+  - Handle click-outside to close popups using document.addEventListener('mousedown')
+  - Hex validation regex: /^#?([0-9a-fA-F]{6}|[0-9a-fA-F]{3})$/
+  - 3-digit hex normalization: #abc -> #aabbcc
+  - Fill toggle pattern: enabled = fill !== undefined, disable = set fill to undefined
+---
+
+## Iteration 24 - US-024: Implement appearance section (stroke)
+- What was implemented:
+  - StrokeControl component with checkbox to enable/disable stroke
+  - Color swatch and editable hex input for stroke color
+  - Stroke width input (px) with validation (minimum 1px)
+  - Color picker reused from FillControl (ColorPicker component)
+  - Real-time updates when changing stroke color or width
+  - Stroke toggle: enable sets default #ffffff color and 2px width, disable sets both to undefined
+- Files changed:
+  - src/components/layout/PropertiesPanel.tsx (added StrokeControl component)
+  - src/components/layout/PropertiesPanel.css (added .stroke-control, .stroke-row, .stroke-width-row styles)
+  - PRD.md (marked task complete)
+- Learnings for future iterations:
+  - StrokeControl follows same pattern as FillControl but with additional width input
+  - Reusing ColorPicker component: same HSV-based color picker works for both fill and stroke
+  - Stroke width row indented with margin-left: 22px to align under the checkbox+label
+  - Width validation: parseFloat + Math.max(1, Math.round(numValue)) ensures minimum 1px
+---
+
+## Iteration 25 - US-025: Implement hierarchy section
+- What was implemented:
+  - Added zIndex property to BaseObject interface for z-ordering
+  - Added reorderObject action to canvasStore for drag-and-drop reordering
+  - Added getNextZIndex action to canvasStore for assigning zIndex to new objects
+  - Refactored HierarchySection into separate component with:
+    - Click item to select object on canvas (updates selectedIds)
+    - Shift+click and Ctrl+click for multi-selection
+    - Drag-and-drop to reorder (changes z-index)
+    - Visual feedback (blue line) for drag-over positions
+    - Drag handle (⋮⋮) on each item
+  - Updated Canvas to render objects sorted by zIndex (low to high)
+  - Updated Canvas hit testing to check highest zIndex first
+  - Updated all object creation to use getNextZIndex()
+  - Removed unused PropertyRow component and getDisplayValue function
+- Files changed:
+  - src/types/canvas.ts (added zIndex to BaseObject)
+  - src/stores/canvasStore.ts (added reorderObject and getNextZIndex actions)
+  - src/components/layout/PropertiesPanel.tsx (added HierarchySection component)
+  - src/components/layout/PropertiesPanel.css (added drag-and-drop styles)
+  - src/components/layout/Canvas.tsx (sorted rendering, hit testing, zIndex assignment)
+  - src/App.tsx (added zIndex to test objects)
+  - PRD.md (marked task complete)
+- Learnings for future iterations:
+  - Use zIndex for z-ordering, highest zIndex renders on top
+  - Hierarchy list shows highest zIndex at top (opposite of render order)
+  - HTML5 drag-and-drop: onDragStart, onDragOver, onDrop, onDragEnd events
+  - Calculate drop position (above/below) using midpoint of target element
+  - reorderObject shifts other objects' zIndex values to make room
+  - getNextZIndex finds max zIndex + 1 for new objects
+---
+
+## Iteration 26 - US-026: Build top bar with branding
+- What was implemented:
+  - Left section: App logo (blue square with V icon), "KARTA" text, version badge "V1.0.0"
+  - Center section: Editable session/document name with click-to-edit
+  - Right section: Connection status icon (green circle), user avatar (blue circle with initial)
+  - Dark theme styling matching mockup aesthetic
+  - Session name editing: click to edit, Enter/blur commits, Escape cancels
+- Files changed:
+  - src/components/layout/TopBar.tsx (added branding, session name editing, status icons)
+  - src/components/layout/TopBar.css (added styles for branding, session name, connection status, avatar)
+  - PRD.md (marked task complete)
+- Learnings for future iterations:
+  - Session name editing follows same pattern as other editable inputs (EditablePropertyRow)
+  - Use setTimeout(..., 0) to focus and select input after it's rendered
+  - Connection status uses CSS classes (connected/disconnected) for color switching
+  - Version badge styled as small pill with tertiary background
+---

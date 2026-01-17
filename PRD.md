@@ -374,12 +374,12 @@ Karta is a lightweight, intuitive visual ideation tool for creating mood boards,
 **Description:** As a user, I want a top bar showing app name and session info.
 
 **Acceptance Criteria:**
-- [ ] Left: App logo/icon + "KARTA" + version "V1.0.0"
-- [ ] Center: Session/document name (editable)
-- [ ] Right: Connection status icon, user avatar
-- [ ] Matches mockup styling (dark theme, subtle borders)
-- [ ] Typecheck passes
-- [ ] Verify changes work in browser
+- [x] Left: App logo/icon + "KARTA" + version "V1.0.0"
+- [x] Center: Session/document name (editable)
+- [x] Right: Connection status icon, user avatar
+- [x] Matches mockup styling (dark theme, subtle borders)
+- [x] Typecheck passes
+- [x] Verify changes work in browser
 
 ---
 
