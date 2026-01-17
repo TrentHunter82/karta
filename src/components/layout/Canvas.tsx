@@ -80,6 +80,7 @@ export function Canvas() {
   const [editingTextId, setEditingTextId] = useState<string | null>(null);
   const [editingFrameId, setEditingFrameId] = useState<string | null>(null);
   const [imageLoadTrigger, setImageLoadTrigger] = useState(0); // Trigger redraw when images load
+  const [isDragOver, setIsDragOver] = useState(false); // Track when files are being dragged over canvas
   const lastMousePos = useRef({ x: 0, y: 0 });
   const dragStartCanvasPos = useRef({ x: 0, y: 0 });
   const marqueeStart = useRef({ x: 0, y: 0 });
@@ -1496,6 +1497,119 @@ export function Canvas() {
     }
   }, []);
 
+  // Handle drag over event for file drops
+  const handleDragOver = useCallback((e: React.DragEvent<HTMLCanvasElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    // Check if the dragged items include files
+    if (e.dataTransfer.types.includes('Files')) {
+      e.dataTransfer.dropEffect = 'copy';
+      setIsDragOver(true);
+    }
+  }, []);
+
+  // Handle drag enter event
+  const handleDragEnter = useCallback((e: React.DragEvent<HTMLCanvasElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (e.dataTransfer.types.includes('Files')) {
+      setIsDragOver(true);
+    }
+  }, []);
+
+  // Handle drag leave event
+  const handleDragLeave = useCallback((e: React.DragEvent<HTMLCanvasElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    // Only set to false if we're leaving the canvas (not entering a child element)
+    if (e.currentTarget === e.target) {
+      setIsDragOver(false);
+    }
+  }, []);
+
+  // Handle file drop event
+  const handleDrop = useCallback((e: React.DragEvent<HTMLCanvasElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragOver(false);
+
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+
+    const rect = canvas.getBoundingClientRect();
+    const dropX = e.clientX - rect.left;
+    const dropY = e.clientY - rect.top;
+    const canvasPos = screenToCanvas(dropX, dropY);
+
+    // Get dropped files
+    const files = Array.from(e.dataTransfer.files);
+    const imageFiles = files.filter((file) => {
+      const type = file.type.toLowerCase();
+      return type === 'image/png' || type === 'image/jpeg' || type === 'image/gif' || type === 'image/webp';
+    });
+
+    if (imageFiles.length === 0) return;
+
+    // Process each image file
+    let offsetX = 0;
+    let offsetY = 0;
+    const OFFSET_INCREMENT = 20; // Offset each subsequent image slightly
+
+    imageFiles.forEach((file, index) => {
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        const dataUrl = event.target?.result as string;
+        if (!dataUrl) return;
+
+        // Load image to get dimensions
+        const img = new Image();
+        img.onload = () => {
+          let imgWidth = img.naturalWidth;
+          let imgHeight = img.naturalHeight;
+
+          // Scale down large images to max 800px
+          const maxSize = 800;
+          if (imgWidth > maxSize || imgHeight > maxSize) {
+            const scale = Math.min(maxSize / imgWidth, maxSize / imgHeight);
+            imgWidth = Math.round(imgWidth * scale);
+            imgHeight = Math.round(imgHeight * scale);
+          }
+
+          // Calculate position with offset for multiple images
+          const imageX = canvasPos.x - imgWidth / 2 + offsetX;
+          const imageY = canvasPos.y - imgHeight / 2 + offsetY;
+
+          // Create image object
+          const newImage: ImageObject = {
+            id: crypto.randomUUID(),
+            type: 'image',
+            x: imageX,
+            y: imageY,
+            width: imgWidth,
+            height: imgHeight,
+            rotation: 0,
+            opacity: 1,
+            zIndex: getNextZIndex(),
+            src: dataUrl,
+          };
+
+          addObject(newImage);
+
+          // Select the last image (when all are loaded)
+          if (index === imageFiles.length - 1) {
+            setSelection([newImage.id]);
+          }
+        };
+        img.src = dataUrl;
+      };
+      reader.readAsDataURL(file);
+
+      // Increment offset for next image
+      offsetX += OFFSET_INCREMENT;
+      offsetY += OFFSET_INCREMENT;
+    });
+  }, [screenToCanvas, addObject, getNextZIndex, setSelection]);
+
   // Determine cursor style
   const getCursorStyle = () => {
     if (isPanning) return 'grabbing';
@@ -1683,7 +1797,23 @@ export function Canvas() {
         onMouseUp={handleMouseUp}
         onMouseLeave={handleMouseLeave}
         onContextMenu={handleContextMenu}
+        onDragOver={handleDragOver}
+        onDragEnter={handleDragEnter}
+        onDragLeave={handleDragLeave}
+        onDrop={handleDrop}
       />
+      {isDragOver && (
+        <div className="drop-indicator">
+          <div className="drop-indicator-content">
+            <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <rect x="3" y="3" width="18" height="18" rx="2" />
+              <circle cx="8.5" cy="8.5" r="1.5" />
+              <path d="M21 15l-5-5L5 21" />
+            </svg>
+            <span>Drop images here</span>
+          </div>
+        </div>
+      )}
       {editingTextId && (
         <input
           ref={textInputRef}

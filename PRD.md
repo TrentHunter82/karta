@@ -428,11 +428,11 @@ Karta is a lightweight, intuitive visual ideation tool for creating mood boards,
 **Description:** As a user, I want to drag images onto the canvas from my file system.
 
 **Acceptance Criteria:**
-- [ ] Drag image file over canvas shows drop indicator
-- [ ] Drop places image at drop position
-- [ ] Supports multiple files dropped at once
-- [ ] Typecheck passes
-- [ ] Verify changes work in browser
+- [x] Drag image file over canvas shows drop indicator
+- [x] Drop places image at drop position
+- [x] Supports multiple files dropped at once
+- [x] Typecheck passes
+- [x] Verify changes work in browser
 
 ---
 
