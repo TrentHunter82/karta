@@ -1,6 +1,6 @@
 import { useRef, useEffect, useState, useCallback } from 'react';
 import { useCanvasStore } from '../../stores/canvasStore';
-import type { CanvasObject } from '../../types/canvas';
+import type { CanvasObject, RectangleObject } from '../../types/canvas';
 import './Canvas.css';
 
 const MIN_ZOOM = 0.1; // 10%
@@ -52,6 +52,8 @@ export function Canvas() {
   const setViewport = useCanvasStore((state) => state.setViewport);
   const setSelection = useCanvasStore((state) => state.setSelection);
   const updateObjects = useCanvasStore((state) => state.updateObjects);
+  const addObject = useCanvasStore((state) => state.addObject);
+  const setActiveTool = useCanvasStore((state) => state.setActiveTool);
 
   const [isPanning, setIsPanning] = useState(false);
   const [isSpacePressed, setIsSpacePressed] = useState(false);
@@ -63,6 +65,7 @@ export function Canvas() {
   const [hoveredHandle, setHoveredHandle] = useState<HandleType>(null);
   const [isRotating, setIsRotating] = useState(false);
   const [hoveredRotationHandle, setHoveredRotationHandle] = useState<RotationHandle>(null);
+  const [isDrawingRect, setIsDrawingRect] = useState(false);
   const lastMousePos = useRef({ x: 0, y: 0 });
   const dragStartCanvasPos = useRef({ x: 0, y: 0 });
   const marqueeStart = useRef({ x: 0, y: 0 });
@@ -73,6 +76,9 @@ export function Canvas() {
   const resizeShiftKey = useRef(false);
   const rotationStartAngle = useRef(0);
   const rotationObjStartRotation = useRef(0);
+  const rectDrawStart = useRef({ x: 0, y: 0 });
+  const rectDrawEnd = useRef({ x: 0, y: 0 });
+  const rectDrawShiftKey = useRef(false);
 
   // Resize canvas to fill container
   const resizeCanvas = useCallback(() => {
@@ -305,6 +311,53 @@ export function Canvas() {
     [isMarqueeSelecting, canvasToScreen]
   );
 
+  // Draw rectangle preview while drawing
+  const drawRectPreview = useCallback(
+    (ctx: CanvasRenderingContext2D) => {
+      if (!isDrawingRect) return;
+
+      const start = rectDrawStart.current;
+      const end = rectDrawEnd.current;
+      const shiftKey = rectDrawShiftKey.current;
+
+      // Calculate dimensions
+      let width = end.x - start.x;
+      let height = end.y - start.y;
+
+      // Constrain to square if shift is held
+      if (shiftKey) {
+        const size = Math.max(Math.abs(width), Math.abs(height));
+        width = width >= 0 ? size : -size;
+        height = height >= 0 ? size : -size;
+      }
+
+      // Convert to screen coordinates
+      const x = width >= 0 ? start.x : start.x + width;
+      const y = height >= 0 ? start.y : start.y + height;
+      const rectWidth = Math.abs(width);
+      const rectHeight = Math.abs(height);
+
+      const screenPos = canvasToScreen(x, y);
+      const screenWidth = rectWidth * viewport.zoom;
+      const screenHeight = rectHeight * viewport.zoom;
+
+      ctx.save();
+
+      // Draw rectangle with default fill
+      ctx.fillStyle = '#4a4a4a';
+      ctx.fillRect(screenPos.x, screenPos.y, screenWidth, screenHeight);
+
+      // Draw a border to show the drawing area
+      ctx.strokeStyle = SELECTION_COLOR;
+      ctx.lineWidth = 1;
+      ctx.setLineDash([4, 4]);
+      ctx.strokeRect(screenPos.x, screenPos.y, screenWidth, screenHeight);
+
+      ctx.restore();
+    },
+    [isDrawingRect, canvasToScreen, viewport.zoom]
+  );
+
   // Draw the canvas content
   const draw = useCallback(() => {
     const canvas = canvasRef.current;
@@ -360,7 +413,10 @@ export function Canvas() {
 
     // Draw marquee selection rectangle
     drawMarqueeRect(ctx);
-  }, [viewport, objects, selectedIds, drawObject, drawSelectionBox, drawMarqueeRect]);
+
+    // Draw rectangle preview while drawing
+    drawRectPreview(ctx);
+  }, [viewport, objects, selectedIds, drawObject, drawSelectionBox, drawMarqueeRect, drawRectPreview]);
 
   // Handle window resize
   useEffect(() => {
@@ -676,6 +732,16 @@ export function Canvas() {
         }
       }
     }
+
+    // Left click with rectangle tool - draw rectangle
+    if (e.button === 0 && activeTool === 'rectangle') {
+      const canvasPos = screenToCanvas(screenX, screenY);
+      rectDrawStart.current = { x: canvasPos.x, y: canvasPos.y };
+      rectDrawEnd.current = { x: canvasPos.x, y: canvasPos.y };
+      rectDrawShiftKey.current = e.shiftKey;
+      setIsDrawingRect(true);
+      setSelection([]); // Clear selection when drawing
+    }
   }, [isSpacePressed, activeTool, hitTest, hitTestHandle, hitTestRotationHandle, selectedIds, setSelection, screenToCanvas, canvasToScreen, objects]);
 
   // Handle mouse move for panning, dragging, and hover detection
@@ -859,7 +925,7 @@ export function Canvas() {
         const currentAngle = (currentAngleRad * 180) / Math.PI + 90; // +90 because handle is at top
 
         // Calculate rotation delta
-        let rotationDelta = currentAngle - rotationStartAngle.current;
+        const rotationDelta = currentAngle - rotationStartAngle.current;
 
         // Calculate new rotation
         let newRotation = rotationObjStartRotation.current + rotationDelta;
@@ -885,6 +951,16 @@ export function Canvas() {
       const canvasPos = screenToCanvas(screenX, screenY);
       marqueeEnd.current = { x: canvasPos.x, y: canvasPos.y };
       // Force redraw to show marquee rectangle
+      draw();
+      return;
+    }
+
+    // Handle rectangle drawing
+    if (isDrawingRect) {
+      const canvasPos = screenToCanvas(screenX, screenY);
+      rectDrawEnd.current = { x: canvasPos.x, y: canvasPos.y };
+      rectDrawShiftKey.current = e.shiftKey;
+      // Force redraw to show rectangle preview
       draw();
       return;
     }
@@ -925,7 +1001,7 @@ export function Canvas() {
         setHoveredObjectId(null);
       }
     }
-  }, [isPanning, isDragging, isResizing, isRotating, isMarqueeSelecting, viewport, setViewport, selectedIds, objects, updateObjects, activeTool, isSpacePressed, hitTest, hitTestHandle, hitTestRotationHandle, screenToCanvas, canvasToScreen, draw]);
+  }, [isPanning, isDragging, isResizing, isRotating, isMarqueeSelecting, isDrawingRect, viewport, setViewport, selectedIds, objects, updateObjects, activeTool, isSpacePressed, hitTest, hitTestHandle, hitTestRotationHandle, screenToCanvas, canvasToScreen, draw]);
 
   // Handle mouse up to stop panning, dragging, and finalize marquee selection
   const handleMouseUp = useCallback(() => {
@@ -946,6 +1022,52 @@ export function Canvas() {
       setIsMarqueeSelecting(false);
     }
 
+    // Finalize rectangle drawing
+    if (isDrawingRect) {
+      const start = rectDrawStart.current;
+      const end = rectDrawEnd.current;
+      const shiftKey = rectDrawShiftKey.current;
+
+      // Calculate dimensions
+      let width = end.x - start.x;
+      let height = end.y - start.y;
+
+      // Constrain to square if shift was held
+      if (shiftKey) {
+        const size = Math.max(Math.abs(width), Math.abs(height));
+        width = width >= 0 ? size : -size;
+        height = height >= 0 ? size : -size;
+      }
+
+      // Normalize to positive width/height
+      const x = width >= 0 ? start.x : start.x + width;
+      const y = height >= 0 ? start.y : start.y + height;
+      const rectWidth = Math.abs(width);
+      const rectHeight = Math.abs(height);
+
+      // Only create rectangle if it has meaningful size
+      if (rectWidth >= MIN_OBJECT_SIZE && rectHeight >= MIN_OBJECT_SIZE) {
+        const newRect: RectangleObject = {
+          id: crypto.randomUUID(),
+          type: 'rectangle',
+          x,
+          y,
+          width: rectWidth,
+          height: rectHeight,
+          rotation: 0,
+          opacity: 1,
+          fill: '#4a4a4a',
+        };
+
+        addObject(newRect);
+        setSelection([newRect.id]);
+      }
+
+      // Switch to select tool after drawing
+      setActiveTool('select');
+      setIsDrawingRect(false);
+    }
+
     setIsPanning(false);
     setIsDragging(false);
     setIsResizing(false);
@@ -953,7 +1075,7 @@ export function Canvas() {
     setActiveResizeHandle(null);
     resizeHandle.current = null;
     resizeStartObjState.current = null;
-  }, [isMarqueeSelecting, getObjectsInMarquee, selectedIds, setSelection]);
+  }, [isMarqueeSelecting, isDrawingRect, getObjectsInMarquee, selectedIds, setSelection, addObject, setActiveTool]);
 
   // Handle mouse leave to stop panning and dragging
   const handleMouseLeave = useCallback(() => {
@@ -962,6 +1084,7 @@ export function Canvas() {
     setIsMarqueeSelecting(false);
     setIsResizing(false);
     setIsRotating(false);
+    setIsDrawingRect(false);
     setActiveResizeHandle(null);
     setHoveredObjectId(null);
     setHoveredHandle(null);
@@ -984,6 +1107,7 @@ export function Canvas() {
     if (isResizing && activeResizeHandle) return HANDLE_CURSORS[activeResizeHandle];
     if (isDragging) return 'move';
     if (isMarqueeSelecting) return 'crosshair';
+    if (isDrawingRect) return 'crosshair';
     if (isSpacePressed || activeTool === 'hand') return 'grab';
     if (activeTool === 'select') {
       // Check for rotation handle hover

@@ -184,13 +184,13 @@ Karta is a lightweight, intuitive visual ideation tool for creating mood boards,
 **Description:** As a user, I want to draw rectangles on the canvas.
 
 **Acceptance Criteria:**
-- [ ] With Rectangle tool active, drag on canvas creates rectangle
-- [ ] Rectangle has default fill (#4a4a4a) and no stroke
-- [ ] Shift+drag constrains to square
-- [ ] Rectangle added to store on mouse up
-- [ ] Tool switches to Select after drawing
-- [ ] Typecheck passes
-- [ ] Verify changes work in browser
+- [x] With Rectangle tool active, drag on canvas creates rectangle
+- [x] Rectangle has default fill (#4a4a4a) and no stroke
+- [x] Shift+drag constrains to square
+- [x] Rectangle added to store on mouse up
+- [x] Tool switches to Select after drawing
+- [x] Typecheck passes
+- [x] Verify changes work in browser
 
 ---
 
