@@ -7,6 +7,7 @@ interface CanvasState {
   selectedIds: Set<string>;
   viewport: Viewport;
   activeTool: ToolType;
+  cursorPosition: { x: number; y: number } | null;
 
   // Actions
   addObject: (object: CanvasObject) => void;
@@ -18,6 +19,7 @@ interface CanvasState {
   setActiveTool: (tool: ToolType) => void;
   reorderObject: (id: string, newZIndex: number) => void;
   getNextZIndex: () => number;
+  setCursorPosition: (position: { x: number; y: number } | null) => void;
 }
 
 export const useCanvasStore = create<CanvasState>((set) => ({
@@ -26,6 +28,7 @@ export const useCanvasStore = create<CanvasState>((set) => ({
   selectedIds: new Set(),
   viewport: { x: 0, y: 0, zoom: 1 },
   activeTool: 'select',
+  cursorPosition: null,
 
   // Actions
   addObject: (object) =>
@@ -126,4 +129,9 @@ export const useCanvasStore = create<CanvasState>((set) => ({
     }
     return maxZIndex + 1;
   },
+
+  setCursorPosition: (position) =>
+    set(() => ({
+      cursorPosition: position,
+    })),
 }));

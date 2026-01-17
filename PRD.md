@@ -387,12 +387,12 @@ Karta is a lightweight, intuitive visual ideation tool for creating mood boards,
 **Description:** As a user, I want a status bar showing cursor position and selection.
 
 **Acceptance Criteria:**
-- [ ] Left: "POS X:--- Y:---" showing cursor position on canvas
-- [ ] Updates in real-time as mouse moves over canvas
-- [ ] Shows canvas coordinates (accounting for pan/zoom)
-- [ ] Right: "SEL NONE" or "SEL X objects" showing selection count
-- [ ] Typecheck passes
-- [ ] Verify changes work in browser
+- [x] Left: "POS X:--- Y:---" showing cursor position on canvas
+- [x] Updates in real-time as mouse moves over canvas
+- [x] Shows canvas coordinates (accounting for pan/zoom)
+- [x] Right: "SEL NONE" or "SEL X objects" showing selection count
+- [x] Typecheck passes
+- [x] Verify changes work in browser
 
 ---
 

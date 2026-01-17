@@ -59,6 +59,7 @@ export function Canvas() {
   const addObject = useCanvasStore((state) => state.addObject);
   const setActiveTool = useCanvasStore((state) => state.setActiveTool);
   const getNextZIndex = useCanvasStore((state) => state.getNextZIndex);
+  const setCursorPosition = useCanvasStore((state) => state.setCursorPosition);
 
   const [isPanning, setIsPanning] = useState(false);
   const [isSpacePressed, setIsSpacePressed] = useState(false);
@@ -946,6 +947,10 @@ export function Canvas() {
     const screenX = e.clientX - rect.left;
     const screenY = e.clientY - rect.top;
 
+    // Update cursor position in canvas coordinates for status bar
+    const canvasCursorPos = screenToCanvas(screenX, screenY);
+    setCursorPosition(canvasCursorPos);
+
     // Handle panning
     if (isPanning) {
       const dx = e.clientX - lastMousePos.current.x;
@@ -1213,7 +1218,7 @@ export function Canvas() {
         setHoveredObjectId(null);
       }
     }
-  }, [isPanning, isDragging, isResizing, isRotating, isMarqueeSelecting, isDrawingRect, isDrawingFrame, isDrawingPath, viewport, setViewport, selectedIds, objects, updateObjects, activeTool, isSpacePressed, hitTest, hitTestHandle, hitTestRotationHandle, screenToCanvas, canvasToScreen, draw]);
+  }, [isPanning, isDragging, isResizing, isRotating, isMarqueeSelecting, isDrawingRect, isDrawingFrame, isDrawingPath, viewport, setViewport, selectedIds, objects, updateObjects, activeTool, isSpacePressed, hitTest, hitTestHandle, hitTestRotationHandle, screenToCanvas, canvasToScreen, draw, setCursorPosition]);
 
   // Handle mouse up to stop panning, dragging, and finalize marquee selection
   const handleMouseUp = useCallback(() => {
@@ -1423,7 +1428,9 @@ export function Canvas() {
     resizeHandle.current = null;
     resizeStartObjState.current = null;
     pathDrawPoints.current = [];
-  }, []);
+    // Clear cursor position when mouse leaves canvas
+    setCursorPosition(null);
+  }, [setCursorPosition]);
 
   // Prevent context menu on middle click
   const handleContextMenu = useCallback((e: React.MouseEvent) => {
