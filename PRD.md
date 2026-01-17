@@ -118,13 +118,13 @@ Karta is a lightweight, intuitive visual ideation tool for creating mood boards,
 **Description:** As a user, I want to click objects to select them so I can modify them.
 
 **Acceptance Criteria:**
-- [ ] Click on object selects it (updates `selectedIds`)
-- [ ] Click on empty canvas deselects all
-- [ ] Selected object shows bounding box with handles
-- [ ] Bounding box has 8 resize handles + rotation handle
-- [ ] Selection highlight color: blue (#0066ff)
-- [ ] Typecheck passes
-- [ ] Verify changes work in browser
+- [x] Click on object selects it (updates `selectedIds`)
+- [x] Click on empty canvas deselects all
+- [x] Selected object shows bounding box with handles
+- [x] Bounding box has 8 resize handles + rotation handle
+- [x] Selection highlight color: blue (#0066ff)
+- [x] Typecheck passes
+- [x] Verify changes work in browser
 
 ---
 
