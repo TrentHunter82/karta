@@ -238,12 +238,12 @@ Karta is a lightweight, intuitive visual ideation tool for creating mood boards,
 **Description:** As a user, I want to create frames to group content.
 
 **Acceptance Criteria:**
-- [ ] Drag with Frame tool creates frame object
-- [ ] Frame has label showing name (editable)
-- [ ] Frame has subtle background (#2a2a2a) and border
-- [ ] Objects inside frame visually contained
-- [ ] Typecheck passes
-- [ ] Verify changes work in browser
+- [x] Drag with Frame tool creates frame object
+- [x] Frame has label showing name (editable)
+- [x] Frame has subtle background (#2a2a2a) and border
+- [x] Objects inside frame visually contained
+- [x] Typecheck passes
+- [x] Verify changes work in browser
 
 ---
 

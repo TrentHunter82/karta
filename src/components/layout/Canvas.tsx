@@ -1,6 +1,6 @@
 import { useRef, useEffect, useState, useCallback } from 'react';
 import { useCanvasStore } from '../../stores/canvasStore';
-import type { CanvasObject, RectangleObject, EllipseObject, TextObject } from '../../types/canvas';
+import type { CanvasObject, RectangleObject, EllipseObject, TextObject, FrameObject } from '../../types/canvas';
 import './Canvas.css';
 
 const MIN_ZOOM = 0.1; // 10%
@@ -70,7 +70,9 @@ export function Canvas() {
   const [isRotating, setIsRotating] = useState(false);
   const [hoveredRotationHandle, setHoveredRotationHandle] = useState<RotationHandle>(null);
   const [isDrawingRect, setIsDrawingRect] = useState(false);
+  const [isDrawingFrame, setIsDrawingFrame] = useState(false);
   const [editingTextId, setEditingTextId] = useState<string | null>(null);
+  const [editingFrameId, setEditingFrameId] = useState<string | null>(null);
   const lastMousePos = useRef({ x: 0, y: 0 });
   const dragStartCanvasPos = useRef({ x: 0, y: 0 });
   const marqueeStart = useRef({ x: 0, y: 0 });
@@ -85,6 +87,9 @@ export function Canvas() {
   const rectDrawEnd = useRef({ x: 0, y: 0 });
   const rectDrawShiftKey = useRef(false);
   const rectDrawAltKey = useRef(false); // Alt key for ellipse mode
+  const frameDrawStart = useRef({ x: 0, y: 0 });
+  const frameDrawEnd = useRef({ x: 0, y: 0 });
+  const frameInputRef = useRef<HTMLInputElement>(null);
 
   // Resize canvas to fill container
   const resizeCanvas = useCallback(() => {
@@ -387,6 +392,57 @@ export function Canvas() {
     [isDrawingRect, canvasToScreen, viewport.zoom]
   );
 
+  // Draw frame preview while drawing
+  const drawFramePreview = useCallback(
+    (ctx: CanvasRenderingContext2D) => {
+      if (!isDrawingFrame) return;
+
+      const start = frameDrawStart.current;
+      const end = frameDrawEnd.current;
+
+      // Calculate dimensions
+      const width = end.x - start.x;
+      const height = end.y - start.y;
+
+      // Convert to screen coordinates
+      const x = width >= 0 ? start.x : start.x + width;
+      const y = height >= 0 ? start.y : start.y + height;
+      const frameWidth = Math.abs(width);
+      const frameHeight = Math.abs(height);
+
+      const screenPos = canvasToScreen(x, y);
+      const screenWidth = frameWidth * viewport.zoom;
+      const screenHeight = frameHeight * viewport.zoom;
+
+      ctx.save();
+
+      // Draw frame with background
+      ctx.fillStyle = '#2a2a2a';
+      ctx.fillRect(screenPos.x, screenPos.y, screenWidth, screenHeight);
+
+      // Draw frame border
+      ctx.strokeStyle = '#3a3a3a';
+      ctx.lineWidth = 1;
+      ctx.setLineDash([]);
+      ctx.strokeRect(screenPos.x, screenPos.y, screenWidth, screenHeight);
+
+      // Draw frame label placeholder
+      ctx.fillStyle = '#888888';
+      ctx.font = `${12 * viewport.zoom}px sans-serif`;
+      ctx.textBaseline = 'bottom';
+      ctx.fillText('Frame', screenPos.x, screenPos.y - 4 * viewport.zoom);
+
+      // Draw a selection border to show the drawing area
+      ctx.strokeStyle = SELECTION_COLOR;
+      ctx.lineWidth = 1;
+      ctx.setLineDash([4, 4]);
+      ctx.strokeRect(screenPos.x, screenPos.y, screenWidth, screenHeight);
+
+      ctx.restore();
+    },
+    [isDrawingFrame, canvasToScreen, viewport.zoom]
+  );
+
   // Draw the canvas content
   const draw = useCallback(() => {
     const canvas = canvasRef.current;
@@ -445,7 +501,10 @@ export function Canvas() {
 
     // Draw rectangle preview while drawing
     drawRectPreview(ctx);
-  }, [viewport, objects, selectedIds, drawObject, drawSelectionBox, drawMarqueeRect, drawRectPreview]);
+
+    // Draw frame preview while drawing
+    drawFramePreview(ctx);
+  }, [viewport, objects, selectedIds, drawObject, drawSelectionBox, drawMarqueeRect, drawRectPreview, drawFramePreview]);
 
   // Handle window resize
   useEffect(() => {
@@ -739,6 +798,13 @@ export function Canvas() {
           return; // Don't start dragging
         }
 
+        // Handle double-click on frame objects to edit name
+        if (isDoubleClick && hitObject.type === 'frame') {
+          setSelection([hitObject.id]);
+          setEditingFrameId(hitObject.id);
+          return; // Don't start dragging
+        }
+
         // Click on object
         if (e.shiftKey) {
           // Shift+click - toggle selection
@@ -814,6 +880,15 @@ export function Canvas() {
       setSelection([newText.id]);
       setEditingTextId(newText.id); // Enter edit mode immediately
       setActiveTool('select'); // Switch to select tool
+    }
+
+    // Left click with frame tool - start drawing frame
+    if (e.button === 0 && activeTool === 'frame') {
+      const canvasPos = screenToCanvas(screenX, screenY);
+      frameDrawStart.current = { x: canvasPos.x, y: canvasPos.y };
+      frameDrawEnd.current = { x: canvasPos.x, y: canvasPos.y };
+      setIsDrawingFrame(true);
+      setSelection([]); // Clear selection when drawing
     }
   }, [isSpacePressed, activeTool, hitTest, hitTestHandle, hitTestRotationHandle, selectedIds, setSelection, screenToCanvas, canvasToScreen, objects, addObject, setActiveTool]);
 
@@ -1039,6 +1114,15 @@ export function Canvas() {
       return;
     }
 
+    // Handle frame drawing
+    if (isDrawingFrame) {
+      const canvasPos = screenToCanvas(screenX, screenY);
+      frameDrawEnd.current = { x: canvasPos.x, y: canvasPos.y };
+      // Force redraw to show frame preview
+      draw();
+      return;
+    }
+
     // Hover detection for resize handles, rotation handle, and move cursor (only when not dragging/panning/resizing)
     if (activeTool === 'select' && !isSpacePressed) {
       // First check for handle hover on selected objects
@@ -1075,7 +1159,7 @@ export function Canvas() {
         setHoveredObjectId(null);
       }
     }
-  }, [isPanning, isDragging, isResizing, isRotating, isMarqueeSelecting, isDrawingRect, viewport, setViewport, selectedIds, objects, updateObjects, activeTool, isSpacePressed, hitTest, hitTestHandle, hitTestRotationHandle, screenToCanvas, canvasToScreen, draw]);
+  }, [isPanning, isDragging, isResizing, isRotating, isMarqueeSelecting, isDrawingRect, isDrawingFrame, viewport, setViewport, selectedIds, objects, updateObjects, activeTool, isSpacePressed, hitTest, hitTestHandle, hitTestRotationHandle, screenToCanvas, canvasToScreen, draw]);
 
   // Handle mouse up to stop panning, dragging, and finalize marquee selection
   const handleMouseUp = useCallback(() => {
@@ -1162,6 +1246,49 @@ export function Canvas() {
       setIsDrawingRect(false);
     }
 
+    // Finalize frame drawing
+    if (isDrawingFrame) {
+      const start = frameDrawStart.current;
+      const end = frameDrawEnd.current;
+
+      // Calculate dimensions
+      const width = end.x - start.x;
+      const height = end.y - start.y;
+
+      // Normalize to positive width/height
+      const x = width >= 0 ? start.x : start.x + width;
+      const y = height >= 0 ? start.y : start.y + height;
+      const frameWidth = Math.abs(width);
+      const frameHeight = Math.abs(height);
+
+      // Only create frame if it has meaningful size
+      if (frameWidth >= MIN_OBJECT_SIZE && frameHeight >= MIN_OBJECT_SIZE) {
+        // Create frame object
+        const newFrame: FrameObject = {
+          id: crypto.randomUUID(),
+          type: 'frame',
+          x,
+          y,
+          width: frameWidth,
+          height: frameHeight,
+          rotation: 0,
+          opacity: 1,
+          fill: '#2a2a2a',
+          stroke: '#3a3a3a',
+          strokeWidth: 1,
+          name: 'Frame',
+        };
+
+        addObject(newFrame);
+        setSelection([newFrame.id]);
+        setEditingFrameId(newFrame.id); // Enter name edit mode immediately
+      }
+
+      // Switch to select tool after drawing
+      setActiveTool('select');
+      setIsDrawingFrame(false);
+    }
+
     setIsPanning(false);
     setIsDragging(false);
     setIsResizing(false);
@@ -1169,7 +1296,7 @@ export function Canvas() {
     setActiveResizeHandle(null);
     resizeHandle.current = null;
     resizeStartObjState.current = null;
-  }, [isMarqueeSelecting, isDrawingRect, getObjectsInMarquee, selectedIds, setSelection, addObject, setActiveTool]);
+  }, [isMarqueeSelecting, isDrawingRect, isDrawingFrame, getObjectsInMarquee, selectedIds, setSelection, addObject, setActiveTool]);
 
   // Handle mouse leave to stop panning and dragging
   const handleMouseLeave = useCallback(() => {
@@ -1179,6 +1306,7 @@ export function Canvas() {
     setIsResizing(false);
     setIsRotating(false);
     setIsDrawingRect(false);
+    setIsDrawingFrame(false);
     setActiveResizeHandle(null);
     setHoveredObjectId(null);
     setHoveredHandle(null);
@@ -1202,7 +1330,9 @@ export function Canvas() {
     if (isDragging) return 'move';
     if (isMarqueeSelecting) return 'crosshair';
     if (isDrawingRect) return 'crosshair';
+    if (isDrawingFrame) return 'crosshair';
     if (isSpacePressed || activeTool === 'hand') return 'grab';
+    if (activeTool === 'frame') return 'crosshair';
     if (activeTool === 'select') {
       // Check for rotation handle hover
       if (hoveredRotationHandle) {
@@ -1297,6 +1427,74 @@ export function Canvas() {
     return textObj.text;
   };
 
+  // Handle frame name input changes
+  const handleFrameNameInput = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    if (!editingFrameId) return;
+    updateObject(editingFrameId, { name: e.target.value });
+  }, [editingFrameId, updateObject]);
+
+  // Exit frame name edit mode
+  const exitFrameNameEditMode = useCallback(() => {
+    setEditingFrameId(null);
+  }, []);
+
+  // Handle keyboard events for frame name editing
+  const handleFrameNameKeyDown = useCallback((e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Escape') {
+      e.preventDefault();
+      exitFrameNameEditMode();
+    } else if (e.key === 'Enter') {
+      e.preventDefault();
+      exitFrameNameEditMode();
+    }
+    // Stop propagation to prevent tool shortcuts from firing
+    e.stopPropagation();
+  }, [exitFrameNameEditMode]);
+
+  // Focus the frame name input when entering edit mode
+  useEffect(() => {
+    if (editingFrameId && frameInputRef.current) {
+      frameInputRef.current.focus();
+      frameInputRef.current.select(); // Select all text for easy replacement
+    }
+  }, [editingFrameId]);
+
+  // Get the editing frame object and its screen position for the name input
+  const getEditingFrameNameStyle = useCallback((): React.CSSProperties | null => {
+    if (!editingFrameId) return null;
+    const frameObj = objects.get(editingFrameId);
+    if (!frameObj || frameObj.type !== 'frame') return null;
+
+    const screenPos = canvasToScreen(frameObj.x, frameObj.y);
+    const fontSize = 12 * viewport.zoom;
+
+    return {
+      position: 'absolute',
+      left: screenPos.x,
+      top: screenPos.y - fontSize - 4 * viewport.zoom, // Position above the frame
+      transform: `rotate(${frameObj.rotation}deg)`,
+      transformOrigin: 'top left',
+      fontSize: `${fontSize}px`,
+      fontFamily: 'sans-serif',
+      color: '#888888',
+      background: 'transparent',
+      border: 'none',
+      outline: 'none',
+      padding: 0,
+      margin: 0,
+      minWidth: '50px',
+      caretColor: '#888888',
+    };
+  }, [editingFrameId, objects, canvasToScreen, viewport.zoom]);
+
+  // Get the current frame name for the editing input
+  const getEditingFrameNameValue = (): string => {
+    if (!editingFrameId) return '';
+    const frameObj = objects.get(editingFrameId);
+    if (!frameObj || frameObj.type !== 'frame') return '';
+    return frameObj.name;
+  };
+
   return (
     <main className="canvas-container" ref={containerRef} onClick={handleCanvasClick}>
       <canvas
@@ -1320,6 +1518,18 @@ export function Canvas() {
           onChange={handleTextInput}
           onKeyDown={handleTextKeyDown}
           onBlur={exitTextEditMode}
+        />
+      )}
+      {editingFrameId && (
+        <input
+          ref={frameInputRef}
+          type="text"
+          className="frame-name-input"
+          style={getEditingFrameNameStyle() || undefined}
+          value={getEditingFrameNameValue()}
+          onChange={handleFrameNameInput}
+          onKeyDown={handleFrameNameKeyDown}
+          onBlur={exitFrameNameEditMode}
         />
       )}
     </main>

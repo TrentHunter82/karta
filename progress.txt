@@ -274,3 +274,62 @@
   - Alt key can be toggled during drawing to switch between rectangle and ellipse preview
   - EllipseObject type already existed in canvas.ts, rendering was also already implemented
 ---
+
+## Iteration 14 - US-014: Implement text tool
+- What was implemented:
+  - Click with Text tool creates text object at click position
+  - Text object enters edit mode immediately with focused HTML input overlay
+  - Typing updates text content in real-time via updateObject store action
+  - Click outside (onBlur), Escape, or Enter exits edit mode
+  - Default font: Inter/system-ui/sans-serif, 16px, white (#ffffff)
+  - Tool switches to Select after creating text object
+- Files changed:
+  - src/components/layout/Canvas.tsx (added text tool handling, editingTextId state, text input overlay)
+  - src/components/layout/Canvas.css (added .text-edit-input styles)
+  - PRD.md (marked task complete)
+- Learnings for future iterations:
+  - Use HTML input overlay positioned absolutely over canvas for text editing
+  - Calculate screen position using canvasToScreen and apply viewport.zoom to font size
+  - Use e.stopPropagation() on text input keydown to prevent tool shortcuts firing
+  - TextObject type already defined in canvas.ts with text, fontSize, fontFamily, textAlign
+  - onBlur handles click outside, onKeyDown handles Escape/Enter
+---
+
+## Iteration 15 - US-015: Implement text editing on existing text
+- What was implemented:
+  - Double-click detection using lastClickTime and lastClickObjectId refs
+  - 300ms threshold for double-click detection on same object
+  - Double-click on text object enters edit mode and selects the object
+  - Native HTML input handles cursor position tracking via selectionStart/selectionEnd
+  - Arrow keys navigate cursor naturally via native input behavior
+  - Shift+arrows, Ctrl+A, Home/End, and double-click word selection all work via native input
+- Files changed:
+  - src/components/layout/Canvas.tsx (added double-click detection refs and handling)
+  - PRD.md (marked task complete)
+- Learnings for future iterations:
+  - Double-click detection: track lastClickTime and lastClickObjectId, compare with 300ms threshold
+  - Native HTML input elements handle cursor and selection naturally - no custom implementation needed
+  - Return early from handleMouseDown after entering text edit mode to prevent starting drag
+  - stopPropagation in handleTextKeyDown prevents tool shortcuts but allows native input behaviors
+---
+
+## Iteration 16 - US-016: Implement frame tool
+- What was implemented:
+  - Frame tool drawing functionality - drag on canvas creates frame object
+  - Frame preview while drawing (showing background, border, and "Frame" label)
+  - Frame object with subtle background (#2a2a2a) and border (#3a3a3a)
+  - Frame label showing name above the frame
+  - Frame name editable via double-click (similar to text editing)
+  - Frame name input overlay positioned above frame
+  - Cursor changes to crosshair when frame tool is active
+- Files changed:
+  - src/components/layout/Canvas.tsx (added frame drawing, preview, name editing)
+  - src/components/layout/Canvas.css (added .frame-name-input styles)
+  - PRD.md (marked task complete)
+- Learnings for future iterations:
+  - Frame tool follows same pattern as rectangle tool for drawing
+  - FrameObject type already existed in canvas.ts with name property
+  - Frame rendering was already implemented in drawObject, just needed drawing logic
+  - Double-click detection pattern reused from text editing for frame name editing
+  - Input overlay positioned using top offset to appear above frame (top - fontSize - 4px)
+---
