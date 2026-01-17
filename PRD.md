@@ -440,12 +440,12 @@ Karta is a lightweight, intuitive visual ideation tool for creating mood boards,
 **Description:** As a user, I want to add videos to my canvas.
 
 **Acceptance Criteria:**
-- [ ] Import supports .mp4, .webm video files
-- [ ] Video thumbnail displays on canvas
-- [ ] Click video shows play button overlay
-- [ ] Video plays inline when activated
-- [ ] Typecheck passes
-- [ ] Verify changes work in browser
+- [x] Import supports .mp4, .webm video files
+- [x] Video thumbnail displays on canvas
+- [x] Click video shows play button overlay
+- [x] Video plays inline when activated
+- [x] Typecheck passes
+- [x] Verify changes work in browser
 
 ---
 

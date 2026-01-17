@@ -1,10 +1,14 @@
 import { useRef, useEffect, useState, useCallback } from 'react';
 import { useCanvasStore } from '../../stores/canvasStore';
-import type { CanvasObject, RectangleObject, EllipseObject, TextObject, FrameObject, PathObject, PathPoint, ImageObject } from '../../types/canvas';
+import type { CanvasObject, RectangleObject, EllipseObject, TextObject, FrameObject, PathObject, PathPoint, ImageObject, VideoObject } from '../../types/canvas';
 import './Canvas.css';
 
 // Image cache for loaded images
 const imageCache = new Map<string, HTMLImageElement>();
+
+// Video cache for loaded video thumbnails
+const videoThumbnailCache = new Map<string, HTMLCanvasElement>();
+const videoElementCache = new Map<string, HTMLVideoElement>();
 
 const MIN_ZOOM = 0.1; // 10%
 const MAX_ZOOM = 5.0; // 500%
@@ -81,6 +85,7 @@ export function Canvas() {
   const [editingFrameId, setEditingFrameId] = useState<string | null>(null);
   const [imageLoadTrigger, setImageLoadTrigger] = useState(0); // Trigger redraw when images load
   const [isDragOver, setIsDragOver] = useState(false); // Track when files are being dragged over canvas
+  const [playingVideoId, setPlayingVideoId] = useState<string | null>(null); // Track currently playing video
   const lastMousePos = useRef({ x: 0, y: 0 });
   const dragStartCanvasPos = useRef({ x: 0, y: 0 });
   const marqueeStart = useRef({ x: 0, y: 0 });
@@ -259,22 +264,86 @@ export function Canvas() {
           }
           break;
         }
-        case 'video':
-          // Placeholder for video - will be implemented later
-          ctx.fillStyle = '#3a3a3a';
-          ctx.fillRect(0, 0, width, height);
-          ctx.strokeStyle = '#4a4a4a';
-          ctx.lineWidth = 2;
-          ctx.strokeRect(0, 0, width, height);
-          // Draw video placeholder icon
-          ctx.fillStyle = '#666666';
+        case 'video': {
+          const vidObj = obj as VideoObject;
+          const thumbnailCanvas = videoThumbnailCache.get(vidObj.src);
+
+          if (!thumbnailCanvas) {
+            // Create video element and generate thumbnail
+            if (!videoElementCache.has(vidObj.src)) {
+              const video = document.createElement('video');
+              video.crossOrigin = 'anonymous';
+              video.muted = true;
+              video.preload = 'metadata';
+              videoElementCache.set(vidObj.src, video);
+
+              video.onloadeddata = () => {
+                // Seek to first frame for thumbnail
+                video.currentTime = 0;
+              };
+
+              video.onseeked = () => {
+                // Create thumbnail canvas from video frame
+                const thumbCanvas = document.createElement('canvas');
+                thumbCanvas.width = video.videoWidth;
+                thumbCanvas.height = video.videoHeight;
+                const thumbCtx = thumbCanvas.getContext('2d');
+                if (thumbCtx) {
+                  thumbCtx.drawImage(video, 0, 0);
+                  videoThumbnailCache.set(vidObj.src, thumbCanvas);
+                  setImageLoadTrigger((prev) => prev + 1);
+                }
+              };
+
+              video.src = vidObj.src;
+            }
+
+            // Show placeholder while loading
+            ctx.fillStyle = '#2a2a2a';
+            ctx.fillRect(0, 0, width, height);
+            ctx.strokeStyle = '#3a3a3a';
+            ctx.lineWidth = 2;
+            ctx.strokeRect(0, 0, width, height);
+            // Draw loading text
+            ctx.fillStyle = '#666666';
+            ctx.font = '12px sans-serif';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText('Loading video...', width / 2, height / 2);
+          } else {
+            // Draw the thumbnail
+            ctx.drawImage(thumbnailCanvas, 0, 0, width, height);
+
+            // Draw semi-transparent overlay
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.3)';
+            ctx.fillRect(0, 0, width, height);
+          }
+
+          // Draw play button overlay
+          const buttonSize = Math.min(60, Math.min(width, height) * 0.3);
+          const centerX = width / 2;
+          const centerY = height / 2;
+
+          // Play button circle background
           ctx.beginPath();
-          ctx.moveTo(width / 2 - 10, height / 2 - 12);
-          ctx.lineTo(width / 2 + 14, height / 2);
-          ctx.lineTo(width / 2 - 10, height / 2 + 12);
+          ctx.arc(centerX, centerY, buttonSize / 2, 0, Math.PI * 2);
+          ctx.fillStyle = 'rgba(0, 0, 0, 0.6)';
+          ctx.fill();
+          ctx.strokeStyle = 'rgba(255, 255, 255, 0.8)';
+          ctx.lineWidth = 2;
+          ctx.stroke();
+
+          // Play triangle
+          const triangleSize = buttonSize * 0.4;
+          ctx.beginPath();
+          ctx.moveTo(centerX - triangleSize * 0.4, centerY - triangleSize * 0.5);
+          ctx.lineTo(centerX + triangleSize * 0.6, centerY);
+          ctx.lineTo(centerX - triangleSize * 0.4, centerY + triangleSize * 0.5);
           ctx.closePath();
+          ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
           ctx.fill();
           break;
+        }
       }
 
       ctx.restore();
@@ -900,6 +969,18 @@ export function Canvas() {
           return; // Don't start dragging
         }
 
+        // Handle click on video objects to play/pause
+        if (hitObject.type === 'video') {
+          setSelection([hitObject.id]);
+          // Toggle video playback
+          if (playingVideoId === hitObject.id) {
+            setPlayingVideoId(null);
+          } else {
+            setPlayingVideoId(hitObject.id);
+          }
+          return; // Don't start dragging
+        }
+
         // Click on object
         if (e.shiftKey) {
           // Shift+click - toggle selection
@@ -994,7 +1075,7 @@ export function Canvas() {
       setIsDrawingPath(true);
       setSelection([]); // Clear selection when drawing
     }
-  }, [isSpacePressed, activeTool, hitTest, hitTestHandle, hitTestRotationHandle, selectedIds, setSelection, screenToCanvas, canvasToScreen, objects, addObject, setActiveTool, getNextZIndex]);
+  }, [isSpacePressed, activeTool, hitTest, hitTestHandle, hitTestRotationHandle, selectedIds, setSelection, screenToCanvas, canvasToScreen, objects, addObject, setActiveTool, getNextZIndex, playingVideoId]);
 
   // Handle mouse move for panning, dragging, and hover detection
   const handleMouseMove = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
@@ -1547,15 +1628,23 @@ export function Canvas() {
       const type = file.type.toLowerCase();
       return type === 'image/png' || type === 'image/jpeg' || type === 'image/gif' || type === 'image/webp';
     });
+    const videoFiles = files.filter((file) => {
+      const type = file.type.toLowerCase();
+      return type === 'video/mp4' || type === 'video/webm';
+    });
 
-    if (imageFiles.length === 0) return;
+    const totalFiles = imageFiles.length + videoFiles.length;
+    if (totalFiles === 0) return;
 
-    // Process each image file
+    // Process each file
     let offsetX = 0;
     let offsetY = 0;
-    const OFFSET_INCREMENT = 20; // Offset each subsequent image slightly
+    const OFFSET_INCREMENT = 20; // Offset each subsequent file slightly
+    let processedCount = 0;
+    let lastAddedId = '';
 
-    imageFiles.forEach((file, index) => {
+    // Process image files
+    imageFiles.forEach((file) => {
       const reader = new FileReader();
       reader.onload = (event) => {
         const dataUrl = event.target?.result as string;
@@ -1575,7 +1664,7 @@ export function Canvas() {
             imgHeight = Math.round(imgHeight * scale);
           }
 
-          // Calculate position with offset for multiple images
+          // Calculate position with offset for multiple files
           const imageX = canvasPos.x - imgWidth / 2 + offsetX;
           const imageY = canvasPos.y - imgHeight / 2 + offsetY;
 
@@ -1594,17 +1683,79 @@ export function Canvas() {
           };
 
           addObject(newImage);
+          lastAddedId = newImage.id;
+          processedCount++;
 
-          // Select the last image (when all are loaded)
-          if (index === imageFiles.length - 1) {
-            setSelection([newImage.id]);
+          // Select the last file (when all are loaded)
+          if (processedCount === totalFiles) {
+            setSelection([lastAddedId]);
           }
         };
         img.src = dataUrl;
       };
       reader.readAsDataURL(file);
 
-      // Increment offset for next image
+      // Increment offset for next file
+      offsetX += OFFSET_INCREMENT;
+      offsetY += OFFSET_INCREMENT;
+    });
+
+    // Process video files
+    videoFiles.forEach((file) => {
+      const currentOffsetX = offsetX;
+      const currentOffsetY = offsetY;
+
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        const dataUrl = event.target?.result as string;
+        if (!dataUrl) return;
+
+        // Load video to get dimensions
+        const video = document.createElement('video');
+        video.onloadedmetadata = () => {
+          let vidWidth = video.videoWidth;
+          let vidHeight = video.videoHeight;
+
+          // Scale down large videos to max 800px
+          const maxSize = 800;
+          if (vidWidth > maxSize || vidHeight > maxSize) {
+            const scale = Math.min(maxSize / vidWidth, maxSize / vidHeight);
+            vidWidth = Math.round(vidWidth * scale);
+            vidHeight = Math.round(vidHeight * scale);
+          }
+
+          // Calculate position with offset for multiple files
+          const videoX = canvasPos.x - vidWidth / 2 + currentOffsetX;
+          const videoY = canvasPos.y - vidHeight / 2 + currentOffsetY;
+
+          // Create video object
+          const newVideo: VideoObject = {
+            id: crypto.randomUUID(),
+            type: 'video',
+            x: videoX,
+            y: videoY,
+            width: vidWidth,
+            height: vidHeight,
+            rotation: 0,
+            opacity: 1,
+            zIndex: getNextZIndex(),
+            src: dataUrl,
+          };
+
+          addObject(newVideo);
+          lastAddedId = newVideo.id;
+          processedCount++;
+
+          // Select the last file (when all are loaded)
+          if (processedCount === totalFiles) {
+            setSelection([lastAddedId]);
+          }
+        };
+        video.src = dataUrl;
+      };
+      reader.readAsDataURL(file);
+
+      // Increment offset for next file
       offsetX += OFFSET_INCREMENT;
       offsetY += OFFSET_INCREMENT;
     });
@@ -1785,6 +1936,45 @@ export function Canvas() {
     return frameObj.name;
   };
 
+  // Get the playing video object and its screen position/size
+  const getPlayingVideoStyle = useCallback((): React.CSSProperties | null => {
+    if (!playingVideoId) return null;
+    const videoObj = objects.get(playingVideoId);
+    if (!videoObj || videoObj.type !== 'video') return null;
+
+    const screenPos = canvasToScreen(videoObj.x, videoObj.y);
+    const width = videoObj.width * viewport.zoom;
+    const height = videoObj.height * viewport.zoom;
+
+    return {
+      position: 'absolute',
+      left: screenPos.x,
+      top: screenPos.y,
+      width: `${width}px`,
+      height: `${height}px`,
+      transform: `rotate(${videoObj.rotation}deg)`,
+      transformOrigin: 'top left',
+      objectFit: 'cover' as const,
+      opacity: videoObj.opacity,
+      pointerEvents: 'auto' as const,
+      borderRadius: '0',
+      zIndex: 100,
+    };
+  }, [playingVideoId, objects, canvasToScreen, viewport.zoom]);
+
+  // Get the playing video source
+  const getPlayingVideoSrc = (): string => {
+    if (!playingVideoId) return '';
+    const videoObj = objects.get(playingVideoId);
+    if (!videoObj || videoObj.type !== 'video') return '';
+    return videoObj.src;
+  };
+
+  // Stop video playback
+  const stopVideoPlayback = useCallback(() => {
+    setPlayingVideoId(null);
+  }, []);
+
   return (
     <main className="canvas-container" ref={containerRef} onClick={handleCanvasClick}>
       <canvas
@@ -1810,9 +2000,21 @@ export function Canvas() {
               <circle cx="8.5" cy="8.5" r="1.5" />
               <path d="M21 15l-5-5L5 21" />
             </svg>
-            <span>Drop images here</span>
+            <span>Drop media here</span>
           </div>
         </div>
+      )}
+      {playingVideoId && (
+        <video
+          key={playingVideoId}
+          className="video-player"
+          style={getPlayingVideoStyle() || undefined}
+          src={getPlayingVideoSrc()}
+          autoPlay
+          controls
+          onEnded={stopVideoPlayback}
+          onClick={(e) => e.stopPropagation()}
+        />
       )}
       {editingTextId && (
         <input

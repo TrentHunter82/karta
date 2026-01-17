@@ -68,3 +68,14 @@
 .drop-indicator-content svg {
   opacity: 0.8;
 }
+
+/* Video player overlay */
+.video-player {
+  position: absolute;
+  background-color: #000;
+  z-index: 100;
+}
+
+.video-player:focus {
+  outline: 2px solid var(--color-accent, #0066ff);
+}
