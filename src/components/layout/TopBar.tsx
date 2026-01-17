@@ -1,6 +1,18 @@
-import { useState, useRef, useCallback, useEffect } from 'react';
-import { useCollaborationStore } from '../../stores/collaborationStore';
+import { useState, useRef, useCallback, useEffect, useMemo } from 'react';
+import { useCollaborationStore, type UserPresence } from '../../stores/collaborationStore';
 import './TopBar.css';
+
+// Maximum number of avatars to show before displaying "+N" indicator
+const MAX_VISIBLE_AVATARS = 4;
+
+// Get initials from a user name (e.g., "Happy Fox" -> "HF")
+function getInitials(name: string): string {
+  const parts = name.trim().split(/\s+/);
+  if (parts.length >= 2) {
+    return (parts[0][0] + parts[1][0]).toUpperCase();
+  }
+  return name.slice(0, 2).toUpperCase();
+}
 
 export function TopBar() {
   const [sessionName, setSessionName] = useState('Untitled Session');
@@ -13,6 +25,37 @@ export function TopBar() {
   const connectionStatus = useCollaborationStore((state) => state.connectionStatus);
   const connect = useCollaborationStore((state) => state.connect);
   const roomId = useCollaborationStore((state) => state.roomId);
+  const localUser = useCollaborationStore((state) => state.localUser);
+  const remoteUsers = useCollaborationStore((state) => state.remoteUsers);
+
+  // Combine local user and remote users for display
+  const allUsers = useMemo(() => {
+    const users: Array<{ id: string; name: string; color: string; isLocal: boolean }> = [];
+
+    // Add local user first
+    users.push({
+      id: 'local',
+      name: localUser.name,
+      color: localUser.color,
+      isLocal: true,
+    });
+
+    // Add remote users
+    remoteUsers.forEach((presence: UserPresence, clientId: number) => {
+      users.push({
+        id: String(clientId),
+        name: presence.user.name,
+        color: presence.user.color,
+        isLocal: false,
+      });
+    });
+
+    return users;
+  }, [localUser, remoteUsers]);
+
+  // Split into visible and overflow
+  const visibleUsers = allUsers.slice(0, MAX_VISIBLE_AVATARS);
+  const overflowCount = Math.max(0, allUsers.length - MAX_VISIBLE_AVATARS);
 
   // Auto-connect on mount with a default room or from URL
   useEffect(() => {
@@ -123,8 +166,25 @@ export function TopBar() {
             />
           </svg>
         </div>
-        <div className="user-avatar" title="User">
-          <span>U</span>
+        <div className="user-avatars">
+          {visibleUsers.map((user) => (
+            <div
+              key={user.id}
+              className={`user-avatar ${user.isLocal ? 'is-local' : ''}`}
+              style={{ backgroundColor: user.color }}
+              title={user.isLocal ? `${user.name} (you)` : user.name}
+            >
+              <span>{getInitials(user.name)}</span>
+            </div>
+          ))}
+          {overflowCount > 0 && (
+            <div
+              className="user-avatar overflow-indicator"
+              title={`${overflowCount} more user${overflowCount > 1 ? 's' : ''}`}
+            >
+              <span>+{overflowCount}</span>
+            </div>
+          )}
         </div>
       </div>
     </header>

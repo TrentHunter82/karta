@@ -493,12 +493,12 @@ Karta is a lightweight, intuitive visual ideation tool for creating mood boards,
 **Description:** As a user, I want to see who is in the session.
 
 **Acceptance Criteria:**
-- [ ] Top bar shows avatars of connected users
-- [ ] Avatars are colored circles with initials
-- [ ] Tooltip shows username on hover
-- [ ] "+N" indicator if more than 4 users
-- [ ] Typecheck passes
-- [ ] Verify changes work in browser
+- [x] Top bar shows avatars of connected users
+- [x] Avatars are colored circles with initials
+- [x] Tooltip shows username on hover
+- [x] "+N" indicator if more than 4 users
+- [x] Typecheck passes
+- [x] Verify changes work in browser
 
 ---
 
