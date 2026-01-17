@@ -263,6 +263,205 @@ function OpacityControl({ value, disabled, onChange }: OpacityControlProps) {
   );
 }
 
+interface StrokeControlProps {
+  color: string | undefined;
+  width: number | undefined;
+  enabled: boolean;
+  disabled: boolean;
+  onColorChange: (value: string) => void;
+  onWidthChange: (value: number) => void;
+  onEnabledChange: (enabled: boolean) => void;
+}
+
+function StrokeControl({ color, width, enabled, disabled, onColorChange, onWidthChange, onEnabledChange }: StrokeControlProps) {
+  const [isEditingColor, setIsEditingColor] = useState(false);
+  const [editColorValue, setEditColorValue] = useState(color ?? '#ffffff');
+  const [isEditingWidth, setIsEditingWidth] = useState(false);
+  const [editWidthValue, setEditWidthValue] = useState((width ?? 2).toString());
+  const [showColorPicker, setShowColorPicker] = useState(false);
+  const colorInputRef = useRef<HTMLInputElement>(null);
+  const widthInputRef = useRef<HTMLInputElement>(null);
+  const originalColorRef = useRef(color ?? '#ffffff');
+  const originalWidthRef = useRef(width ?? 2);
+  const colorPickerRef = useRef<HTMLDivElement>(null);
+
+  const handleColorInputClick = () => {
+    if (disabled) return;
+    originalColorRef.current = color ?? '#ffffff';
+    setEditColorValue(color ?? '#ffffff');
+    setIsEditingColor(true);
+  };
+
+  const handleWidthInputClick = () => {
+    if (disabled) return;
+    originalWidthRef.current = width ?? 2;
+    setEditWidthValue((width ?? 2).toString());
+    setIsEditingWidth(true);
+  };
+
+  useEffect(() => {
+    if (isEditingColor && colorInputRef.current) {
+      colorInputRef.current.focus();
+      colorInputRef.current.select();
+    }
+  }, [isEditingColor]);
+
+  useEffect(() => {
+    if (isEditingWidth && widthInputRef.current) {
+      widthInputRef.current.focus();
+      widthInputRef.current.select();
+    }
+  }, [isEditingWidth]);
+
+  // Close color picker when clicking outside
+  useEffect(() => {
+    if (!showColorPicker) return;
+
+    const handleClickOutside = (e: MouseEvent) => {
+      if (colorPickerRef.current && !colorPickerRef.current.contains(e.target as Node)) {
+        setShowColorPicker(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [showColorPicker]);
+
+  const commitColorChange = () => {
+    const hexRegex = /^#?([0-9a-fA-F]{6}|[0-9a-fA-F]{3})$/;
+    let cleanValue = editColorValue.trim();
+    if (!cleanValue.startsWith('#')) {
+      cleanValue = '#' + cleanValue;
+    }
+    if (hexRegex.test(cleanValue)) {
+      // Normalize to 6 digit hex
+      if (cleanValue.length === 4) {
+        cleanValue = '#' + cleanValue[1] + cleanValue[1] + cleanValue[2] + cleanValue[2] + cleanValue[3] + cleanValue[3];
+      }
+      onColorChange(cleanValue.toLowerCase());
+    }
+    setIsEditingColor(false);
+  };
+
+  const revertColorChange = () => {
+    setEditColorValue(originalColorRef.current);
+    setIsEditingColor(false);
+  };
+
+  const commitWidthChange = () => {
+    const numValue = parseFloat(editWidthValue);
+    if (!isNaN(numValue) && numValue > 0) {
+      onWidthChange(Math.max(1, Math.round(numValue)));
+    }
+    setIsEditingWidth(false);
+  };
+
+  const revertWidthChange = () => {
+    setEditWidthValue(originalWidthRef.current.toString());
+    setIsEditingWidth(false);
+  };
+
+  const handleColorKeyDown = (e: React.KeyboardEvent) => {
+    e.stopPropagation();
+    if (e.key === 'Enter') {
+      commitColorChange();
+    } else if (e.key === 'Escape') {
+      revertColorChange();
+    }
+  };
+
+  const handleWidthKeyDown = (e: React.KeyboardEvent) => {
+    e.stopPropagation();
+    if (e.key === 'Enter') {
+      commitWidthChange();
+    } else if (e.key === 'Escape') {
+      revertWidthChange();
+    }
+  };
+
+  const handleSwatchClick = () => {
+    if (disabled) return;
+    setShowColorPicker(!showColorPicker);
+  };
+
+  const displayColor = disabled ? '---' : (color ?? '#ffffff');
+  const swatchColor = disabled ? '#ffffff' : (color ?? '#ffffff');
+  const displayWidth = disabled ? '---' : `${width ?? 2}px`;
+
+  return (
+    <div className="stroke-control">
+      <div className="property-row stroke-row">
+        <div className="stroke-left">
+          <input
+            type="checkbox"
+            className="stroke-checkbox"
+            checked={!disabled && enabled}
+            disabled={disabled}
+            onChange={(e) => onEnabledChange(e.target.checked)}
+          />
+          <span className="property-label">STROKE</span>
+        </div>
+        <div className="stroke-right">
+          <button
+            className={`color-swatch ${disabled ? 'disabled' : ''}`}
+            style={{ backgroundColor: swatchColor }}
+            onClick={handleSwatchClick}
+            disabled={disabled}
+            aria-label="Open stroke color picker"
+          />
+          {isEditingColor ? (
+            <input
+              ref={colorInputRef}
+              type="text"
+              className="property-input hex-input"
+              value={editColorValue}
+              onChange={(e) => setEditColorValue(e.target.value)}
+              onKeyDown={handleColorKeyDown}
+              onBlur={commitColorChange}
+            />
+          ) : (
+            <span
+              className={`property-value ${!disabled ? 'editable' : ''}`}
+              onClick={handleColorInputClick}
+            >
+              {displayColor}
+            </span>
+          )}
+        </div>
+      </div>
+      <div className="property-row stroke-width-row">
+        <span className="property-label">WIDTH</span>
+        {isEditingWidth ? (
+          <input
+            ref={widthInputRef}
+            type="text"
+            className="property-input stroke-width-input"
+            value={editWidthValue}
+            onChange={(e) => setEditWidthValue(e.target.value)}
+            onKeyDown={handleWidthKeyDown}
+            onBlur={commitWidthChange}
+          />
+        ) : (
+          <span
+            className={`property-value ${!disabled ? 'editable' : ''}`}
+            onClick={handleWidthInputClick}
+          >
+            {displayWidth}
+          </span>
+        )}
+      </div>
+      {showColorPicker && !disabled && (
+        <div className="color-picker-wrapper" ref={colorPickerRef}>
+          <ColorPicker
+            color={color ?? '#ffffff'}
+            onChange={onColorChange}
+          />
+        </div>
+      )}
+    </div>
+  );
+}
+
 interface FillControlProps {
   value: string | undefined;
   enabled: boolean;
@@ -918,9 +1117,32 @@ export function PropertiesPanel() {
                 }
               }}
             />
-            <PropertyRow
-              label="STROKE"
-              value={getDisplayValue(() => singleSelection!.stroke ?? '---')}
+            <StrokeControl
+              color={singleSelection?.stroke}
+              width={singleSelection?.strokeWidth}
+              enabled={singleSelection?.stroke !== undefined}
+              disabled={!hasSelection}
+              onColorChange={(color) => {
+                if (singleSelection) {
+                  updateObject(singleSelection.id, { stroke: color });
+                }
+              }}
+              onWidthChange={(width) => {
+                if (singleSelection) {
+                  updateObject(singleSelection.id, { strokeWidth: width });
+                }
+              }}
+              onEnabledChange={(enabled) => {
+                if (singleSelection) {
+                  if (enabled) {
+                    // Enable stroke with default color and width
+                    updateObject(singleSelection.id, { stroke: '#ffffff', strokeWidth: 2 });
+                  } else {
+                    // Disable stroke by setting to undefined
+                    updateObject(singleSelection.id, { stroke: undefined, strokeWidth: undefined });
+                  }
+                }
+              }}
             />
           </CollapsibleSection>
 

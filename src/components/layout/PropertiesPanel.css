@@ -505,6 +505,54 @@
   pointer-events: none;
 }
 
+/* Stroke Control */
+.stroke-control {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  position: relative;
+}
+
+.stroke-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.stroke-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.stroke-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.stroke-checkbox {
+  width: 14px;
+  height: 14px;
+  margin: 0;
+  cursor: pointer;
+  accent-color: var(--color-accent);
+}
+
+.stroke-checkbox:disabled {
+  cursor: default;
+  opacity: 0.5;
+}
+
+.stroke-width-row {
+  margin-left: 22px;
+  padding-top: 4px;
+}
+
+.stroke-width-input {
+  width: 50px;
+}
+
 /* Hierarchy Section */
 .hierarchy-info {
   font-size: 10px;

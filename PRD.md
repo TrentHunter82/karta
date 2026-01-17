@@ -344,12 +344,12 @@ Karta is a lightweight, intuitive visual ideation tool for creating mood boards,
 **Description:** As a user, I want to change object stroke color and width.
 
 **Acceptance Criteria:**
-- [ ] Stroke row with color swatch and hex input
-- [ ] Checkbox to enable/disable stroke
-- [ ] Stroke width input (px)
-- [ ] Updates object in real-time
-- [ ] Typecheck passes
-- [ ] Verify changes work in browser
+- [x] Stroke row with color swatch and hex input
+- [x] Checkbox to enable/disable stroke
+- [x] Stroke width input (px)
+- [x] Updates object in real-time
+- [x] Typecheck passes
+- [x] Verify changes work in browser
 
 ---
 
