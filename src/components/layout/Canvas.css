@@ -23,6 +23,7 @@
   font-size: inherit;
   caret-color: #ffffff;
   pointer-events: auto;
+  z-index: 1001;
 }
 
 .frame-name-input {
@@ -37,6 +38,7 @@
   font-size: inherit;
   caret-color: #888888;
   pointer-events: auto;
+  z-index: 1001;
 }
 
 /* Drop indicator overlay for drag-and-drop */

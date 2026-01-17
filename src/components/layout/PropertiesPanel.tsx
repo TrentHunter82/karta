@@ -199,9 +199,10 @@ interface EditablePropertyRowProps {
   value: string;
   disabled?: boolean;
   onChange: (value: number) => void;
+  onChangeStart?: () => void;
 }
 
-function EditablePropertyRow({ label, value, disabled = false, onChange }: EditablePropertyRowProps) {
+function EditablePropertyRow({ label, value, disabled = false, onChange, onChangeStart }: EditablePropertyRowProps) {
   const [isEditing, setIsEditing] = useState(false);
   const [editValue, setEditValue] = useState(value);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -224,6 +225,8 @@ function EditablePropertyRow({ label, value, disabled = false, onChange }: Edita
   const commitChange = () => {
     const numValue = parseFloat(editValue);
     if (!isNaN(numValue)) {
+      // Push history before committing change
+      onChangeStart?.();
       onChange(Math.round(numValue));
     }
     setIsEditing(false);
@@ -278,9 +281,10 @@ interface OpacityControlProps {
   value: number;
   disabled: boolean;
   onChange: (value: number) => void;
+  onChangeStart?: () => void;
 }
 
-function OpacityControl({ value, disabled, onChange }: OpacityControlProps) {
+function OpacityControl({ value, disabled, onChange, onChangeStart }: OpacityControlProps) {
   const [isEditing, setIsEditing] = useState(false);
   const [editValue, setEditValue] = useState((value * 100).toString());
   const [isDragging, setIsDragging] = useState(false);
@@ -307,6 +311,8 @@ function OpacityControl({ value, disabled, onChange }: OpacityControlProps) {
     if (!isNaN(numValue)) {
       // Clamp to 0-100 and convert to 0-1
       numValue = Math.max(0, Math.min(100, numValue)) / 100;
+      // Push history before committing change
+      onChangeStart?.();
       onChange(numValue);
     }
     setIsEditing(false);
@@ -342,10 +348,12 @@ function OpacityControl({ value, disabled, onChange }: OpacityControlProps) {
   const handleSliderMouseDown = useCallback((e: React.MouseEvent) => {
     if (disabled) return;
     e.preventDefault();
+    // Push history before starting drag
+    onChangeStart?.();
     setIsDragging(true);
     const newValue = getOpacityFromMouse(e.clientX);
     onChange(newValue);
-  }, [disabled, onChange, getOpacityFromMouse]);
+  }, [disabled, onChange, getOpacityFromMouse, onChangeStart]);
 
   useEffect(() => {
     if (!isDragging) return;
@@ -421,9 +429,10 @@ interface StrokeControlProps {
   onColorChange: (value: string) => void;
   onWidthChange: (value: number) => void;
   onEnabledChange: (enabled: boolean) => void;
+  onChangeStart?: () => void;
 }
 
-function StrokeControl({ color, width, enabled, disabled, onColorChange, onWidthChange, onEnabledChange }: StrokeControlProps) {
+function StrokeControl({ color, width, enabled, disabled, onColorChange, onWidthChange, onEnabledChange, onChangeStart }: StrokeControlProps) {
   const [isEditingColor, setIsEditingColor] = useState(false);
   const [editColorValue, setEditColorValue] = useState(color ?? '#ffffff');
   const [isEditingWidth, setIsEditingWidth] = useState(false);
@@ -488,6 +497,8 @@ function StrokeControl({ color, width, enabled, disabled, onColorChange, onWidth
       if (cleanValue.length === 4) {
         cleanValue = '#' + cleanValue[1] + cleanValue[1] + cleanValue[2] + cleanValue[2] + cleanValue[3] + cleanValue[3];
       }
+      // Push history before committing change
+      onChangeStart?.();
       onColorChange(cleanValue.toLowerCase());
     }
     setIsEditingColor(false);
@@ -501,6 +512,8 @@ function StrokeControl({ color, width, enabled, disabled, onColorChange, onWidth
   const commitWidthChange = () => {
     const numValue = parseFloat(editWidthValue);
     if (!isNaN(numValue) && numValue > 0) {
+      // Push history before committing change
+      onChangeStart?.();
       onWidthChange(Math.max(1, Math.round(numValue)));
     }
     setIsEditingWidth(false);
@@ -531,7 +544,16 @@ function StrokeControl({ color, width, enabled, disabled, onColorChange, onWidth
 
   const handleSwatchClick = () => {
     if (disabled) return;
+    // Push history when opening color picker
+    if (!showColorPicker) {
+      onChangeStart?.();
+    }
     setShowColorPicker(!showColorPicker);
+  };
+
+  const handleCheckboxChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    onChangeStart?.();
+    onEnabledChange(e.target.checked);
   };
 
   const displayColor = disabled ? '---' : (color ?? '#ffffff');
@@ -547,7 +569,7 @@ function StrokeControl({ color, width, enabled, disabled, onColorChange, onWidth
             className="stroke-checkbox"
             checked={!disabled && enabled}
             disabled={disabled}
-            onChange={(e) => onEnabledChange(e.target.checked)}
+            onChange={handleCheckboxChange}
           />
           <span className="property-label">STROKE</span>
         </div>
@@ -618,9 +640,10 @@ interface FillControlProps {
   disabled: boolean;
   onColorChange: (value: string) => void;
   onEnabledChange: (enabled: boolean) => void;
+  onChangeStart?: () => void;
 }
 
-function FillControl({ value, enabled, disabled, onColorChange, onEnabledChange }: FillControlProps) {
+function FillControl({ value, enabled, disabled, onColorChange, onEnabledChange, onChangeStart }: FillControlProps) {
   const [isEditing, setIsEditing] = useState(false);
   const [editValue, setEditValue] = useState(value ?? '#4a4a4a');
   const [showColorPicker, setShowColorPicker] = useState(false);
@@ -667,6 +690,8 @@ function FillControl({ value, enabled, disabled, onColorChange, onEnabledChange 
       if (cleanValue.length === 4) {
         cleanValue = '#' + cleanValue[1] + cleanValue[1] + cleanValue[2] + cleanValue[2] + cleanValue[3] + cleanValue[3];
       }
+      // Push history before committing change
+      onChangeStart?.();
       onColorChange(cleanValue.toLowerCase());
     }
     setIsEditing(false);
@@ -692,7 +717,16 @@ function FillControl({ value, enabled, disabled, onColorChange, onEnabledChange 
 
   const handleSwatchClick = () => {
     if (disabled) return;
+    // Push history when opening color picker
+    if (!showColorPicker) {
+      onChangeStart?.();
+    }
     setShowColorPicker(!showColorPicker);
+  };
+
+  const handleCheckboxChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    onChangeStart?.();
+    onEnabledChange(e.target.checked);
   };
 
   const displayValue = disabled ? '---' : (value ?? '#4a4a4a');
@@ -707,7 +741,7 @@ function FillControl({ value, enabled, disabled, onColorChange, onEnabledChange 
             className="fill-checkbox"
             checked={!disabled && enabled}
             disabled={disabled}
-            onChange={(e) => onEnabledChange(e.target.checked)}
+            onChange={handleCheckboxChange}
           />
           <span className="property-label">FILL</span>
         </div>
@@ -942,9 +976,10 @@ interface RotationControlProps {
   value: number;
   disabled: boolean;
   onChange: (value: number) => void;
+  onChangeStart?: () => void;
 }
 
-function RotationControl({ value, disabled, onChange }: RotationControlProps) {
+function RotationControl({ value, disabled, onChange, onChangeStart }: RotationControlProps) {
   const [isEditing, setIsEditing] = useState(false);
   const [editValue, setEditValue] = useState(value.toString());
   const [isDragging, setIsDragging] = useState(false);
@@ -973,6 +1008,8 @@ function RotationControl({ value, disabled, onChange }: RotationControlProps) {
     if (!isNaN(numValue)) {
       // Normalize to 0-360
       numValue = ((numValue % 360) + 360) % 360;
+      // Push history before committing change
+      onChangeStart?.();
       onChange(Math.round(numValue));
     }
     setIsEditing(false);
@@ -1014,10 +1051,12 @@ function RotationControl({ value, disabled, onChange }: RotationControlProps) {
   const handleDialMouseDown = useCallback((e: React.MouseEvent) => {
     if (disabled) return;
     e.preventDefault();
+    // Push history before starting drag
+    onChangeStart?.();
     setIsDragging(true);
     dragStartAngleRef.current = getAngleFromMouse(e.clientX, e.clientY);
     dragStartValueRef.current = value;
-  }, [disabled, value, getAngleFromMouse]);
+  }, [disabled, value, getAngleFromMouse, onChangeStart]);
 
   useEffect(() => {
     if (!isDragging) return;
@@ -1373,6 +1412,7 @@ export function PropertiesPanel() {
   const selectedIds = useCanvasStore((state) => state.selectedIds);
   const objects = useCanvasStore((state) => state.objects);
   const updateObject = useCanvasStore((state) => state.updateObject);
+  const pushHistory = useCanvasStore((state) => state.pushHistory);
 
   const hasSelection = selectedIds.size > 0;
   const selectedObjects = Array.from(selectedIds).map((id) => objects.get(id)).filter(Boolean);
@@ -1423,6 +1463,7 @@ export function PropertiesPanel() {
                   updateObject(singleSelection.id, { x: value });
                 }
               }}
+              onChangeStart={pushHistory}
             />
             <EditablePropertyRow
               label="Y-POS"
@@ -1433,6 +1474,7 @@ export function PropertiesPanel() {
                   updateObject(singleSelection.id, { y: value });
                 }
               }}
+              onChangeStart={pushHistory}
             />
             <div className="size-row">
               <EditablePropertyRow
@@ -1452,6 +1494,7 @@ export function PropertiesPanel() {
                     }
                   }
                 }}
+                onChangeStart={pushHistory}
               />
               <button
                 className={`constrain-toggle ${constrainProportions ? 'active' : ''}`}
@@ -1491,6 +1534,7 @@ export function PropertiesPanel() {
                     }
                   }
                 }}
+                onChangeStart={pushHistory}
               />
             </div>
             <RotationControl
@@ -1501,6 +1545,7 @@ export function PropertiesPanel() {
                   updateObject(singleSelection.id, { rotation: value });
                 }
               }}
+              onChangeStart={pushHistory}
             />
           </CollapsibleSection>
 
@@ -1514,6 +1559,7 @@ export function PropertiesPanel() {
                   updateObject(singleSelection.id, { opacity: value });
                 }
               }}
+              onChangeStart={pushHistory}
             />
             <FillControl
               value={singleSelection?.fill}
@@ -1535,6 +1581,7 @@ export function PropertiesPanel() {
                   }
                 }
               }}
+              onChangeStart={pushHistory}
             />
             <StrokeControl
               color={singleSelection?.stroke}
@@ -1562,6 +1609,7 @@ export function PropertiesPanel() {
                   }
                 }
               }}
+              onChangeStart={pushHistory}
             />
           </CollapsibleSection>
 

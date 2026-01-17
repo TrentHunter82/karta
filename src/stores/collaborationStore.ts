@@ -52,6 +52,9 @@ const DEFAULT_SERVER_URL = 'wss://demos.yjs.dev/ws';
 // Create a shared Yjs document
 const ydoc = new Y.Doc();
 
+// Store awareness change handler for cleanup
+let awarenessChangeHandler: (() => void) | null = null;
+
 // Generate a random color for user presence
 const generateUserColor = (): string => {
   const colors = [
@@ -191,6 +194,8 @@ export const useCollaborationStore = create<CollaborationState>((set, get) => ({
         set({ remoteUsers: newRemoteUsers });
       };
 
+      // Store handler reference for cleanup
+      awarenessChangeHandler = handleAwarenessChange;
       awareness.on('change', handleAwarenessChange);
       // Initial update
       handleAwarenessChange();
@@ -207,6 +212,11 @@ export const useCollaborationStore = create<CollaborationState>((set, get) => ({
     const state = get();
 
     if (state.provider) {
+      // Remove awareness listener before destroying
+      if (state.provider.awareness && awarenessChangeHandler) {
+        state.provider.awareness.off('change', awarenessChangeHandler);
+        awarenessChangeHandler = null;
+      }
       state.provider.disconnect();
       state.provider.destroy();
     }

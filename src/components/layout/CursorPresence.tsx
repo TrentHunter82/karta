@@ -85,9 +85,11 @@ export function CursorPresence() {
     }
 
     return () => {
-      if (canvasContainer) {
-        canvasContainer.removeEventListener('mousemove', handleMouseMove as EventListener);
-        canvasContainer.removeEventListener('mouseleave', handleMouseLeave);
+      // Query again in cleanup to ensure we remove from the current element
+      const container = document.querySelector('.canvas-container');
+      if (container) {
+        container.removeEventListener('mousemove', handleMouseMove as EventListener);
+        container.removeEventListener('mouseleave', handleMouseLeave);
       }
     };
   }, [updateCursor, clearLocalCursor]);

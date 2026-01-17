@@ -997,17 +997,16 @@ export function Canvas() {
             setSelection([...Array.from(selectedIds), hitObject.id]);
           }
         } else {
-          // Normal click - check if clicking on already selected object
+          // Normal click - save state before drag for undo
+          pushHistory();
+
+          // Check if clicking on already selected object
           if (selectedIds.has(hitObject.id)) {
-            // Save state before drag for undo
-            pushHistory();
             // Start dragging the selection
             setIsDragging(true);
             dragStartCanvasPos.current = { x: canvasPos.x, y: canvasPos.y };
             lastMousePos.current = { x: e.clientX, y: e.clientY };
           } else {
-            // Save state before drag for undo
-            pushHistory();
             // Select only this object and start dragging
             setSelection([hitObject.id]);
             setIsDragging(true);
@@ -1085,7 +1084,7 @@ export function Canvas() {
       setIsDrawingPath(true);
       setSelection([]); // Clear selection when drawing
     }
-  }, [isSpacePressed, activeTool, hitTest, hitTestHandle, hitTestRotationHandle, selectedIds, setSelection, screenToCanvas, canvasToScreen, objects, addObject, setActiveTool, getNextZIndex, playingVideoId]);
+  }, [isSpacePressed, activeTool, hitTest, hitTestHandle, hitTestRotationHandle, selectedIds, setSelection, screenToCanvas, canvasToScreen, objects, addObject, setActiveTool, getNextZIndex, playingVideoId, pushHistory]);
 
   // Handle mouse move for panning, dragging, and hover detection
   const handleMouseMove = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {

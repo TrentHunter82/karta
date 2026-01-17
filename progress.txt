@@ -745,3 +745,115 @@
   - Use functional state updates with setCurrentTime for periodic updates
   - Cursor presence layer needs pointer-events: none to not block canvas interactions
 ---
+
+## Iteration 35 - US-035: Implement user avatar and presence list
+- What was implemented:
+  - User avatars displayed in top bar showing connected users
+  - Local user avatar shown first, then remote users from remoteUsers Map
+  - Avatars are colored circles with user's assigned color (from awareness)
+  - Initials extracted from user name (e.g., "Happy Fox" -> "HF")
+  - Tooltip shows username on hover, with "(you)" suffix for local user
+  - "+N" indicator when more than 4 users connected (overflow-indicator)
+  - Avatars overlap slightly with negative margin for compact display
+  - Hover effect lifts avatar with z-index for visibility
+- Files changed:
+  - src/components/layout/TopBar.tsx (added localUser/remoteUsers state, allUsers memo, avatar rendering)
+  - src/components/layout/TopBar.css (added user-avatars container, avatar styles, overflow indicator)
+  - PRD.md (marked task complete)
+- Learnings for future iterations:
+  - Use useMemo to combine local + remote users into single array for rendering
+  - Import UserPresence type from collaborationStore for type safety
+  - getInitials helper: split by whitespace, take first char of first two words
+  - Negative margin creates overlapping avatar stack effect
+  - Local user gets special border color to distinguish from remote users
+---
+
+## Iteration 36 - US-036: Implement export selection as PNG
+- What was implemented:
+  - ExportSection component with transparent background checkbox and export button
+  - Export logic that calculates bounding box with padding for selected/all objects
+  - Handles rotated objects by using diagonal as bounding radius
+  - drawObjectForExport function that renders objects without viewport transform
+  - Image and video thumbnail loading with caching for export
+  - PNG download via canvas.toDataURL() and link.click()
+  - Button label changes: "EXPORT SELECTION" when objects selected, "EXPORT CANVAS" otherwise
+- Files changed:
+  - src/components/layout/PropertiesPanel.tsx (added export section, image/video loading, draw functions)
+  - src/components/layout/PropertiesPanel.css (added export section styles)
+  - PRD.md (marked task complete)
+- Learnings for future iterations:
+  - For rotated objects, use diagonal (sqrt(w*w + h*h)) to calculate bounding box
+  - Canvas export: create offscreen canvas, draw objects, use toDataURL('image/png')
+  - Trigger download: create <a> element, set download and href, call click()
+  - Wrap case blocks with lexical declarations (const) in braces for ESLint
+  - Export section is non-collapsible (just header + content)
+  - Use async/await for image/video loading in sequential draw loop
+---
+
+## Iteration 37 - US-037: Implement undo/redo
+- What was implemented:
+  - History state in canvasStore: history array, historyIndex, isUndoRedoing flag
+  - HistorySnapshot interface stores serializable canvas state (objects as array of [id, obj] tuples)
+  - pushHistory() action creates snapshot before modifications
+  - undo() action restores previous state and syncs to Yjs
+  - redo() action restores forward state and syncs to Yjs
+  - canUndo() and canRedo() boolean helpers for UI
+  - MAX_HISTORY_SIZE constant limits history to 50 states
+  - Keyboard shortcuts: Ctrl+Z (undo), Ctrl+Shift+Z (redo), Ctrl+Y (redo)
+  - pushHistory called automatically in addObject, deleteObject, reorderObject
+  - pushHistory called manually in Canvas.tsx before drag, resize, rotation operations
+- Files changed:
+  - src/stores/canvasStore.ts (added history state, pushHistory/undo/redo actions)
+  - src/hooks/useKeyboardShortcuts.ts (added Ctrl+Z, Ctrl+Shift+Z, Ctrl+Y shortcuts)
+  - src/components/layout/Canvas.tsx (added pushHistory calls before drag/resize/rotate)
+  - PRD.md (marked task complete)
+- Learnings for future iterations:
+  - Store history as array of snapshots; use historyIndex to track current position
+  - When undoing from latest state, save current state first so redo can restore it
+  - Redo index is historyIndex + 2 because we save current state before undo
+  - For updateObject/updateObjects (called frequently during drag), call pushHistory before operation starts (in mouse down handler), not on every update
+  - isUndoRedoing flag prevents pushHistory during undo/redo operations
+  - Map can be constructed from array of [key, value] tuples: new Map(snapshot.objects)
+  - Yjs sync during undo/redo: delete missing objects, update/add existing ones in transaction
+---
+
+## Iteration 38 - US-038: Implement delete selected objects
+- What was implemented:
+  - Delete and Backspace keyboard shortcuts to delete selected objects
+  - deleteSelectedObjects action in canvasStore that deletes all selected objects
+  - History is pushed once before batch delete (undoable)
+  - Multiple selected objects deleted together in a single operation
+  - Selection cleared after deletion
+  - Yjs sync for collaborative deletion
+- Files changed:
+  - src/stores/canvasStore.ts (added deleteSelectedObjects action)
+  - src/hooks/useKeyboardShortcuts.ts (added Delete/Backspace shortcut handling)
+  - PRD.md (marked task complete)
+- Learnings for future iterations:
+  - For batch operations that need undo, push history once before the operation (not per item)
+  - Use Array.from(state.selectedIds) to convert Set to array for iteration
+  - Both Delete and Backspace keys should be handled (event.key === 'Delete' || event.key === 'Backspace')
+  - Remember to add new store actions to the useEffect dependencies array
+---
+
+## Iteration 39 - US-039: Implement copy/paste
+- What was implemented:
+  - Clipboard state in canvasStore (CanvasObject[] array)
+  - copySelection action: deep clones selected objects to clipboard
+  - paste action: creates new objects from clipboard with 10px,10px offset
+  - duplicate action: creates new copies in place (no offset) via Ctrl+D
+  - Keyboard shortcuts: Ctrl+C (copy), Ctrl+V (paste), Ctrl+D (duplicate)
+  - Pasted/duplicated objects automatically become the new selection
+  - History pushed before paste/duplicate for undo support
+  - Successive pastes continue to offset (clipboard positions updated)
+  - Yjs sync for collaborative paste/duplicate
+- Files changed:
+  - src/stores/canvasStore.ts (added clipboard state, copySelection/paste/duplicate actions)
+  - src/hooks/useKeyboardShortcuts.ts (added Ctrl+C/V/D shortcut handling)
+  - PRD.md (marked task complete)
+- Learnings for future iterations:
+  - Use JSON.parse(JSON.stringify(obj)) for deep cloning objects with nested properties
+  - Update clipboard positions after paste for successive paste with cascading offset
+  - Duplicate is similar to copy+paste but uses original positions and single step
+  - crypto.randomUUID() generates unique IDs for pasted objects
+---
