@@ -10,3 +10,17 @@
   width: 100%;
   height: 100%;
 }
+
+.text-edit-input {
+  position: absolute;
+  background: transparent;
+  border: none;
+  outline: none;
+  padding: 0;
+  margin: 0;
+  color: inherit;
+  font-family: inherit;
+  font-size: inherit;
+  caret-color: #ffffff;
+  pointer-events: auto;
+}

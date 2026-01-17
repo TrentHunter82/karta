@@ -211,13 +211,13 @@ Karta is a lightweight, intuitive visual ideation tool for creating mood boards,
 **Description:** As a user, I want to add text to the canvas.
 
 **Acceptance Criteria:**
-- [ ] Click with Text tool creates text object at click position
-- [ ] Text object enters edit mode immediately
-- [ ] Typing updates text content in real-time
-- [ ] Click outside or Escape exits edit mode
-- [ ] Default font: Inter or system sans-serif, 16px, white
-- [ ] Typecheck passes
-- [ ] Verify changes work in browser
+- [x] Click with Text tool creates text object at click position
+- [x] Text object enters edit mode immediately
+- [x] Typing updates text content in real-time
+- [x] Click outside or Escape exits edit mode
+- [x] Default font: Inter or system sans-serif, 16px, white
+- [x] Typecheck passes
+- [x] Verify changes work in browser
 
 ---
 

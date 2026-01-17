@@ -1,6 +1,6 @@
 import { useRef, useEffect, useState, useCallback } from 'react';
 import { useCanvasStore } from '../../stores/canvasStore';
-import type { CanvasObject, RectangleObject, EllipseObject } from '../../types/canvas';
+import type { CanvasObject, RectangleObject, EllipseObject, TextObject } from '../../types/canvas';
 import './Canvas.css';
 
 const MIN_ZOOM = 0.1; // 10%
@@ -43,6 +43,7 @@ const HANDLE_CURSORS: Record<NonNullable<HandleType>, string> = {
 export function Canvas() {
   const containerRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const textInputRef = useRef<HTMLInputElement>(null);
 
   // Store state
   const objects = useCanvasStore((state) => state.objects);
@@ -52,6 +53,7 @@ export function Canvas() {
   const setViewport = useCanvasStore((state) => state.setViewport);
   const setSelection = useCanvasStore((state) => state.setSelection);
   const updateObjects = useCanvasStore((state) => state.updateObjects);
+  const updateObject = useCanvasStore((state) => state.updateObject);
   const addObject = useCanvasStore((state) => state.addObject);
   const setActiveTool = useCanvasStore((state) => state.setActiveTool);
 
@@ -66,6 +68,7 @@ export function Canvas() {
   const [isRotating, setIsRotating] = useState(false);
   const [hoveredRotationHandle, setHoveredRotationHandle] = useState<RotationHandle>(null);
   const [isDrawingRect, setIsDrawingRect] = useState(false);
+  const [editingTextId, setEditingTextId] = useState<string | null>(null);
   const lastMousePos = useRef({ x: 0, y: 0 });
   const dragStartCanvasPos = useRef({ x: 0, y: 0 });
   const marqueeStart = useRef({ x: 0, y: 0 });
@@ -767,7 +770,34 @@ export function Canvas() {
       setIsDrawingRect(true);
       setSelection([]); // Clear selection when drawing
     }
-  }, [isSpacePressed, activeTool, hitTest, hitTestHandle, hitTestRotationHandle, selectedIds, setSelection, screenToCanvas, canvasToScreen, objects]);
+
+    // Left click with text tool - create text object
+    if (e.button === 0 && activeTool === 'text') {
+      const canvasPos = screenToCanvas(screenX, screenY);
+
+      // Create a new text object at the click position
+      const newText: TextObject = {
+        id: crypto.randomUUID(),
+        type: 'text',
+        x: canvasPos.x,
+        y: canvasPos.y,
+        width: 200, // Default width
+        height: 24, // Approximately 16px font + padding
+        rotation: 0,
+        opacity: 1,
+        fill: '#ffffff', // White text
+        text: '',
+        fontSize: 16,
+        fontFamily: 'Inter, system-ui, sans-serif',
+        textAlign: 'left',
+      };
+
+      addObject(newText);
+      setSelection([newText.id]);
+      setEditingTextId(newText.id); // Enter edit mode immediately
+      setActiveTool('select'); // Switch to select tool
+    }
+  }, [isSpacePressed, activeTool, hitTest, hitTestHandle, hitTestRotationHandle, selectedIds, setSelection, screenToCanvas, canvasToScreen, objects, addObject, setActiveTool]);
 
   // Handle mouse move for panning, dragging, and hover detection
   const handleMouseMove = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
@@ -1172,8 +1202,83 @@ export function Canvas() {
     return 'crosshair';
   };
 
+  // Handle text input changes
+  const handleTextInput = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    if (!editingTextId) return;
+    updateObject(editingTextId, { text: e.target.value });
+  }, [editingTextId, updateObject]);
+
+  // Exit text edit mode
+  const exitTextEditMode = useCallback(() => {
+    setEditingTextId(null);
+  }, []);
+
+  // Handle keyboard events for text editing
+  const handleTextKeyDown = useCallback((e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Escape') {
+      e.preventDefault();
+      exitTextEditMode();
+    } else if (e.key === 'Enter') {
+      e.preventDefault();
+      exitTextEditMode();
+    }
+    // Stop propagation to prevent tool shortcuts from firing
+    e.stopPropagation();
+  }, [exitTextEditMode]);
+
+  // Focus the text input when entering edit mode
+  useEffect(() => {
+    if (editingTextId && textInputRef.current) {
+      textInputRef.current.focus();
+    }
+  }, [editingTextId]);
+
+  // Get the editing text object and its screen position
+  const getEditingTextStyle = useCallback((): React.CSSProperties | null => {
+    if (!editingTextId) return null;
+    const textObj = objects.get(editingTextId);
+    if (!textObj || textObj.type !== 'text') return null;
+
+    const screenPos = canvasToScreen(textObj.x, textObj.y);
+    const fontSize = textObj.fontSize * viewport.zoom;
+
+    return {
+      position: 'absolute',
+      left: screenPos.x,
+      top: screenPos.y,
+      transform: `rotate(${textObj.rotation}deg)`,
+      transformOrigin: 'top left',
+      fontSize: `${fontSize}px`,
+      fontFamily: textObj.fontFamily,
+      color: textObj.fill || '#ffffff',
+      background: 'transparent',
+      border: 'none',
+      outline: 'none',
+      padding: 0,
+      margin: 0,
+      minWidth: `${textObj.width * viewport.zoom}px`,
+      caretColor: '#ffffff',
+    };
+  }, [editingTextId, objects, canvasToScreen, viewport.zoom]);
+
+  // Handle click outside to exit text edit mode
+  const handleCanvasClick = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
+    // If clicking on the canvas container but not on the input, exit edit mode
+    if (editingTextId && e.target === containerRef.current) {
+      exitTextEditMode();
+    }
+  }, [editingTextId, exitTextEditMode]);
+
+  // Get the current text for the editing input
+  const getEditingTextValue = (): string => {
+    if (!editingTextId) return '';
+    const textObj = objects.get(editingTextId);
+    if (!textObj || textObj.type !== 'text') return '';
+    return textObj.text;
+  };
+
   return (
-    <main className="canvas-container" ref={containerRef}>
+    <main className="canvas-container" ref={containerRef} onClick={handleCanvasClick}>
       <canvas
         ref={canvasRef}
         className="canvas"
@@ -1185,6 +1290,18 @@ export function Canvas() {
         onMouseLeave={handleMouseLeave}
         onContextMenu={handleContextMenu}
       />
+      {editingTextId && (
+        <input
+          ref={textInputRef}
+          type="text"
+          className="text-edit-input"
+          style={getEditingTextStyle() || undefined}
+          value={getEditingTextValue()}
+          onChange={handleTextInput}
+          onKeyDown={handleTextKeyDown}
+          onBlur={exitTextEditMode}
+        />
+      )}
     </main>
   );
 }
