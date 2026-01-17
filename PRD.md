@@ -60,14 +60,14 @@ Karta is a lightweight, intuitive visual ideation tool for creating mood boards,
 **Description:** As a user, I want to pan and zoom the infinite canvas so I can navigate my workspace.
 
 **Acceptance Criteria:**
-- [ ] HTML Canvas element renders in main area
-- [ ] Canvas fills container and resizes with window
-- [ ] Mouse wheel zooms in/out (centered on cursor)
-- [ ] Middle-mouse drag or Space+drag pans the canvas
-- [ ] Zoom level clamped between 10% and 500%
-- [ ] Grid/dot pattern renders on canvas background
-- [ ] Typecheck passes
-- [ ] Verify changes work in browser
+- [x] HTML Canvas element renders in main area
+- [x] Canvas fills container and resizes with window
+- [x] Mouse wheel zooms in/out (centered on cursor)
+- [x] Middle-mouse drag or Space+drag pans the canvas
+- [x] Zoom level clamped between 10% and 500%
+- [x] Grid/dot pattern renders on canvas background
+- [x] Typecheck passes
+- [x] Verify changes work in browser
 
 ---
 

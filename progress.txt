@@ -50,3 +50,23 @@
   - Components are organized in src/components/layout/
   - Use barrel exports (index.ts) for cleaner imports
 ---
+
+## Iteration 3 - US-003: Implement canvas with pan and zoom
+- What was implemented:
+  - HTML Canvas element with 2D context, fills container and handles window resize
+  - Device pixel ratio (DPR) scaling for crisp rendering on high-DPI displays
+  - Mouse wheel zoom centered on cursor position (10% to 500% range)
+  - Middle-mouse button drag for panning
+  - Space+left-click drag for panning (alternative method)
+  - Dot grid pattern that scales with zoom and moves with pan
+  - Cursor changes to grab/grabbing during pan operations
+- Files changed:
+  - src/components/layout/Canvas.tsx (complete rewrite with pan/zoom logic)
+  - src/components/layout/Canvas.css (added .canvas class styles)
+- Learnings for future iterations:
+  - Viewport state: { x, y, zoom } where x/y are pan offsets in canvas coords
+  - Canvas uses requestAnimationFrame-compatible draw() callback
+  - Use useCallback for handlers to prevent unnecessary re-renders
+  - Window keydown/keyup listeners for Space key pan mode
+  - Grid offset calculation: (panOffset * zoom) % gridSpacing for seamless tiling
+---
