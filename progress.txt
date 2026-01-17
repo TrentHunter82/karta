@@ -2,5 +2,51 @@
 
 ## Learnings
 (Patterns discovered during implementation)
+- Use `npm create vite@latest temp-folder -- --template react-ts` to avoid non-empty directory issues, then copy files
+- Vite template comes with ESLint pre-configured, just need to add eslint-config-prettier
+- Add safe.directory to git config on Windows for network drives: `git config --global --add safe.directory <path>`
 
+---
+
+## Iteration 1 - US-001: Initialize project with Vite + React + TypeScript
+- What was implemented:
+  - Vite project with React 19 + TypeScript template
+  - ESLint configuration with TypeScript, React hooks, React refresh plugins
+  - Prettier configuration (.prettierrc)
+  - Folder structure: src/components, src/hooks, src/stores, src/utils, src/types
+  - Added typecheck and format npm scripts
+- Files changed:
+  - package.json (created, modified name/version/scripts)
+  - eslint.config.js (created, modified to add prettier)
+  - .prettierrc (created)
+  - .gitignore (created)
+  - All Vite template files
+  - src/ folder structure with .gitkeep files
+- Learnings for future iterations:
+  - Typecheck command: `npm run typecheck`
+  - Lint command: `npm run lint`
+  - Dev server: `npm run dev` (runs on localhost:5173)
+---
+
+## Iteration 2 - US-002: Create app shell with layout structure
+- What was implemented:
+  - Flexbox-based layout with TopBar, Toolbar, Canvas, PropertiesPanel, StatusBar
+  - Dark theme with CSS variables (--color-bg-primary: #1a1a1a, --color-bg-secondary: #2a2a2a)
+  - Layout components in src/components/layout/
+  - Collapsible properties panel with toggle button
+  - Status bar with placeholder position and selection display
+- Files changed:
+  - src/index.css (global styles + CSS variables)
+  - src/App.css (main layout)
+  - src/App.tsx (component composition)
+  - src/components/layout/Toolbar.tsx + .css
+  - src/components/layout/TopBar.tsx + .css
+  - src/components/layout/PropertiesPanel.tsx + .css
+  - src/components/layout/Canvas.tsx + .css
+  - src/components/layout/StatusBar.tsx + .css
+  - src/components/layout/index.ts (barrel export)
+- Learnings for future iterations:
+  - Layout uses CSS variables for dimensions: --toolbar-width, --topbar-height, etc.
+  - Components are organized in src/components/layout/
+  - Use barrel exports (index.ts) for cleaner imports
 ---

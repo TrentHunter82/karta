@@ -44,15 +44,15 @@ Karta is a lightweight, intuitive visual ideation tool for creating mood boards,
 **Description:** As a user, I want to see the basic app layout so I understand the interface structure.
 
 **Acceptance Criteria:**
-- [ ] App shell with CSS Grid/Flexbox layout
-- [ ] Left toolbar area (48px wide, dark background)
-- [ ] Top bar area (40px tall)
-- [ ] Right properties panel (280px wide, collapsible)
-- [ ] Main canvas area (fills remaining space)
-- [ ] Bottom status bar (24px tall)
-- [ ] Dark theme matching mockup (#1a1a1a background, #2a2a2a panels)
-- [ ] Typecheck passes
-- [ ] Verify changes work in browser
+- [x] App shell with CSS Grid/Flexbox layout
+- [x] Left toolbar area (48px wide, dark background)
+- [x] Top bar area (40px tall)
+- [x] Right properties panel (280px wide, collapsible)
+- [x] Main canvas area (fills remaining space)
+- [x] Bottom status bar (24px tall)
+- [x] Dark theme matching mockup (#1a1a1a background, #2a2a2a panels)
+- [x] Typecheck passes
+- [x] Verify changes work in browser
 
 ---
 

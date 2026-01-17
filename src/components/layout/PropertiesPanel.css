@@ -1,0 +1,42 @@
+.properties-panel {
+  width: var(--properties-panel-width);
+  background-color: var(--color-bg-secondary);
+  border-left: 1px solid var(--color-border);
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  transition: width 0.2s ease;
+}
+
+.properties-panel.collapsed {
+  width: 24px;
+}
+
+.properties-panel-toggle {
+  position: absolute;
+  left: -12px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 24px;
+  height: 24px;
+  background-color: var(--color-bg-secondary);
+  border: 1px solid var(--color-border);
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+  color: var(--color-text-secondary);
+  z-index: 10;
+}
+
+.properties-panel-toggle:hover {
+  background-color: var(--color-bg-tertiary);
+  color: var(--color-text-primary);
+}
+
+.properties-panel-content {
+  flex: 1;
+  overflow-y: auto;
+  padding: 12px;
+}
