@@ -522,12 +522,12 @@ Karta is a lightweight, intuitive visual ideation tool for creating mood boards,
 **Description:** As a user, I want to undo and redo my actions.
 
 **Acceptance Criteria:**
-- [ ] Ctrl+Z undoes last action
-- [ ] Ctrl+Shift+Z or Ctrl+Y redoes
-- [ ] History stores last 50 states
-- [ ] Works with all object operations (create, update, delete)
-- [ ] Typecheck passes
-- [ ] Verify changes work in browser
+- [x] Ctrl+Z undoes last action
+- [x] Ctrl+Shift+Z or Ctrl+Y redoes
+- [x] History stores last 50 states
+- [x] Works with all object operations (create, update, delete)
+- [x] Typecheck passes
+- [x] Verify changes work in browser
 
 ---
 

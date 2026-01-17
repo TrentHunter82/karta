@@ -12,12 +12,14 @@ const TOOL_SHORTCUTS: Record<string, ToolType> = {
 };
 
 /**
- * Hook that sets up global keyboard shortcuts for tool switching and zoom control.
+ * Hook that sets up global keyboard shortcuts for tool switching, zoom control, and undo/redo.
  * Shortcuts are disabled when typing in input fields.
  */
 export function useKeyboardShortcuts() {
   const setActiveTool = useCanvasStore((state) => state.setActiveTool);
   const setViewport = useCanvasStore((state) => state.setViewport);
+  const undo = useCanvasStore((state) => state.undo);
+  const redo = useCanvasStore((state) => state.redo);
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -31,9 +33,27 @@ export function useKeyboardShortcuts() {
         return;
       }
 
-      // Handle zoom shortcuts (Ctrl/Cmd + key)
+      // Handle Ctrl/Cmd shortcuts
       if (event.ctrlKey || event.metaKey) {
         const viewport = useCanvasStore.getState().viewport;
+
+        // Ctrl+Z (undo) or Ctrl+Shift+Z (redo)
+        if (event.key === 'z' || event.key === 'Z') {
+          event.preventDefault();
+          if (event.shiftKey) {
+            redo();
+          } else {
+            undo();
+          }
+          return;
+        }
+
+        // Ctrl+Y (redo)
+        if (event.key === 'y' || event.key === 'Y') {
+          event.preventDefault();
+          redo();
+          return;
+        }
 
         // Ctrl+= or Ctrl++ (zoom in)
         if (event.key === '=' || event.key === '+') {
@@ -81,5 +101,5 @@ export function useKeyboardShortcuts() {
     return () => {
       window.removeEventListener('keydown', handleKeyDown);
     };
-  }, [setActiveTool, setViewport]);
+  }, [setActiveTool, setViewport, undo, redo]);
 }

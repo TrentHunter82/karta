@@ -68,6 +68,7 @@ export function Canvas() {
   const setActiveTool = useCanvasStore((state) => state.setActiveTool);
   const getNextZIndex = useCanvasStore((state) => state.getNextZIndex);
   const setCursorPosition = useCanvasStore((state) => state.setCursorPosition);
+  const pushHistory = useCanvasStore((state) => state.pushHistory);
 
   const [isPanning, setIsPanning] = useState(false);
   const [isSpacePressed, setIsSpacePressed] = useState(false);
@@ -905,6 +906,8 @@ export function Canvas() {
           // Check rotation handle first
           const rotationHandle = hitTestRotationHandle(screenX, screenY, selectedObj);
           if (rotationHandle) {
+            // Save state before rotation for undo
+            pushHistory();
             // Start rotating
             setIsRotating(true);
 
@@ -925,6 +928,8 @@ export function Canvas() {
 
           const handle = hitTestHandle(screenX, screenY, selectedObj);
           if (handle) {
+            // Save state before resize for undo
+            pushHistory();
             // Start resizing
             setIsResizing(true);
             setActiveResizeHandle(handle);
@@ -994,11 +999,15 @@ export function Canvas() {
         } else {
           // Normal click - check if clicking on already selected object
           if (selectedIds.has(hitObject.id)) {
+            // Save state before drag for undo
+            pushHistory();
             // Start dragging the selection
             setIsDragging(true);
             dragStartCanvasPos.current = { x: canvasPos.x, y: canvasPos.y };
             lastMousePos.current = { x: e.clientX, y: e.clientY };
           } else {
+            // Save state before drag for undo
+            pushHistory();
             // Select only this object and start dragging
             setSelection([hitObject.id]);
             setIsDragging(true);

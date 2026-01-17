@@ -3,6 +3,11 @@ import * as Y from 'yjs';
 import type { CanvasObject, Viewport, ToolType } from '../types/canvas';
 import { ydoc } from './collaborationStore';
 
+// Serializable snapshot of canvas state for history
+interface HistorySnapshot {
+  objects: Array<[string, CanvasObject]>;
+}
+
 interface CanvasState {
   // State
   objects: Map<string, CanvasObject>;
@@ -14,6 +19,11 @@ interface CanvasState {
   // Yjs sync state
   isInitialized: boolean;
   isSyncing: boolean;
+
+  // History state for undo/redo
+  history: HistorySnapshot[];
+  historyIndex: number;
+  isUndoRedoing: boolean;
 
   // Actions
   addObject: (object: CanvasObject) => void;
@@ -27,6 +37,13 @@ interface CanvasState {
   getNextZIndex: () => number;
   setCursorPosition: (position: { x: number; y: number } | null) => void;
   initializeYjsSync: () => void;
+
+  // History actions
+  pushHistory: () => void;
+  undo: () => void;
+  redo: () => void;
+  canUndo: () => boolean;
+  canRedo: () => boolean;
 }
 
 // Get Yjs shared types for objects
@@ -34,6 +51,9 @@ const yObjects = ydoc.getMap<Y.Map<unknown>>('objects');
 
 // Flag to prevent sync loops - when we're applying remote changes, don't sync back
 let isApplyingRemoteChanges = false;
+
+// History configuration
+const MAX_HISTORY_SIZE = 50;
 
 // Helper to convert CanvasObject to plain object for Yjs storage
 const objectToYjs = (obj: CanvasObject): Record<string, unknown> => {
@@ -81,6 +101,11 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
   cursorPosition: null,
   isInitialized: false,
   isSyncing: false,
+
+  // History state
+  history: [],
+  historyIndex: -1,
+  isUndoRedoing: false,
 
   // Initialize Yjs synchronization
   initializeYjsSync: () => {
@@ -201,6 +226,9 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
       return;
     }
 
+    // Push history before adding object
+    get().pushHistory();
+
     set((state) => {
       const newObjects = new Map(state.objects);
       newObjects.set(object.id, object);
@@ -285,6 +313,9 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
       return;
     }
 
+    // Push history before deleting object
+    get().pushHistory();
+
     set((state) => {
       const newObjects = new Map(state.objects);
       newObjects.delete(id);
@@ -330,6 +361,9 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
 
     const oldZIndex = targetObject.zIndex;
     if (oldZIndex === newZIndex) return;
+
+    // Push history before reordering
+    get().pushHistory();
 
     const newObjects = new Map(state.objects);
     const zIndexUpdates: Array<{ id: string; zIndex: number }> = [];
@@ -387,4 +421,169 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
     set(() => ({
       cursorPosition: position,
     })),
+
+  // History actions
+  pushHistory: () => {
+    const state = get();
+    // Don't push history if we're currently doing undo/redo or applying remote changes
+    if (state.isUndoRedoing || isApplyingRemoteChanges) {
+      return;
+    }
+
+    // Create snapshot of current objects state
+    const snapshot: HistorySnapshot = {
+      objects: Array.from(state.objects.entries()).map(([id, obj]) => [id, { ...obj }]),
+    };
+
+    // Truncate any "future" history if we're not at the end
+    const newHistory = state.history.slice(0, state.historyIndex + 1);
+
+    // Add the new snapshot
+    newHistory.push(snapshot);
+
+    // Trim to max size (keep most recent)
+    if (newHistory.length > MAX_HISTORY_SIZE) {
+      newHistory.shift();
+    }
+
+    set({
+      history: newHistory,
+      historyIndex: newHistory.length - 1,
+    });
+  },
+
+  undo: () => {
+    const state = get();
+    if (state.historyIndex < 0) {
+      return; // Nothing to undo
+    }
+
+    set({ isUndoRedoing: true });
+
+    try {
+      // If we're at the latest state, save current state first so we can redo
+      if (state.historyIndex === state.history.length - 1) {
+        const currentSnapshot: HistorySnapshot = {
+          objects: Array.from(state.objects.entries()).map(([id, obj]) => [id, { ...obj }]),
+        };
+        const newHistory = [...state.history, currentSnapshot];
+        set({ history: newHistory });
+      }
+
+      // Get the previous state
+      const targetIndex = state.historyIndex;
+      const snapshot = state.history[targetIndex];
+
+      // Restore the state
+      const newObjects = new Map<string, CanvasObject>(snapshot.objects);
+
+      // Sync to Yjs
+      ydoc.transact(() => {
+        // Delete objects that don't exist in the snapshot
+        const snapshotIds = new Set(snapshot.objects.map(([id]) => id));
+        yObjects.forEach((_, id) => {
+          if (!snapshotIds.has(id)) {
+            yObjects.delete(id);
+          }
+        });
+
+        // Add/update objects from snapshot
+        for (const [id, obj] of snapshot.objects) {
+          const yMap = yObjects.get(id);
+          if (yMap) {
+            // Update existing
+            const plainObj = objectToYjs(obj);
+            for (const [key, value] of Object.entries(plainObj)) {
+              yMap.set(key, value);
+            }
+          } else {
+            // Add new
+            const newYMap = new Y.Map<unknown>();
+            const plainObj = objectToYjs(obj);
+            for (const [key, value] of Object.entries(plainObj)) {
+              newYMap.set(key, value);
+            }
+            yObjects.set(id, newYMap);
+          }
+        }
+      });
+
+      set({
+        objects: newObjects,
+        historyIndex: targetIndex - 1,
+      });
+
+      console.log(`[CanvasStore] Undo to history index ${targetIndex - 1}`);
+    } finally {
+      set({ isUndoRedoing: false });
+    }
+  },
+
+  redo: () => {
+    const state = get();
+    if (state.historyIndex >= state.history.length - 2) {
+      return; // Nothing to redo
+    }
+
+    set({ isUndoRedoing: true });
+
+    try {
+      // Get the next state
+      const targetIndex = state.historyIndex + 2;
+      const snapshot = state.history[targetIndex];
+
+      // Restore the state
+      const newObjects = new Map<string, CanvasObject>(snapshot.objects);
+
+      // Sync to Yjs
+      ydoc.transact(() => {
+        // Delete objects that don't exist in the snapshot
+        const snapshotIds = new Set(snapshot.objects.map(([id]) => id));
+        yObjects.forEach((_, id) => {
+          if (!snapshotIds.has(id)) {
+            yObjects.delete(id);
+          }
+        });
+
+        // Add/update objects from snapshot
+        for (const [id, obj] of snapshot.objects) {
+          const yMap = yObjects.get(id);
+          if (yMap) {
+            // Update existing
+            const plainObj = objectToYjs(obj);
+            for (const [key, value] of Object.entries(plainObj)) {
+              yMap.set(key, value);
+            }
+          } else {
+            // Add new
+            const newYMap = new Y.Map<unknown>();
+            const plainObj = objectToYjs(obj);
+            for (const [key, value] of Object.entries(plainObj)) {
+              newYMap.set(key, value);
+            }
+            yObjects.set(id, newYMap);
+          }
+        }
+      });
+
+      set({
+        objects: newObjects,
+        historyIndex: targetIndex - 1,
+      });
+
+      console.log(`[CanvasStore] Redo to history index ${targetIndex - 1}`);
+    } finally {
+      set({ isUndoRedoing: false });
+    }
+  },
+
+  canUndo: () => {
+    const state = get();
+    return state.historyIndex >= 0;
+  },
+
+  canRedo: () => {
+    const state = get();
+    return state.historyIndex < state.history.length - 2;
+  },
 }));
