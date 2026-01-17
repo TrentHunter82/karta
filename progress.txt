@@ -333,3 +333,48 @@
   - Double-click detection pattern reused from text editing for frame name editing
   - Input overlay positioned using top offset to appear above frame (top - fontSize - 4px)
 ---
+
+## Iteration 17 - US-017: Implement pen tool for freehand drawing
+- What was implemented:
+  - Pen tool drawing functionality - drag creates path from mouse movement
+  - State tracking: isDrawingPath (boolean), pathDrawPoints (ref to PathPoint[])
+  - Mouse down with pen tool starts path with first point
+  - Mouse move adds points to the path array while drawing
+  - Mouse up finalizes path: calculates bounding box, normalizes points relative to top-left
+  - drawPathPreview function renders path during drawing
+  - Default stroke: white (#ffffff), 2px, round line caps and joins
+  - Tool automatically switches to select after drawing
+  - Crosshair cursor shown when pen tool is active
+- Files changed:
+  - src/components/layout/Canvas.tsx (added pen tool handling, path preview, state management)
+  - PRD.md (marked task complete)
+- Learnings for future iterations:
+  - PathObject and PathPoint types already existed in canvas.ts
+  - Path rendering was already implemented in drawObject, just needed drawing logic
+  - Pattern: collect points relative to canvas, then normalize to bounding box on finalize
+  - Path bounding box calculated by finding min/max x/y of all points
+  - Points normalized by subtracting minX/minY from each point
+  - Path object stores normalized points (relative to object's x,y position)
+---
+
+## Iteration 18 - US-018: Build properties panel structure
+- What was implemented:
+  - Panel header with "PROPERTIES" title and settings gear icon
+  - CollapsibleSection component for reusable section pattern
+  - PropertyRow component for label/value display
+  - Transform section: X-POS, Y-POS, WIDTH, HEIGHT, ROTATION
+  - Appearance section: OPACITY, FILL, STROKE
+  - Hierarchy section: item count and object list with type icons
+  - Empty state: shows "---" for all values when nothing selected
+  - Hierarchy items highlight when selected
+- Files changed:
+  - src/components/layout/PropertiesPanel.tsx (complete rewrite with sections)
+  - src/components/layout/PropertiesPanel.css (added styles for all new elements)
+  - PRD.md (marked task complete)
+- Learnings for future iterations:
+  - CollapsibleSection pattern: internal state for isOpen, toggle button, conditional content render
+  - getDisplayValue pattern: function that checks selection state and calls getter only if valid
+  - Hierarchy icons: use Unicode symbols (▢, ○, T, ⬚, ✎) for quick type identification
+  - Type narrowing with 'text' in obj pattern for accessing type-specific properties
+  - Next tasks (US-019 to US-024) will need editable inputs instead of read-only PropertyRow
+---

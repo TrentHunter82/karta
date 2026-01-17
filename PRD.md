@@ -266,12 +266,12 @@ Karta is a lightweight, intuitive visual ideation tool for creating mood boards,
 **Description:** As a user, I want a properties panel to view and edit object properties.
 
 **Acceptance Criteria:**
-- [ ] Panel header: "PROPERTIES" with settings icon
-- [ ] Collapsible sections: Transform, Appearance, Hierarchy
-- [ ] Sections have header with label and collapse toggle
-- [ ] Empty state shows "---" for all values when nothing selected
-- [ ] Typecheck passes
-- [ ] Verify changes work in browser
+- [x] Panel header: "PROPERTIES" with settings icon
+- [x] Collapsible sections: Transform, Appearance, Hierarchy
+- [x] Sections have header with label and collapse toggle
+- [x] Empty state shows "---" for all values when nothing selected
+- [x] Typecheck passes
+- [x] Verify changes work in browser
 
 ---
 
