@@ -1,5 +1,5 @@
 param(
-    [int]$MaxIterations = 100,
+    [int]$MaxIterations = 20,
     [int]$SleepSeconds = 2
 )
 

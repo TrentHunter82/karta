@@ -251,12 +251,12 @@ Karta is a lightweight, intuitive visual ideation tool for creating mood boards,
 **Description:** As a user, I want to draw freehand lines and shapes.
 
 **Acceptance Criteria:**
-- [ ] Drag with Pen tool creates path from mouse movement
-- [ ] Path stored as array of points
-- [ ] Path renders as smooth line (with line smoothing algorithm)
-- [ ] Default stroke: white, 2px
-- [ ] Typecheck passes
-- [ ] Verify changes work in browser
+- [x] Drag with Pen tool creates path from mouse movement
+- [x] Path stored as array of points
+- [x] Path renders as smooth line (with line smoothing algorithm)
+- [x] Default stroke: white, 2px
+- [x] Typecheck passes
+- [x] Verify changes work in browser
 
 ---
 

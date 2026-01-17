@@ -1,6 +1,6 @@
 import { useRef, useEffect, useState, useCallback } from 'react';
 import { useCanvasStore } from '../../stores/canvasStore';
-import type { CanvasObject, RectangleObject, EllipseObject, TextObject, FrameObject } from '../../types/canvas';
+import type { CanvasObject, RectangleObject, EllipseObject, TextObject, FrameObject, PathObject, PathPoint } from '../../types/canvas';
 import './Canvas.css';
 
 const MIN_ZOOM = 0.1; // 10%
@@ -71,6 +71,7 @@ export function Canvas() {
   const [hoveredRotationHandle, setHoveredRotationHandle] = useState<RotationHandle>(null);
   const [isDrawingRect, setIsDrawingRect] = useState(false);
   const [isDrawingFrame, setIsDrawingFrame] = useState(false);
+  const [isDrawingPath, setIsDrawingPath] = useState(false);
   const [editingTextId, setEditingTextId] = useState<string | null>(null);
   const [editingFrameId, setEditingFrameId] = useState<string | null>(null);
   const lastMousePos = useRef({ x: 0, y: 0 });
@@ -90,6 +91,7 @@ export function Canvas() {
   const frameDrawStart = useRef({ x: 0, y: 0 });
   const frameDrawEnd = useRef({ x: 0, y: 0 });
   const frameInputRef = useRef<HTMLInputElement>(null);
+  const pathDrawPoints = useRef<PathPoint[]>([]);
 
   // Resize canvas to fill container
   const resizeCanvas = useCallback(() => {
@@ -443,6 +445,35 @@ export function Canvas() {
     [isDrawingFrame, canvasToScreen, viewport.zoom]
   );
 
+  // Draw path preview while drawing
+  const drawPathPreview = useCallback(
+    (ctx: CanvasRenderingContext2D) => {
+      if (!isDrawingPath || pathDrawPoints.current.length === 0) return;
+
+      const points = pathDrawPoints.current;
+
+      ctx.save();
+
+      ctx.beginPath();
+      const firstScreenPos = canvasToScreen(points[0].x, points[0].y);
+      ctx.moveTo(firstScreenPos.x, firstScreenPos.y);
+
+      for (let i = 1; i < points.length; i++) {
+        const screenPos = canvasToScreen(points[i].x, points[i].y);
+        ctx.lineTo(screenPos.x, screenPos.y);
+      }
+
+      ctx.strokeStyle = '#ffffff'; // Default white stroke
+      ctx.lineWidth = 2 * viewport.zoom;
+      ctx.lineCap = 'round';
+      ctx.lineJoin = 'round';
+      ctx.stroke();
+
+      ctx.restore();
+    },
+    [isDrawingPath, canvasToScreen, viewport.zoom]
+  );
+
   // Draw the canvas content
   const draw = useCallback(() => {
     const canvas = canvasRef.current;
@@ -504,7 +535,10 @@ export function Canvas() {
 
     // Draw frame preview while drawing
     drawFramePreview(ctx);
-  }, [viewport, objects, selectedIds, drawObject, drawSelectionBox, drawMarqueeRect, drawRectPreview, drawFramePreview]);
+
+    // Draw path preview while drawing
+    drawPathPreview(ctx);
+  }, [viewport, objects, selectedIds, drawObject, drawSelectionBox, drawMarqueeRect, drawRectPreview, drawFramePreview, drawPathPreview]);
 
   // Handle window resize
   useEffect(() => {
@@ -890,6 +924,14 @@ export function Canvas() {
       setIsDrawingFrame(true);
       setSelection([]); // Clear selection when drawing
     }
+
+    // Left click with pen tool - start drawing path
+    if (e.button === 0 && activeTool === 'pen') {
+      const canvasPos = screenToCanvas(screenX, screenY);
+      pathDrawPoints.current = [{ x: canvasPos.x, y: canvasPos.y }];
+      setIsDrawingPath(true);
+      setSelection([]); // Clear selection when drawing
+    }
   }, [isSpacePressed, activeTool, hitTest, hitTestHandle, hitTestRotationHandle, selectedIds, setSelection, screenToCanvas, canvasToScreen, objects, addObject, setActiveTool]);
 
   // Handle mouse move for panning, dragging, and hover detection
@@ -1123,6 +1165,15 @@ export function Canvas() {
       return;
     }
 
+    // Handle path drawing
+    if (isDrawingPath) {
+      const canvasPos = screenToCanvas(screenX, screenY);
+      pathDrawPoints.current.push({ x: canvasPos.x, y: canvasPos.y });
+      // Force redraw to show path preview
+      draw();
+      return;
+    }
+
     // Hover detection for resize handles, rotation handle, and move cursor (only when not dragging/panning/resizing)
     if (activeTool === 'select' && !isSpacePressed) {
       // First check for handle hover on selected objects
@@ -1159,7 +1210,7 @@ export function Canvas() {
         setHoveredObjectId(null);
       }
     }
-  }, [isPanning, isDragging, isResizing, isRotating, isMarqueeSelecting, isDrawingRect, isDrawingFrame, viewport, setViewport, selectedIds, objects, updateObjects, activeTool, isSpacePressed, hitTest, hitTestHandle, hitTestRotationHandle, screenToCanvas, canvasToScreen, draw]);
+  }, [isPanning, isDragging, isResizing, isRotating, isMarqueeSelecting, isDrawingRect, isDrawingFrame, isDrawingPath, viewport, setViewport, selectedIds, objects, updateObjects, activeTool, isSpacePressed, hitTest, hitTestHandle, hitTestRotationHandle, screenToCanvas, canvasToScreen, draw]);
 
   // Handle mouse up to stop panning, dragging, and finalize marquee selection
   const handleMouseUp = useCallback(() => {
@@ -1289,6 +1340,56 @@ export function Canvas() {
       setIsDrawingFrame(false);
     }
 
+    // Finalize path drawing
+    if (isDrawingPath) {
+      const points = pathDrawPoints.current;
+
+      // Only create path if it has at least 2 points
+      if (points.length >= 2) {
+        // Calculate bounding box
+        let minX = points[0].x;
+        let minY = points[0].y;
+        let maxX = points[0].x;
+        let maxY = points[0].y;
+
+        for (const point of points) {
+          minX = Math.min(minX, point.x);
+          minY = Math.min(minY, point.y);
+          maxX = Math.max(maxX, point.x);
+          maxY = Math.max(maxY, point.y);
+        }
+
+        // Normalize points relative to the bounding box
+        const normalizedPoints: PathPoint[] = points.map((p) => ({
+          x: p.x - minX,
+          y: p.y - minY,
+        }));
+
+        // Create path object
+        const newPath: PathObject = {
+          id: crypto.randomUUID(),
+          type: 'path',
+          x: minX,
+          y: minY,
+          width: Math.max(maxX - minX, 1), // Ensure minimum width of 1
+          height: Math.max(maxY - minY, 1), // Ensure minimum height of 1
+          rotation: 0,
+          opacity: 1,
+          stroke: '#ffffff', // Default white stroke
+          strokeWidth: 2,
+          points: normalizedPoints,
+        };
+
+        addObject(newPath);
+        setSelection([newPath.id]);
+      }
+
+      // Switch to select tool after drawing
+      setActiveTool('select');
+      setIsDrawingPath(false);
+      pathDrawPoints.current = [];
+    }
+
     setIsPanning(false);
     setIsDragging(false);
     setIsResizing(false);
@@ -1296,7 +1397,7 @@ export function Canvas() {
     setActiveResizeHandle(null);
     resizeHandle.current = null;
     resizeStartObjState.current = null;
-  }, [isMarqueeSelecting, isDrawingRect, isDrawingFrame, getObjectsInMarquee, selectedIds, setSelection, addObject, setActiveTool]);
+  }, [isMarqueeSelecting, isDrawingRect, isDrawingFrame, isDrawingPath, getObjectsInMarquee, selectedIds, setSelection, addObject, setActiveTool]);
 
   // Handle mouse leave to stop panning and dragging
   const handleMouseLeave = useCallback(() => {
@@ -1307,12 +1408,14 @@ export function Canvas() {
     setIsRotating(false);
     setIsDrawingRect(false);
     setIsDrawingFrame(false);
+    setIsDrawingPath(false);
     setActiveResizeHandle(null);
     setHoveredObjectId(null);
     setHoveredHandle(null);
     setHoveredRotationHandle(null);
     resizeHandle.current = null;
     resizeStartObjState.current = null;
+    pathDrawPoints.current = [];
   }, []);
 
   // Prevent context menu on middle click
@@ -1331,8 +1434,10 @@ export function Canvas() {
     if (isMarqueeSelecting) return 'crosshair';
     if (isDrawingRect) return 'crosshair';
     if (isDrawingFrame) return 'crosshair';
+    if (isDrawingPath) return 'crosshair';
     if (isSpacePressed || activeTool === 'hand') return 'grab';
     if (activeTool === 'frame') return 'crosshair';
+    if (activeTool === 'pen') return 'crosshair';
     if (activeTool === 'select') {
       // Check for rotation handle hover
       if (hoveredRotationHandle) {
