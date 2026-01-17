@@ -1,7 +1,10 @@
 import { useRef, useEffect, useState, useCallback } from 'react';
 import { useCanvasStore } from '../../stores/canvasStore';
-import type { CanvasObject, RectangleObject, EllipseObject, TextObject, FrameObject, PathObject, PathPoint } from '../../types/canvas';
+import type { CanvasObject, RectangleObject, EllipseObject, TextObject, FrameObject, PathObject, PathPoint, ImageObject } from '../../types/canvas';
 import './Canvas.css';
+
+// Image cache for loaded images
+const imageCache = new Map<string, HTMLImageElement>();
 
 const MIN_ZOOM = 0.1; // 10%
 const MAX_ZOOM = 5.0; // 500%
@@ -76,6 +79,7 @@ export function Canvas() {
   const [isDrawingPath, setIsDrawingPath] = useState(false);
   const [editingTextId, setEditingTextId] = useState<string | null>(null);
   const [editingFrameId, setEditingFrameId] = useState<string | null>(null);
+  const [imageLoadTrigger, setImageLoadTrigger] = useState(0); // Trigger redraw when images load
   const lastMousePos = useRef({ x: 0, y: 0 });
   const dragStartCanvasPos = useRef({ x: 0, y: 0 });
   const marqueeStart = useRef({ x: 0, y: 0 });
@@ -208,14 +212,67 @@ export function Canvas() {
             ctx.stroke();
           }
           break;
-        case 'image':
+        case 'image': {
+          const imgObj = obj as ImageObject;
+          // Check if image is in cache
+          const cachedImg = imageCache.get(imgObj.src);
+          if (!cachedImg) {
+            // Load the image if not already loading
+            if (!imageCache.has(imgObj.src)) {
+              const newImg = new Image();
+              // Set a placeholder to indicate loading has started
+              imageCache.set(imgObj.src, newImg);
+              newImg.onload = () => {
+                // Image is already in cache from above, just trigger redraw
+                setImageLoadTrigger((prev) => prev + 1);
+              };
+              newImg.src = imgObj.src;
+            }
+            // Show placeholder while loading
+            ctx.fillStyle = '#3a3a3a';
+            ctx.fillRect(0, 0, width, height);
+            ctx.strokeStyle = '#4a4a4a';
+            ctx.lineWidth = 2;
+            ctx.strokeRect(0, 0, width, height);
+            // Draw loading indicator
+            ctx.fillStyle = '#666666';
+            ctx.font = '12px sans-serif';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText('Loading...', width / 2, height / 2);
+          } else if (cachedImg.complete && cachedImg.naturalWidth > 0) {
+            // Draw the cached image only if fully loaded
+            ctx.drawImage(cachedImg, 0, 0, width, height);
+          } else {
+            // Image is still loading, show placeholder
+            ctx.fillStyle = '#3a3a3a';
+            ctx.fillRect(0, 0, width, height);
+            ctx.strokeStyle = '#4a4a4a';
+            ctx.lineWidth = 2;
+            ctx.strokeRect(0, 0, width, height);
+            ctx.fillStyle = '#666666';
+            ctx.font = '12px sans-serif';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText('Loading...', width / 2, height / 2);
+          }
+          break;
+        }
         case 'video':
-          // Placeholder for media - will be implemented later
+          // Placeholder for video - will be implemented later
           ctx.fillStyle = '#3a3a3a';
           ctx.fillRect(0, 0, width, height);
           ctx.strokeStyle = '#4a4a4a';
           ctx.lineWidth = 2;
           ctx.strokeRect(0, 0, width, height);
+          // Draw video placeholder icon
+          ctx.fillStyle = '#666666';
+          ctx.beginPath();
+          ctx.moveTo(width / 2 - 10, height / 2 - 12);
+          ctx.lineTo(width / 2 + 14, height / 2);
+          ctx.lineTo(width / 2 - 10, height / 2 + 12);
+          ctx.closePath();
+          ctx.fill();
           break;
       }
 
@@ -541,7 +598,7 @@ export function Canvas() {
 
     // Draw path preview while drawing
     drawPathPreview(ctx);
-  }, [viewport, objects, selectedIds, drawObject, drawSelectionBox, drawMarqueeRect, drawRectPreview, drawFramePreview, drawPathPreview]);
+  }, [viewport, objects, selectedIds, drawObject, drawSelectionBox, drawMarqueeRect, drawRectPreview, drawFramePreview, drawPathPreview, imageLoadTrigger]);
 
   // Handle window resize
   useEffect(() => {

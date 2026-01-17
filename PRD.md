@@ -415,12 +415,12 @@ Karta is a lightweight, intuitive visual ideation tool for creating mood boards,
 **Description:** As a user, I want to import images from my computer.
 
 **Acceptance Criteria:**
-- [ ] File > Import Image menu option or toolbar button
-- [ ] File picker accepts .png, .jpg, .gif, .webp
-- [ ] Image placed at canvas center with original dimensions
-- [ ] Large images scaled down to fit viewport (max 800px)
-- [ ] Typecheck passes
-- [ ] Verify changes work in browser
+- [x] File > Import Image menu option or toolbar button
+- [x] File picker accepts .png, .jpg, .gif, .webp
+- [x] Image placed at canvas center with original dimensions
+- [x] Large images scaled down to fit viewport (max 800px)
+- [x] Typecheck passes
+- [x] Verify changes work in browser
 
 ---
 

@@ -1,7 +1,7 @@
-import type { ReactNode } from 'react';
+import { useRef, type ReactNode } from 'react';
 import './Toolbar.css';
 import { useCanvasStore } from '../../stores/canvasStore';
-import type { ToolType } from '../../types/canvas';
+import type { ToolType, ImageObject } from '../../types/canvas';
 
 interface ToolButton {
   id: ToolType;
@@ -74,12 +74,85 @@ const tools: ToolButton[] = [
   },
 ];
 
+const MAX_IMAGE_SIZE = 800; // Max dimension for imported images
+
 export function Toolbar() {
   const activeTool = useCanvasStore((state) => state.activeTool);
   const setActiveTool = useCanvasStore((state) => state.setActiveTool);
+  const addObject = useCanvasStore((state) => state.addObject);
+  const getNextZIndex = useCanvasStore((state) => state.getNextZIndex);
+  const setSelection = useCanvasStore((state) => state.setSelection);
+  const viewport = useCanvasStore((state) => state.viewport);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleToolClick = (tool: ToolType) => {
     setActiveTool(tool);
+  };
+
+  const handleImportClick = () => {
+    fileInputRef.current?.click();
+  };
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+
+    const file = files[0];
+    const reader = new FileReader();
+
+    reader.onload = (event) => {
+      const dataUrl = event.target?.result as string;
+      const img = new Image();
+
+      img.onload = () => {
+        // Calculate dimensions, scaling down if necessary
+        let width = img.naturalWidth;
+        let height = img.naturalHeight;
+
+        if (width > MAX_IMAGE_SIZE || height > MAX_IMAGE_SIZE) {
+          const aspectRatio = width / height;
+          if (width > height) {
+            width = MAX_IMAGE_SIZE;
+            height = MAX_IMAGE_SIZE / aspectRatio;
+          } else {
+            height = MAX_IMAGE_SIZE;
+            width = MAX_IMAGE_SIZE * aspectRatio;
+          }
+        }
+
+        // Calculate canvas center position
+        // The visible canvas center depends on the viewport
+        const canvasCenterX = -viewport.x + (window.innerWidth / 2) / viewport.zoom;
+        const canvasCenterY = -viewport.y + (window.innerHeight / 2) / viewport.zoom;
+
+        // Position image so its center is at the canvas center
+        const x = canvasCenterX - width / 2;
+        const y = canvasCenterY - height / 2;
+
+        const newImage: ImageObject = {
+          id: crypto.randomUUID(),
+          type: 'image',
+          x,
+          y,
+          width,
+          height,
+          rotation: 0,
+          opacity: 1,
+          zIndex: getNextZIndex(),
+          src: dataUrl,
+        };
+
+        addObject(newImage);
+        setSelection([newImage.id]);
+      };
+
+      img.src = dataUrl;
+    };
+
+    reader.readAsDataURL(file);
+
+    // Reset the input so the same file can be selected again
+    e.target.value = '';
   };
 
   return (
@@ -102,7 +175,30 @@ export function Toolbar() {
             {index === 3 && <div className="toolbar-divider" />}
           </div>
         ))}
+        {/* Divider before import button */}
+        <div className="toolbar-divider" />
+        {/* Import Image button */}
+        <button
+          className="tool-button"
+          onClick={handleImportClick}
+          title="Import Image"
+        >
+          <svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor">
+            <path d="M3 4C3 3.45 3.45 3 4 3H16C16.55 3 17 3.45 17 4V16C17 16.55 16.55 17 16 17H4C3.45 17 3 16.55 3 16V4ZM5 5V12.5L7.5 10L10 12.5L13 9L15 12V5H5ZM5 15H15V14L13 11L10 14L7.5 11.5L5 14V15ZM7 8C7.55 8 8 7.55 8 7C8 6.45 7.55 6 7 6C6.45 6 6 6.45 6 7C6 7.55 6.45 8 7 8Z" />
+          </svg>
+          <span className="tool-tooltip">
+            Import Image
+          </span>
+        </button>
       </div>
+      {/* Hidden file input for image import */}
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept=".png,.jpg,.jpeg,.gif,.webp,image/png,image/jpeg,image/gif,image/webp"
+        style={{ display: 'none' }}
+        onChange={handleFileChange}
+      />
     </aside>
   );
 }
