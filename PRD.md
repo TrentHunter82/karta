@@ -225,12 +225,12 @@ Karta is a lightweight, intuitive visual ideation tool for creating mood boards,
 **Description:** As a user, I want to edit existing text by double-clicking.
 
 **Acceptance Criteria:**
-- [ ] Double-click on text object enters edit mode
-- [ ] Cursor position tracked within text
-- [ ] Arrow keys navigate cursor
-- [ ] Selection within text (Shift+arrows, double-click word)
-- [ ] Typecheck passes
-- [ ] Verify changes work in browser
+- [x] Double-click on text object enters edit mode
+- [x] Cursor position tracked within text
+- [x] Arrow keys navigate cursor
+- [x] Selection within text (Shift+arrows, double-click word)
+- [x] Typecheck passes
+- [x] Verify changes work in browser
 
 ---
 

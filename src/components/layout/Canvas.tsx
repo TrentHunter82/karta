@@ -44,6 +44,8 @@ export function Canvas() {
   const containerRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const textInputRef = useRef<HTMLInputElement>(null);
+  const lastClickTime = useRef<number>(0);
+  const lastClickObjectId = useRef<string | null>(null);
 
   // Store state
   const objects = useCanvasStore((state) => state.objects);
@@ -721,6 +723,22 @@ export function Canvas() {
       const canvasPos = screenToCanvas(screenX, screenY);
 
       if (hitObject) {
+        const now = Date.now();
+        const isDoubleClick =
+          lastClickObjectId.current === hitObject.id &&
+          now - lastClickTime.current < 300; // 300ms double-click threshold
+
+        // Update click tracking
+        lastClickTime.current = now;
+        lastClickObjectId.current = hitObject.id;
+
+        // Handle double-click on text objects to enter edit mode
+        if (isDoubleClick && hitObject.type === 'text') {
+          setSelection([hitObject.id]);
+          setEditingTextId(hitObject.id);
+          return; // Don't start dragging
+        }
+
         // Click on object
         if (e.shiftKey) {
           // Shift+click - toggle selection
@@ -1222,6 +1240,8 @@ export function Canvas() {
       e.preventDefault();
       exitTextEditMode();
     }
+    // Allow arrow keys and selection shortcuts to work naturally
+    // The native input handles: ArrowLeft, ArrowRight, Shift+Arrow, Home, End, Ctrl+A, etc.
     // Stop propagation to prevent tool shortcuts from firing
     e.stopPropagation();
   }, [exitTextEditMode]);
