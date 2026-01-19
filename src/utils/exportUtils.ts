@@ -8,43 +8,12 @@ import type {
   PolygonObject,
   StarObject,
   Viewport,
+  GroupObject,
 } from '../types/canvas';
+import { calculateBoundingBox, type BoundingBox } from './geometryUtils';
 
-// ============================================================================
-// Bounding Box Calculation
-// ============================================================================
-
-interface BoundingBox {
-  x: number;
-  y: number;
-  width: number;
-  height: number;
-}
-
-export function calculateBoundingBox(objects: CanvasObject[]): BoundingBox {
-  if (objects.length === 0) {
-    return { x: 0, y: 0, width: 0, height: 0 };
-  }
-
-  let minX = Infinity;
-  let minY = Infinity;
-  let maxX = -Infinity;
-  let maxY = -Infinity;
-
-  objects.forEach((obj) => {
-    minX = Math.min(minX, obj.x);
-    minY = Math.min(minY, obj.y);
-    maxX = Math.max(maxX, obj.x + obj.width);
-    maxY = Math.max(maxY, obj.y + obj.height);
-  });
-
-  return {
-    x: minX,
-    y: minY,
-    width: maxX - minX,
-    height: maxY - minY,
-  };
-}
+// Re-export for backwards compatibility
+export { calculateBoundingBox };
 
 // ============================================================================
 // SVG Export
@@ -252,8 +221,15 @@ function objectToSVG(obj: CanvasObject, x: number, y: number): string {
     }
 
     case 'group': {
-      // Groups are expanded - their children are rendered separately
-      return '';
+      // Groups should be rendered as SVG groups with transform for proper rotation handling
+      const group = obj as GroupObject;
+      const transform = obj.rotation
+        ? ` transform="rotate(${obj.rotation} ${x + obj.width / 2} ${y + obj.height / 2})"`
+        : '';
+      const opacity = obj.opacity !== 1 ? ` opacity="${obj.opacity}"` : '';
+      // Note: Group children are rendered separately with their own transforms
+      // This returns the opening <g> tag. Children are handled in exportToSVG.
+      return `  <g id="group-${group.id}"${opacity}${transform}>\n`;
     }
 
     default:
@@ -261,10 +237,46 @@ function objectToSVG(obj: CanvasObject, x: number, y: number): string {
   }
 }
 
+/**
+ * Recursively renders an object and its children (for groups) to SVG.
+ * Groups are rendered as SVG <g> elements with their children inside.
+ */
+function renderObjectToSVG(
+  obj: CanvasObject,
+  offsetX: number,
+  offsetY: number,
+  objectsMap: Map<string, CanvasObject>
+): string {
+  const x = obj.x + offsetX;
+  const y = obj.y + offsetY;
+
+  if (obj.type === 'group') {
+    const group = obj as GroupObject;
+    let result = objectToSVG(obj, x, y); // Opens <g> tag
+
+    // Render children with offset relative to group position
+    for (const childId of group.children) {
+      const child = objectsMap.get(childId);
+      if (child) {
+        result += renderObjectToSVG(child, x, y, objectsMap);
+      }
+    }
+
+    result += '  </g>\n'; // Close <g> tag
+    return result;
+  }
+
+  return objectToSVG(obj, x, y);
+}
+
 export function exportToSVG(
   objects: CanvasObject[],
   options: SVGExportOptions = {}
 ): string {
+  // Build a map for quick child lookup
+  const objectsMap = new Map<string, CanvasObject>();
+  objects.forEach(obj => objectsMap.set(obj.id, obj));
+
   const bounds = calculateBoundingBox(objects);
   const padding = 10;
 
@@ -278,13 +290,15 @@ export function exportToSVG(
     svg += `  <rect width="100%" height="100%" fill="${options.backgroundColor || '#1a1a1a'}"/>\n`;
   }
 
-  // Sort by z-index
-  const sortedObjects = [...objects].sort((a, b) => a.zIndex - b.zIndex);
+  // Sort by z-index, filter to top-level objects only (not children of groups)
+  const topLevelObjects = [...objects]
+    .filter(obj => !obj.parentId)
+    .sort((a, b) => a.zIndex - b.zIndex);
 
-  sortedObjects.forEach((obj) => {
-    const x = obj.x - bounds.x + padding;
-    const y = obj.y - bounds.y + padding;
-    svg += objectToSVG(obj, x, y);
+  topLevelObjects.forEach((obj) => {
+    const offsetX = -bounds.x + padding;
+    const offsetY = -bounds.y + padding;
+    svg += renderObjectToSVG(obj, offsetX, offsetY, objectsMap);
   });
 
   svg += '</svg>';

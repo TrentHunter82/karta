@@ -1245,3 +1245,29 @@ if (event.key === '[') {
   - HANDLE_CURSORS mapping correctly maps all 8 handles to directional cursors
 - Status: No changes needed - cursor system is well-implemented
 ---
+
+## PRD-Polish Iteration 2 - impl-2: Export rotation/groups handling
+- What was implemented:
+  - Removed duplicate calculateBoundingBox from exportUtils.ts
+    - Now imports from geometryUtils.ts (which handles rotation)
+    - Re-exports for backwards compatibility with existing imports
+  - Updated SVG export for groups:
+    - Groups now render as SVG <g> elements with proper transform
+    - Added renderObjectToSVG() recursive function for nested group support
+    - Children are rendered inside their parent group's <g> element
+    - Top-level objects filtered (skip children that are part of groups)
+  - SVG export already handled rotation via transform attribute (verified working)
+  - PNG export already handled rotation via Canvas2D transform (verified working)
+- Files changed:
+  - src/utils/exportUtils.ts (removed duplicate, added group support)
+  - PRD.md (marked task complete)
+- Rotation handling now consistent:
+  - Bounding box calculation uses rotation-aware AABB from geometryUtils
+  - SVG export uses transform="rotate()" for proper rotation
+  - PNG export uses ctx.rotate() for proper rotation
+  - Groups export with their children properly nested
+- Learnings:
+  - Don't duplicate utility functions - import from single source of truth
+  - SVG groups (<g>) are useful for grouping transforms and opacity
+  - Recursive rendering needed for nested groups in export
+  - Filter parentId to avoid rendering children outside their groups

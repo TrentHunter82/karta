@@ -8,7 +8,7 @@ implementing
 
 ## Active Agents
 - impl-1: Completed Code Quality + Performance + Polish (iteration 2)
-- impl-2: Edge Case Handling - iteration 2 (rotation handling complete)
+- impl-2: Edge Case Handling - ALL TASKS COMPLETE
 - reviewer: Keyboard shortcuts audit + fix complete
 
 ## Completed Tasks (this iteration)
@@ -24,6 +24,7 @@ implementing
 - [x] Verify keyboard shortcuts work consistently and don't conflict (reviewer)
 - [x] Review error boundary coverage - wrap all major sections (impl-1)
 - [x] Ensure all canvas operations handle objects with rotation correctly (impl-2)
+- [x] Ensure export works correctly with rotated objects and groups (impl-2)
 
 ## Artifacts
 - src/utils/yjsUtils.ts - Yjs serialization utilities
@@ -31,10 +32,11 @@ implementing
 - src/stores/clipboardStore.ts - Added validation functions
 - src/tools/SelectTool.ts - Added drag threshold, marquee size checks
 - src/components/layout/Canvas.tsx - Rotation-aware marquee selection
+- src/utils/exportUtils.ts - Group export support, unified bounding box calculation
 
 ## Issues Found
 - 2 pre-existing test failures in SelectTool.test.ts (mode state transition)
 - ESLint errors documented in progress.txt (for impl agents to fix)
 
 ## Last Updated
-2026-01-19T18:45:00.000Z
+2026-01-19T19:00:00.000Z
