@@ -1,10 +1,13 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
+import type { ObjectType } from '../types/canvas';
 
-// Template object type - flexible to allow any canvas object properties except id/zIndex
-// Using Record to allow all possible properties from different object types
+/**
+ * Template object type - represents canvas object properties without id/zIndex.
+ * These are added when the template is instantiated on the canvas.
+ */
 export interface TemplateObject {
-  type: string;
+  type: ObjectType;
   x: number;
   y: number;
   width: number;

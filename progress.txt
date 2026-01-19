@@ -992,3 +992,46 @@
   - Use Number.isFinite() to check for NaN/Infinity
   - Clamping is safer than rejecting - prevents data loss
 
+
+---
+
+## PRD-Polish Iteration 1 - impl-1: Code Quality Improvements
+- What was implemented:
+  - Extracted Yjs serialization utilities into src/utils/yjsUtils.ts
+    - objectToYjs(), yjsToObject(), isValidBaseObject(), isValidTypeSpecificProps()
+    - createYjsUpdateQueue() for debounced Yjs sync
+  - Created src/utils/geometryUtils.ts with:
+    - BoundingBox interface
+    - calculateBoundingBox() moved from canvasStore.ts
+    - getBoundingBoxCenter(), boundingBoxesIntersect(), isPointInBounds()
+    - expandBounds(), normalizeRect() utility functions
+  - Added JSDoc comments to exported interfaces and stores:
+    - canvasStore.ts: GridSettings, SnapGuide, useCanvasStore
+    - historyStore.ts: HistorySnapshot, HistoryState, useHistoryStore
+    - clipboardStore.ts: ClipboardState, PASTE_OFFSET
+    - toastStore.ts: Toast, DEFAULT_TOAST_DURATION, useToastStore
+  - Eliminated `as any` casts:
+    - Fixed canvasStore.ts selectAll() to properly type narrow GroupObject
+    - Fixed templateStore.ts TemplateObject.type to use ObjectType instead of string
+    - Removed eslint-disable comment in TemplatePanel.tsx
+  - Extracted magic numbers into named constants in Canvas.tsx:
+    - CTRL_ZOOM_SENSITIVITY, DEFAULT_FONT_WEIGHT, DEFAULT_LINE_HEIGHT
+    - DOUBLE_CLICK_THRESHOLD_MS, EDITING_START_DELAY_MS
+    - MAX_IMPORTED_IMAGE_SIZE, ERROR_TOAST_DURATION_MS
+- Files created:
+  - src/utils/yjsUtils.ts
+  - src/utils/geometryUtils.ts
+- Files changed:
+  - src/stores/canvasStore.ts (utility extraction, JSDoc, GroupObject import)
+  - src/stores/historyStore.ts (JSDoc comments)
+  - src/stores/clipboardStore.ts (JSDoc comments)
+  - src/stores/toastStore.ts (JSDoc, DEFAULT_TOAST_DURATION constant)
+  - src/stores/templateStore.ts (ObjectType import for type safety)
+  - src/components/TemplatePanel.tsx (removed as any cast)
+  - src/components/layout/Canvas.tsx (magic number constants)
+- Learnings for future iterations:
+  - Yjs utilities are reusable and could be shared across collaboration features
+  - Type narrowing with TypeScript works well when checking obj.type === 'group'
+  - Magic numbers in rendering code should be extracted early to improve readability
+  - JSDoc comments on interfaces help developers understand expected values
+---

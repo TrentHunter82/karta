@@ -224,8 +224,7 @@ export function TemplatePanel() {
         zIndex: getNextZIndex()
       };
 
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      addObject(newObject as any);
+      addObject(newObject);
     });
 
     setSelection(newObjectIds);

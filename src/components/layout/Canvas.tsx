@@ -20,12 +20,30 @@ const imageCache = new Map<string, HTMLImageElement>();
 const videoThumbnailCache = new Map<string, HTMLCanvasElement>();
 const videoElementCache = new Map<string, HTMLVideoElement>();
 
+// Zoom limits and sensitivity
 const MIN_ZOOM = 0.1; // 10%
 const MAX_ZOOM = 5.0; // 500%
 const ZOOM_SENSITIVITY = 0.001;
+const CTRL_ZOOM_SENSITIVITY = 0.01;
+
+// Selection handle dimensions
 const HANDLE_SIZE = 8;
 const ROTATION_HANDLE_OFFSET = 20;
 const SELECTION_COLOR = '#0066ff';
+
+// Text rendering defaults
+const DEFAULT_FONT_WEIGHT = 400;
+const DEFAULT_LINE_HEIGHT = 1.2;
+
+// Double-click detection timing
+const DOUBLE_CLICK_THRESHOLD_MS = 300;
+const EDITING_START_DELAY_MS = 500;
+
+// Image import constraints
+const MAX_IMPORTED_IMAGE_SIZE = 800;
+
+// Toast durations
+const ERROR_TOAST_DURATION_MS = 5000;
 
 // Handle positions for drawing selection box
 const HANDLE_POSITIONS = [
@@ -194,7 +212,7 @@ export function Canvas() {
           const textObj = obj as TextObject;
           ctx.fillStyle = textObj.fill || '#ffffff';
           const fontStyle = textObj.fontStyle || 'normal';
-          const fontWeight = textObj.fontWeight || 400;
+          const fontWeight = textObj.fontWeight || DEFAULT_FONT_WEIGHT;
           const fontSize = textObj.fontSize * zoom;
           ctx.font = `${fontStyle} ${fontWeight} ${fontSize}px ${textObj.fontFamily}`;
           ctx.textAlign = textObj.textAlign || 'left';
@@ -202,7 +220,7 @@ export function Canvas() {
           const textX = textObj.textAlign === 'center' ? width / 2 : textObj.textAlign === 'right' ? width : 0;
 
           const lines = textObj.text.split('\n');
-          const lineHeightPx = fontSize * (textObj.lineHeight || 1.2);
+          const lineHeightPx = fontSize * (textObj.lineHeight || DEFAULT_LINE_HEIGHT);
 
           lines.forEach((line, index) => {
             const y = index * lineHeightPx;
@@ -952,7 +970,7 @@ export function Canvas() {
     const mouseX = e.clientX - rect.left;
     const mouseY = e.clientY - rect.top;
 
-    const delta = e.ctrlKey ? -e.deltaY * 0.01 : -e.deltaY * ZOOM_SENSITIVITY;
+    const delta = e.ctrlKey ? -e.deltaY * CTRL_ZOOM_SENSITIVITY : -e.deltaY * ZOOM_SENSITIVITY;
     const newZoom = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, viewport.zoom * (1 + delta)));
 
     if (newZoom === viewport.zoom) return;
@@ -1022,7 +1040,7 @@ export function Canvas() {
           if (newTextObj) {
             justStartedEditingRef.current = true;
             setEditingTextId(newTextObj.id);
-            setTimeout(() => { justStartedEditingRef.current = false; }, 500);
+            setTimeout(() => { justStartedEditingRef.current = false; }, EDITING_START_DELAY_MS);
           }
         }
 
@@ -1033,7 +1051,7 @@ export function Canvas() {
             const now = Date.now();
             const isDoubleClick =
               lastClickObjectId.current === hitObject.id &&
-              now - lastClickTime.current < 300;
+              now - lastClickTime.current < DOUBLE_CLICK_THRESHOLD_MS;
 
             lastClickTime.current = now;
             lastClickObjectId.current = hitObject.id;
@@ -1056,7 +1074,7 @@ export function Canvas() {
                 setSelection([hitObject.id]);
                 justStartedEditingRef.current = true;
                 setEditingTextId(hitObject.id);
-                setTimeout(() => { justStartedEditingRef.current = false; }, 500);
+                setTimeout(() => { justStartedEditingRef.current = false; }, EDITING_START_DELAY_MS);
                 return;
               }
               if (hitObject.type === 'frame') {
@@ -1275,7 +1293,7 @@ export function Canvas() {
           let imgWidth = img.naturalWidth;
           let imgHeight = img.naturalHeight;
 
-          const maxSize = 800;
+          const maxSize = MAX_IMPORTED_IMAGE_SIZE;
           if (imgWidth > maxSize || imgHeight > maxSize) {
             const scale = Math.min(maxSize / imgWidth, maxSize / imgHeight);
             imgWidth = Math.round(imgWidth * scale);
@@ -1310,7 +1328,7 @@ export function Canvas() {
           useToastStore.getState().addToast({
             message: 'Failed to load image. Please try a different file.',
             type: 'error',
-            duration: 5000
+            duration: ERROR_TOAST_DURATION_MS
           });
         };
         img.src = dataUrl;
@@ -1341,7 +1359,7 @@ export function Canvas() {
           let vidWidth = video.videoWidth;
           let vidHeight = video.videoHeight;
 
-          const maxSize = 800;
+          const maxSize = MAX_IMPORTED_IMAGE_SIZE;
           if (vidWidth > maxSize || vidHeight > maxSize) {
             const scale = Math.min(maxSize / vidWidth, maxSize / vidHeight);
             vidWidth = Math.round(vidWidth * scale);
@@ -1376,7 +1394,7 @@ export function Canvas() {
           useToastStore.getState().addToast({
             message: 'Failed to load video. Format may not be supported.',
             type: 'error',
-            duration: 5000
+            duration: ERROR_TOAST_DURATION_MS
           });
         };
         video.src = dataUrl;
@@ -1492,7 +1510,7 @@ export function Canvas() {
       transformOrigin: 'top left',
       fontSize: `${fontSize}px`,
       fontFamily: textObj.fontFamily,
-      fontWeight: textObj.fontWeight || 400,
+      fontWeight: textObj.fontWeight || DEFAULT_FONT_WEIGHT,
       fontStyle: textObj.fontStyle || 'normal',
       textDecoration: textObj.textDecoration || 'none',
       color: textObj.fill || '#ffffff',

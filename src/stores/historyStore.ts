@@ -1,37 +1,73 @@
-// src/stores/historyStore.ts
+/**
+ * History store for undo/redo functionality.
+ *
+ * Uses a snapshot-based approach where complete canvas state is saved
+ * at each history point. Supports up to MAX_HISTORY_SIZE undo steps.
+ */
 import { create } from 'zustand';
 import type { CanvasObject } from '../types/canvas';
 
+/**
+ * A point-in-time snapshot of canvas state.
+ */
 interface HistorySnapshot {
+  /** All canvas objects as [id, object] pairs */
   objects: Array<[string, CanvasObject]>;
+  /** When this snapshot was created */
   timestamp: number;
 }
 
 interface HistoryState {
-  // State
+  /** Past snapshots (for undo) - most recent at end */
   past: HistorySnapshot[];
+  /** Future snapshots (for redo) - most recent at start */
   future: HistorySnapshot[];
+  /** Maximum number of undo steps to keep */
   maxSize: number;
+  /** Flag to prevent nested history operations */
   isUndoRedoing: boolean;
 
-  // Actions
+  /** Save current state as a new history snapshot */
   pushSnapshot: (objects: Map<string, CanvasObject>) => void;
+  /** Restore previous state, moving current to future */
   undo: (
     getCurrentObjects: () => Map<string, CanvasObject>,
     applySnapshot: (objects: Map<string, CanvasObject>) => void
   ) => void;
+  /** Restore next state, moving current to past */
   redo: (
     getCurrentObjects: () => Map<string, CanvasObject>,
     applySnapshot: (objects: Map<string, CanvasObject>) => void
   ) => void;
+  /** Check if undo is available */
   canUndo: () => boolean;
+  /** Check if redo is available */
   canRedo: () => boolean;
+  /** Clear all history */
   clear: () => void;
+  /** Set the undo/redo in progress flag */
   setIsUndoRedoing: (value: boolean) => void;
 }
 
+/** Maximum number of history snapshots to retain */
 const MAX_HISTORY_SIZE = 50;
 
+/**
+ * Zustand store for managing undo/redo history.
+ *
+ * @example
+ * ```tsx
+ * const { pushSnapshot, undo, canUndo } = useHistoryStore.getState();
+ *
+ * // Before making changes
+ * pushSnapshot(currentObjects);
+ *
+ * // Undo last change
+ * if (canUndo()) {
+ *   undo(getCurrentObjects, applySnapshot);
+ * }
+ * ```
+ */
 export const useHistoryStore = create<HistoryState>((set, get) => ({
   past: [],
   future: [],

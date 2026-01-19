@@ -17,11 +17,11 @@ Karta is a near-complete Figma-style design tool with React 18, TypeScript, Zust
 ## Tasks
 
 ### Code Quality (impl-1)
-- [ ] Review canvasStore.ts (37KB) for any code that could be extracted into utility functions
-- [ ] Add JSDoc comments to all exported functions in src/stores/*.ts
+- [x] Review canvasStore.ts (37KB) for any code that could be extracted into utility functions
+- [x] Add JSDoc comments to all exported functions in src/stores/*.ts
 - [ ] Ensure consistent error handling patterns across all tool files in src/tools/
-- [ ] Review and improve TypeScript types - eliminate any `any` types
-- [ ] Extract magic numbers into named constants (especially in rendering code)
+- [x] Review and improve TypeScript types - eliminate any `any` types
+- [x] Extract magic numbers into named constants (especially in rendering code)
 
 ### Edge Case Handling (impl-2)
 - [ ] Audit SelectTool.ts for edge cases: zero-size selections, rapid clicks, drag threshold
