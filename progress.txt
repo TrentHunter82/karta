@@ -1271,3 +1271,20 @@ if (event.key === '[') {
   - SVG groups (<g>) are useful for grouping transforms and opacity
   - Recursive rendering needed for nested groups in export
   - Filter parentId to avoid rendering children outside their groups
+
+
+---
+
+## PRD-Polish Iteration 2 - impl-1: Fix SelectTool test failures
+- What was implemented:
+  - Fixed 2 failing tests in SelectTool.test.ts related to pending_drag state
+  - Tests now correctly account for drag threshold feature (impl-2 addition)
+  - Test "starts dragging when clicking on selected object":
+    - Now expects pending_drag after mouseDown
+    - Moves past threshold (4px) to transition to dragging state
+  - Test "cancels operation on Escape":
+    - Same fix - enter dragging via pending_drag + move
+- Files changed:
+  - tests/unit/tools/SelectTool.test.ts (updated 2 test cases)
+- Result: All 392 tests now pass
+---

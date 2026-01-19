@@ -191,9 +191,12 @@ describe('SelectTool', () => {
       tool = new SelectTool(mockContext);
       tool.onActivate();
 
-      const event = createMockMouseEvent();
-      tool.onMouseDown(event);
+      // Click on selected object - enters pending_drag state
+      tool.onMouseDown(createMockMouseEvent({ screenX: 100, screenY: 100, canvasX: 100, canvasY: 100 }));
+      expect(tool.getMode()).toBe('pending_drag');
 
+      // Move past drag threshold (3px) to enter dragging state
+      tool.onMouseMove(createMockMouseEvent({ screenX: 104, screenY: 104, canvasX: 104, canvasY: 104 }));
       expect(tool.getMode()).toBe('dragging');
       expect(mockContext.pushHistory).toHaveBeenCalled();
     });
@@ -501,8 +504,9 @@ describe('SelectTool', () => {
       tool = new SelectTool(mockContext);
       tool.onActivate();
 
-      // Start dragging
-      tool.onMouseDown(createMockMouseEvent());
+      // Start dragging - click enters pending_drag, then move past threshold to enter dragging
+      tool.onMouseDown(createMockMouseEvent({ screenX: 100, screenY: 100, canvasX: 100, canvasY: 100 }));
+      tool.onMouseMove(createMockMouseEvent({ screenX: 104, screenY: 104, canvasX: 104, canvasY: 104 }));
       expect(tool.getMode()).toBe('dragging');
 
       // Press Escape

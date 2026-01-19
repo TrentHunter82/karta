@@ -49,7 +49,7 @@ Karta is a near-complete Figma-style design tool with React 18, TypeScript, Zust
 - [ ] Add tests for selection logic (single, multi, marquee, shift-click)
 - [ ] Add tests for clipboard operations (copy, paste, duplicate)
 - [ ] Add tests for history operations (undo, redo boundaries)
-- [x] Verify existing tests pass: `npm run test` (390/392 pass, 2 pre-existing failures in SelectTool.test.ts)
+- [x] Verify existing tests pass: `npm run test` (392/392 pass)
 
 ## Files to Focus On
 
