@@ -86,16 +86,23 @@ export function ColorInput({
   const svRef = useRef<HTMLDivElement>(null);
   const hueRef = useRef<HTMLDivElement>(null);
 
-  // Parse initial color
+  // Only parse external value when picker OPENS (not on every value change)
+  // This prevents hue corruption from RGB→HSV conversion losing hue info for grayscale colors
+  // Once open, HSV is managed internally and never re-derived from external value
   useEffect(() => {
-    if (value !== 'mixed' && value !== 'none') {
+    if (isOpen && value !== 'mixed' && value !== 'none') {
       const rgb = hexToRgb(value);
       if (rgb) {
         const newHsv = rgbToHsv(rgb.r, rgb.g, rgb.b);
+        // Preserve current hue if new color is grayscale (saturation ~0)
+        if (newHsv.s < 0.01) {
+          newHsv.h = hsv.h;
+        }
         setHsv(newHsv);
       }
     }
-  }, [value]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen]); // Only run when isOpen changes, NOT on value changes
 
   // Close on click outside
   useEffect(() => {
@@ -118,22 +125,39 @@ export function ColorInput({
     onChange(hex);
   }, [onChange]);
 
-  // SV picker handlers
+  // SV picker handlers - use functional update to avoid stale closure
   const handleSVMouseDown = useCallback((e: React.MouseEvent) => {
     e.preventDefault();
     setIsDraggingSV(true);
-    updateSVFromMouse(e.clientX, e.clientY);
-  }, []);
+
+    if (!svRef.current) return;
+    const rect = svRef.current.getBoundingClientRect();
+    const s = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+    const v = Math.max(0, Math.min(1, 1 - (e.clientY - rect.top) / rect.height));
+
+    setHsv(prev => {
+      const newHsv = { ...prev, s, v };
+      const rgb = hsvToRgb(newHsv.h, newHsv.s, newHsv.v);
+      const hex = rgbToHex(rgb.r, rgb.g, rgb.b);
+      onChange(hex);
+      return newHsv;
+    });
+  }, [onChange]);
 
   const updateSVFromMouse = useCallback((clientX: number, clientY: number) => {
     if (!svRef.current) return;
     const rect = svRef.current.getBoundingClientRect();
     const s = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
     const v = Math.max(0, Math.min(1, 1 - (clientY - rect.top) / rect.height));
-    const newHsv = { ...hsv, s, v };
-    setHsv(newHsv);
-    updateColorFromHsv(newHsv);
-  }, [hsv, updateColorFromHsv]);
+
+    setHsv(prev => {
+      const newHsv = { ...prev, s, v };
+      const rgb = hsvToRgb(newHsv.h, newHsv.s, newHsv.v);
+      const hex = rgbToHex(rgb.r, rgb.g, rgb.b);
+      onChange(hex);
+      return newHsv;
+    });
+  }, [onChange]);
 
   useEffect(() => {
     if (!isDraggingSV) return;
@@ -154,21 +178,37 @@ export function ColorInput({
     };
   }, [isDraggingSV, updateSVFromMouse]);
 
-  // Hue picker handlers
+  // Hue picker handlers - use functional update to avoid stale closure
   const handleHueMouseDown = useCallback((e: React.MouseEvent) => {
     e.preventDefault();
     setIsDraggingHue(true);
-    updateHueFromMouse(e.clientX);
-  }, []);
+
+    if (!hueRef.current) return;
+    const rect = hueRef.current.getBoundingClientRect();
+    const h = Math.max(0, Math.min(360, (e.clientX - rect.left) / rect.width * 360));
+
+    setHsv(prev => {
+      const newHsv = { ...prev, h };
+      const rgb = hsvToRgb(newHsv.h, newHsv.s, newHsv.v);
+      const hex = rgbToHex(rgb.r, rgb.g, rgb.b);
+      onChange(hex);
+      return newHsv;
+    });
+  }, [onChange]);
 
   const updateHueFromMouse = useCallback((clientX: number) => {
     if (!hueRef.current) return;
     const rect = hueRef.current.getBoundingClientRect();
     const h = Math.max(0, Math.min(360, (clientX - rect.left) / rect.width * 360));
-    const newHsv = { ...hsv, h };
-    setHsv(newHsv);
-    updateColorFromHsv(newHsv);
-  }, [hsv, updateColorFromHsv]);
+
+    setHsv(prev => {
+      const newHsv = { ...prev, h };
+      const rgb = hsvToRgb(newHsv.h, newHsv.s, newHsv.v);
+      const hex = rgbToHex(rgb.r, rgb.g, rgb.b);
+      onChange(hex);
+      return newHsv;
+    });
+  }, [onChange]);
 
   useEffect(() => {
     if (!isDraggingHue) return;
