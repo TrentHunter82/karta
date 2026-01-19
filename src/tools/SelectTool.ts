@@ -13,6 +13,8 @@ import type { TextObject, CanvasObject } from '../types/canvas';
 // Constants
 const MIN_OBJECT_SIZE = 10;
 const DOUBLE_CLICK_THRESHOLD = 300; // ms
+const DRAG_THRESHOLD = 3; // minimum pixels moved before drag starts
+const MIN_MARQUEE_SIZE = 2; // minimum marquee size to trigger selection
 
 // Cursor styles for each handle type
 const HANDLE_CURSORS: Record<NonNullable<HandleType>, string> = {
@@ -157,6 +159,9 @@ export class SelectTool extends BaseTool {
     const viewport = this.ctx.getViewport();
 
     switch (this.state.mode) {
+      case 'pending_drag':
+        return this.handlePendingDragMove(screenX, screenY, canvasX, canvasY, objects, selectedIds, viewport);
+
       case 'dragging':
         return this.handleDragMove(canvasX, canvasY, objects, selectedIds, viewport);
 
@@ -180,6 +185,11 @@ export class SelectTool extends BaseTool {
     switch (prevMode) {
       case 'marquee':
         this.finalizeMarquee();
+        break;
+
+      case 'pending_drag':
+        // Mouse up without exceeding drag threshold - this was just a click
+        // Selection was already handled in onMouseDown, nothing else to do
         break;
 
       case 'dragging':
@@ -367,8 +377,10 @@ export class SelectTool extends BaseTool {
   }
 
   private startDragging(canvasX: number, canvasY: number, e: ToolMouseEvent): void {
-    this.state.mode = 'dragging';
+    // Start in pending_drag mode - actual drag starts after threshold is crossed
+    this.state.mode = 'pending_drag';
     this.state.dragStartCanvasPos = { x: canvasX, y: canvasY };
+    this.state.startPos = { x: e.screenX, y: e.screenY };
     this.state.lastPos = { x: e.screenX, y: e.screenY };
     this.setCursor('move');
   }
@@ -390,6 +402,34 @@ export class SelectTool extends BaseTool {
     }
 
     this.setCursor('crosshair');
+  }
+
+  private handlePendingDragMove(
+    screenX: number,
+    screenY: number,
+    canvasX: number,
+    canvasY: number,
+    objects: Map<string, CanvasObject>,
+    selectedIds: Set<string>,
+    viewport: { zoom: number }
+  ): ToolEventResult {
+    if (!this.state.startPos) {
+      return { handled: false };
+    }
+
+    // Check if we've moved beyond the drag threshold
+    const dx = screenX - this.state.startPos.x;
+    const dy = screenY - this.state.startPos.y;
+    const distance = Math.sqrt(dx * dx + dy * dy);
+
+    if (distance >= DRAG_THRESHOLD) {
+      // Threshold crossed - commit to dragging
+      this.state.mode = 'dragging';
+      return this.handleDragMove(canvasX, canvasY, objects, selectedIds, viewport);
+    }
+
+    // Still below threshold - don't move yet
+    return { handled: true, cursor: 'move' };
   }
 
   private handleDragMove(
@@ -481,8 +521,8 @@ export class SelectTool extends BaseTool {
     let newWidth = startState.width;
     let newHeight = startState.height;
 
-    // Calculate aspect ratio for proportional resize
-    const aspectRatio = startState.width / startState.height;
+    // Calculate aspect ratio for proportional resize (guard against division by zero)
+    const aspectRatio = startState.height > 0 ? startState.width / startState.height : 1;
     const isCornerHandle = handle === 'nw' || handle === 'ne' || handle === 'sw' || handle === 'se';
     // Corner handles: proportional by default, Shift for free resize
     // Edge handles: always single dimension
@@ -649,6 +689,18 @@ export class SelectTool extends BaseTool {
 
   private finalizeMarquee(): void {
     if (!this.state.marqueeStart || !this.state.marqueeEnd) {
+      return;
+    }
+
+    // Check if marquee is too small (e.g., just a click without drag)
+    const marqueeWidth = Math.abs(this.state.marqueeEnd.x - this.state.marqueeStart.x);
+    const marqueeHeight = Math.abs(this.state.marqueeEnd.y - this.state.marqueeStart.y);
+
+    if (marqueeWidth < MIN_MARQUEE_SIZE && marqueeHeight < MIN_MARQUEE_SIZE) {
+      // Marquee too small - treat as click on empty space (deselect unless shift)
+      if (!this.state.marqueeShiftKey) {
+        this.ctx.setSelection([]);
+      }
       return;
     }
 

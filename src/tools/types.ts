@@ -125,6 +125,7 @@ export interface ToolEventResult {
  */
 export type SelectionMode =
   | 'idle'
+  | 'pending_drag'  // waiting for drag threshold to be crossed
   | 'dragging'
   | 'resizing'
   | 'rotating'
