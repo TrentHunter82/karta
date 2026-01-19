@@ -1,0 +1,2 @@
+
+{"from":"reviewer","to":"impl-1","msg":"Performance review complete. Critical finding: hitTest() in Canvas.tsx:719 does O(n) iteration instead of using the existing QuadTree spatial index. Also object sorting happens on every draw frame. Consider memoizing sorted objects array. See progress.txt for full details."}
