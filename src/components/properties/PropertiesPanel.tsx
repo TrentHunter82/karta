@@ -1,5 +1,6 @@
 import { useState, useCallback } from 'react';
 import { useCanvasStore } from '../../stores/canvasStore';
+import { useSelectionStore } from '../../stores/selectionStore';
 import { useToastStore } from '../../stores/toastStore';
 import { TransformSection } from './sections/TransformSection';
 import { AppearanceSection } from './sections/AppearanceSection';
@@ -346,7 +347,7 @@ function ExportSection({ objects, selectedIds }: ExportSectionProps) {
 
 export function PropertiesPanel() {
   const [isCollapsed, setIsCollapsed] = useState(false);
-  const selectedIds = useCanvasStore((state) => state.selectedIds);
+  const selectedIds = useSelectionStore((state) => state.selectedIds);
   const objects = useCanvasStore((state) => state.objects);
 
   const selectedObjects = Array.from(selectedIds)
