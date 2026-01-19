@@ -9,6 +9,7 @@ implementing
 ## Active Agents
 - impl-1: Completed Code Quality + Performance optimization (iteration 2)
 - impl-2: Edge Case Handling - iteration 2 (SelectTool audit complete)
+- reviewer: Keyboard shortcuts audit + fix complete
 
 ## Completed Tasks (this iteration)
 - [x] Review canvasStore.ts for utility extraction (impl-1)
@@ -20,6 +21,7 @@ implementing
 - [x] Optimize hitTest() to use QuadTree spatial index (impl-1, from reviewer findings)
 - [x] Memoize sorted objects array in Canvas.tsx (impl-1, from reviewer findings)
 - [x] Audit SelectTool.ts for edge cases: drag threshold, zero-size marquee (impl-2)
+- [x] Verify keyboard shortcuts work consistently and don't conflict (reviewer)
 
 ## Artifacts
 - src/utils/yjsUtils.ts - Yjs serialization utilities
@@ -27,5 +29,9 @@ implementing
 - src/stores/clipboardStore.ts - Added validation functions
 - src/tools/SelectTool.ts - Added drag threshold, marquee size checks
 
+## Issues Found
+- 2 pre-existing test failures in SelectTool.test.ts (mode state transition)
+- ESLint errors documented in progress.txt (for impl agents to fix)
+
 ## Last Updated
-2026-01-19T18:15:00.000Z
+2026-01-19T16:23:00.000Z

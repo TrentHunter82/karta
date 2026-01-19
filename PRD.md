@@ -39,7 +39,7 @@ Karta is a near-complete Figma-style design tool with React 18, TypeScript, Zust
 
 ### Polish & UX
 - [ ] Review all cursor changes - ensure they accurately reflect current tool/state
-- [ ] Verify keyboard shortcuts work consistently and don't conflict
+- [x] Verify keyboard shortcuts work consistently and don't conflict
 - [ ] Check all hover states and visual feedback on interactive elements
 - [ ] Ensure smooth animations/transitions where appropriate
 - [ ] Review error boundary coverage - are all major sections wrapped?

@@ -1152,3 +1152,26 @@ if (event.key === '[') {
   - Small pixel thresholds (3px) prevent accidental micro-movements without feeling laggy
   - Guard against edge case math (division by zero) at calculation sites
   - Marquee selection should have minimum size to avoid accidental empty-space clicks
+
+---
+
+## PRD-Polish Iteration 1 - reviewer: Fix Missing Keyboard Shortcuts
+- What was implemented:
+  - Added missing z-ordering keyboard shortcuts to useKeyboardShortcuts.ts:
+    - `]` → Bring forward (one level up)
+    - `[` → Send backward (one level down)
+    - `Ctrl+]` → Bring to front (top of stack)
+    - `Ctrl+[` → Send to back (bottom of stack)
+  - Added bringToFront, bringForward, sendBackward, sendToBack store selectors
+  - Added these functions to useEffect dependency array
+- Files changed:
+  - src/hooks/useKeyboardShortcuts.ts
+- Verification:
+  - npm run typecheck: PASS
+  - npm run test: 390 passed, 2 failed (pre-existing failures in SelectTool.test.ts)
+- Tasks marked complete in PRD.md:
+  - [x] Verify keyboard shortcuts work consistently and don't conflict
+- Learnings:
+  - ShortcutsModal.tsx was advertising shortcuts that weren't implemented
+  - Consider generating ShortcutsModal from actual shortcut config to keep in sync
+  - Test failures in SelectTool.test.ts are pre-existing and unrelated to this change

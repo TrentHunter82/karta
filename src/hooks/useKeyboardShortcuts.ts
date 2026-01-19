@@ -47,6 +47,10 @@ export function useKeyboardShortcuts(options: KeyboardShortcutsOptions = {}) {
   const ungroupSelection = useCanvasStore((state) => state.ungroupSelection);
   const updateObjects = useCanvasStore((state) => state.updateObjects);
   const pushHistory = useCanvasStore((state) => state.pushHistory);
+  const bringToFront = useCanvasStore((state) => state.bringToFront);
+  const bringForward = useCanvasStore((state) => state.bringForward);
+  const sendBackward = useCanvasStore((state) => state.sendBackward);
+  const sendToBack = useCanvasStore((state) => state.sendToBack);
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -297,6 +301,20 @@ export function useKeyboardShortcuts(options: KeyboardShortcutsOptions = {}) {
           return;
         }
 
+        // Ctrl+] (bring to front)
+        if (event.key === ']') {
+          event.preventDefault();
+          bringToFront();
+          return;
+        }
+
+        // Ctrl+[ (send to back)
+        if (event.key === '[') {
+          event.preventDefault();
+          sendToBack();
+          return;
+        }
+
         // Other Ctrl/Cmd shortcuts - let them pass through
         return;
       }
@@ -332,6 +350,20 @@ export function useKeyboardShortcuts(options: KeyboardShortcutsOptions = {}) {
       if (event.key === 'm' || event.key === 'M') {
         event.preventDefault();
         toggleMinimap();
+        return;
+      }
+
+      // ] key (bring forward / bring to front with Ctrl)
+      if (event.key === ']') {
+        event.preventDefault();
+        bringForward();
+        return;
+      }
+
+      // [ key (send backward / send to back with Ctrl)
+      if (event.key === '[') {
+        event.preventDefault();
+        sendBackward();
         return;
       }
 
@@ -414,5 +446,5 @@ export function useKeyboardShortcuts(options: KeyboardShortcutsOptions = {}) {
     return () => {
       window.removeEventListener('keydown', handleKeyDown);
     };
-  }, [setActiveTool, setViewport, setSelection, undo, redo, deleteSelectedObjects, copySelection, paste, duplicate, alignObjects, distributeObjects, zoomToFit, zoomToSelection, setZoomPreset, toggleMinimap, groupSelection, ungroupSelection, updateObjects, pushHistory, onOpenShortcuts]);
+  }, [setActiveTool, setViewport, setSelection, undo, redo, deleteSelectedObjects, copySelection, paste, duplicate, alignObjects, distributeObjects, zoomToFit, zoomToSelection, setZoomPreset, toggleMinimap, groupSelection, ungroupSelection, updateObjects, pushHistory, bringToFront, bringForward, sendBackward, sendToBack, onOpenShortcuts]);
 }
