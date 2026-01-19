@@ -1035,3 +1035,12 @@
   - Magic numbers in rendering code should be extracted early to improve readability
   - JSDoc comments on interfaces help developers understand expected values
 ---
+
+- Reviewed error handling patterns in src/tools/:
+  - All tools extend BaseTool and follow consistent patterns
+  - Guard clauses at method start for early returns
+  - { handled: false } returned when not applicable
+  - Escape key cancels operations consistently
+  - MIN_OBJECT_SIZE constant used consistently (10px)
+  - State properly reset after operation completion/cancellation
+  - Pattern already consistent - no changes needed
