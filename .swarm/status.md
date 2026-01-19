@@ -7,9 +7,9 @@ Polish and harden the Karta codebase - improve code quality, fix edge cases, no 
 implementing
 
 ## Active Agents
-- impl-1: Completed Code Quality + Performance + Polish (iteration 2)
+- impl-1: Completed Code Quality + Performance + Polish + Test fixes (iteration 2)
 - impl-2: Edge Case Handling - ALL TASKS COMPLETE
-- reviewer: Keyboard shortcuts audit + fix complete
+- reviewer: All review tasks complete
 
 ## Completed Tasks (this iteration)
 - [x] Review canvasStore.ts for utility extraction (impl-1)
@@ -25,18 +25,28 @@ implementing
 - [x] Review error boundary coverage - wrap all major sections (impl-1)
 - [x] Ensure all canvas operations handle objects with rotation correctly (impl-2)
 - [x] Ensure export works correctly with rotated objects and groups (impl-2)
+- [x] Review cursor changes - all tools implement correctly (impl-1)
+- [x] Fix SelectTool test failures for pending_drag state (impl-1)
+- [x] Verify existing tests pass: 392/392 pass (impl-1)
+
+## Remaining Tasks
+### Polish & UX (2 remaining)
+- [ ] Check all hover states and visual feedback on interactive elements
+- [ ] Ensure smooth animations/transitions where appropriate
+
+### Testing Gaps (4 remaining)
+- [ ] Add unit tests for coordinate transformation functions
+- [ ] Add tests for selection logic (single, multi, marquee, shift-click)
+- [ ] Add tests for clipboard operations (copy, paste, duplicate)
+- [ ] Add tests for history operations (undo, redo boundaries)
 
 ## Artifacts
 - src/utils/yjsUtils.ts - Yjs serialization utilities
 - src/utils/geometryUtils.ts - Geometry and coordinate utilities + getRotatedBoundingBox()
 - src/stores/clipboardStore.ts - Added validation functions
 - src/tools/SelectTool.ts - Added drag threshold, marquee size checks
-- src/components/layout/Canvas.tsx - Rotation-aware marquee selection
+- src/components/layout/Canvas.tsx - Rotation-aware marquee selection, spatial index hit testing
 - src/utils/exportUtils.ts - Group export support, unified bounding box calculation
 
-## Issues Found
-- 2 pre-existing test failures in SelectTool.test.ts (mode state transition)
-- ESLint errors documented in progress.txt (for impl agents to fix)
-
 ## Last Updated
-2026-01-19T19:00:00.000Z
+2026-01-19T19:15:00.000Z
