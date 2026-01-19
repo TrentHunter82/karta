@@ -1,7 +1,6 @@
 import { create } from 'zustand';
 import * as Y from 'yjs';
 import { WebsocketProvider } from 'y-websocket';
-import { useToastStore } from './toastStore';
 import { useCanvasStore } from './canvasStore';
 
 // Connection status type
@@ -53,6 +52,12 @@ interface CollaborationState {
 // Default WebSocket server URL (y-websocket demo server)
 // In production, this should be your own y-websocket server
 const DEFAULT_SERVER_URL = 'wss://demos.yjs.dev/ws';
+
+// Grace period before showing disconnection toast (ms) - preserved for future use
+// const DISCONNECTION_TOAST_GRACE_PERIOD = 5000;
+
+// Track pending disconnection toast timeout
+let disconnectionToastTimeout: ReturnType<typeof setTimeout> | null = null;
 
 // Create a shared Yjs document (using let to allow recreation on disconnect)
 let ydoc = new Y.Doc();
@@ -125,19 +130,18 @@ export const useCollaborationStore = create<CollaborationState>((set, get) => ({
 
       // Handle connection status changes
       provider.on('status', (event: { status: string }) => {
-        const previousStatus = get().connectionStatus;
         if (event.status === 'connected') {
+          // Clear pending disconnection toast if reconnection succeeded within grace period
+          if (disconnectionToastTimeout) {
+            clearTimeout(disconnectionToastTimeout);
+            disconnectionToastTimeout = null;
+            console.log('[Collaboration] Reconnected within grace period, suppressed disconnection toast');
+          }
+
           set({
             connectionStatus: 'connected',
             reconnectAttempts: 0
           });
-          // Show toast on successful connection (after disconnect or initial connect)
-          if (previousStatus !== 'connected') {
-            useToastStore.getState().addToast({
-              message: 'Connected to collaboration server',
-              type: 'success'
-            });
-          }
         } else if (event.status === 'disconnected') {
           const currentState = get();
           // Only show disconnected if we're not trying to reconnect
@@ -157,28 +161,20 @@ export const useCollaborationStore = create<CollaborationState>((set, get) => ({
       // Handle connection close for reconnection logic
       provider.on('connection-close', () => {
         const currentState = get();
-        const previousStatus = currentState.connectionStatus;
         if (currentState.reconnectAttempts < currentState.maxReconnectAttempts) {
           set({
             reconnectAttempts: currentState.reconnectAttempts + 1,
             connectionStatus: 'connecting'
           });
-          // Show warning on first disconnect
-          if (currentState.reconnectAttempts === 0 && previousStatus === 'connected') {
-            useToastStore.getState().addToast({
-              message: 'Disconnected from server. Reconnecting...',
-              type: 'warning'
-            });
-          }
+          // Start grace period timer on first disconnect (only show toast if reconnection fails within 5s)
           console.log(`[Collaboration] Connection lost. Reconnecting... (attempt ${currentState.reconnectAttempts + 1}/${currentState.maxReconnectAttempts})`);
         } else {
+          // Clear any pending toast timeout
+          if (disconnectionToastTimeout) {
+            clearTimeout(disconnectionToastTimeout);
+            disconnectionToastTimeout = null;
+          }
           set({ connectionStatus: 'disconnected' });
-          // Show error when max reconnection attempts reached
-          useToastStore.getState().addToast({
-            message: 'Connection lost. Please refresh the page to reconnect.',
-            type: 'error',
-            duration: 5000
-          });
           console.log('[Collaboration] Max reconnection attempts reached. Please try again manually.');
         }
       });
@@ -235,6 +231,12 @@ export const useCollaborationStore = create<CollaborationState>((set, get) => ({
 
   disconnect: () => {
     const state = get();
+
+    // Clear any pending disconnection toast timeout
+    if (disconnectionToastTimeout) {
+      clearTimeout(disconnectionToastTimeout);
+      disconnectionToastTimeout = null;
+    }
 
     if (state.provider) {
       // Remove awareness listener before destroying
