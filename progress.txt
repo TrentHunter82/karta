@@ -1197,3 +1197,34 @@ if (event.key === '[') {
   - Error boundaries should wrap all major UI sections to prevent cascading failures
   - ToastContainer and ShortcutsModal are intentionally not wrapped as they are lightweight
 ---
+
+## PRD-Polish Iteration 2 - impl-2: Rotation handling in canvas operations
+- What was implemented:
+  - Added getRotatedBoundingBox() utility function to geometryUtils.ts
+    - Calculates axis-aligned bounding box for rotated rectangles
+    - Used for spatial indexing and bounding box calculations
+  - Updated calculateBoundingBox() to use rotation-aware bounds
+    - Now properly accounts for rotation when calculating combined bounds
+  - Fixed objectIntersectsRect() in Canvas.tsx for marquee selection
+    - Now calculates rotated corners and checks intersection properly
+    - Checks both rotated object corners inside marquee AND marquee corners inside rotated object
+    - Falls back to AABB comparison of rotated bounds for edge cases
+  - Updated rebuildSpatialIndex() in canvasStore.ts
+    - Objects now inserted with rotation-aware bounding boxes
+    - Ensures spatial queries return correct candidates for rotated objects
+  - Updated querySpatialIndex() fallback path to use rotation-aware bounds
+- Files changed:
+  - src/utils/geometryUtils.ts (added getRotatedBoundingBox function)
+  - src/components/layout/Canvas.tsx (fixed objectIntersectsRect for rotation)
+  - src/stores/canvasStore.ts (rotation-aware spatial indexing)
+  - PRD.md (marked task complete)
+- Operations now rotation-aware:
+  - Marquee selection correctly selects rotated objects
+  - Spatial index queries account for rotation
+  - Bounding box calculations include rotation
+  - hitTest was already rotation-aware (no changes needed)
+- Learnings:
+  - Rotated rectangle AABB = transform all 4 corners, find min/max
+  - For intersection tests, check corners in both directions (A corners in B, B corners in A)
+  - Spatial indexing with AABB is still efficient if using rotated AABB
+  - Multiple intersection checks needed: corners inside other shape AND AABB overlap

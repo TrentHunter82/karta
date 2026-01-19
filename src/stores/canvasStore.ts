@@ -10,7 +10,7 @@ import { useViewportStore } from './viewportStore';
 import { useSelectionStore, calculateAlignmentUpdates, calculateDistributionUpdates, type AlignmentType, type DistributionDirection } from './selectionStore';
 import { useGroupStore, getAbsolutePosition, calculateGroupData, calculateUngroupData } from './groupStore';
 import { objectToYjs, yjsToObject, createYjsUpdateQueue } from '../utils/yjsUtils';
-import { calculateBoundingBox, sanitizeCoordinates } from '../utils/geometryUtils';
+import { calculateBoundingBox, sanitizeCoordinates, getRotatedBoundingBox } from '../utils/geometryUtils';
 
 /**
  * Configuration for the canvas grid overlay and snapping behavior.
@@ -1120,7 +1120,17 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
 
     const index = new QuadTree<CanvasObject & Bounds>(expandedBounds);
     objects.forEach(obj => {
-      index.insert(obj as CanvasObject & Bounds);
+      // Use rotation-aware bounding box for spatial indexing
+      const rotatedBounds = getRotatedBoundingBox(obj.x, obj.y, obj.width, obj.height, obj.rotation);
+      // Create a wrapped object with rotation-aware bounds for the QuadTree
+      const objWithRotatedBounds = {
+        ...obj,
+        x: rotatedBounds.x,
+        y: rotatedBounds.y,
+        width: rotatedBounds.width,
+        height: rotatedBounds.height,
+      };
+      index.insert(objWithRotatedBounds as CanvasObject & Bounds);
     });
 
     set({ spatialIndex: index });
@@ -1129,12 +1139,14 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
   querySpatialIndex: (bounds: Bounds): CanvasObject[] => {
     const state = get();
     if (!state.spatialIndex) {
+      // Fallback: use rotation-aware AABB intersection test
       return Array.from(state.objects.values()).filter(obj => {
+        const rotatedBounds = getRotatedBoundingBox(obj.x, obj.y, obj.width, obj.height, obj.rotation);
         return !(
-          obj.x + obj.width < bounds.x ||
-          obj.x > bounds.x + bounds.width ||
-          obj.y + obj.height < bounds.y ||
-          obj.y > bounds.y + bounds.height
+          rotatedBounds.x + rotatedBounds.width < bounds.x ||
+          rotatedBounds.x > bounds.x + bounds.width ||
+          rotatedBounds.y + rotatedBounds.height < bounds.y ||
+          rotatedBounds.y > bounds.y + bounds.height
         );
       });
     }

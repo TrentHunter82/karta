@@ -7,8 +7,8 @@ Polish and harden the Karta codebase - improve code quality, fix edge cases, no 
 implementing
 
 ## Active Agents
-- impl-1: Completed Code Quality + Performance optimization (iteration 2)
-- impl-2: Edge Case Handling - iteration 2 (SelectTool audit complete)
+- impl-1: Completed Code Quality + Performance + Polish (iteration 2)
+- impl-2: Edge Case Handling - iteration 2 (rotation handling complete)
 - reviewer: Keyboard shortcuts audit + fix complete
 
 ## Completed Tasks (this iteration)
@@ -22,16 +22,19 @@ implementing
 - [x] Memoize sorted objects array in Canvas.tsx (impl-1, from reviewer findings)
 - [x] Audit SelectTool.ts for edge cases: drag threshold, zero-size marquee (impl-2)
 - [x] Verify keyboard shortcuts work consistently and don't conflict (reviewer)
+- [x] Review error boundary coverage - wrap all major sections (impl-1)
+- [x] Ensure all canvas operations handle objects with rotation correctly (impl-2)
 
 ## Artifacts
 - src/utils/yjsUtils.ts - Yjs serialization utilities
-- src/utils/geometryUtils.ts - Geometry and coordinate utilities
+- src/utils/geometryUtils.ts - Geometry and coordinate utilities + getRotatedBoundingBox()
 - src/stores/clipboardStore.ts - Added validation functions
 - src/tools/SelectTool.ts - Added drag threshold, marquee size checks
+- src/components/layout/Canvas.tsx - Rotation-aware marquee selection
 
 ## Issues Found
 - 2 pre-existing test failures in SelectTool.test.ts (mode state transition)
 - ESLint errors documented in progress.txt (for impl agents to fix)
 
 ## Last Updated
-2026-01-19T16:23:00.000Z
+2026-01-19T18:45:00.000Z

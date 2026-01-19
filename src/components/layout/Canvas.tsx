@@ -880,6 +880,7 @@ export function Canvas() {
   );
 
   // Check if an object intersects with a rectangle (for marquee selection)
+  // Handles rotation by checking rotated corners against the marquee rect
   const objectIntersectsRect = useCallback(
     (obj: CanvasObject, rectX1: number, rectY1: number, rectX2: number, rectY2: number): boolean => {
       const minX = Math.min(rectX1, rectX2);
@@ -887,12 +888,74 @@ export function Canvas() {
       const minY = Math.min(rectY1, rectY2);
       const maxY = Math.max(rectY1, rectY2);
 
-      const objRight = obj.x + obj.width;
-      const objBottom = obj.y + obj.height;
+      // If no rotation, use simple AABB test
+      if (!obj.rotation || obj.rotation === 0) {
+        const objRight = obj.x + obj.width;
+        const objBottom = obj.y + obj.height;
+        return !(obj.x > maxX || objRight < minX || obj.y > maxY || objBottom < minY);
+      }
 
-      return !(obj.x > maxX || objRight < minX || obj.y > maxY || objBottom < minY);
+      // For rotated objects, calculate all 4 corners after rotation
+      const centerX = obj.x + obj.width / 2;
+      const centerY = obj.y + obj.height / 2;
+      const cos = Math.cos((obj.rotation * Math.PI) / 180);
+      const sin = Math.sin((obj.rotation * Math.PI) / 180);
+
+      // Half dimensions
+      const hw = obj.width / 2;
+      const hh = obj.height / 2;
+
+      // Local corners (relative to center)
+      const localCorners = [
+        { x: -hw, y: -hh }, // top-left
+        { x: hw, y: -hh },  // top-right
+        { x: hw, y: hh },   // bottom-right
+        { x: -hw, y: hh },  // bottom-left
+      ];
+
+      // Rotate corners and translate to world position
+      const rotatedCorners = localCorners.map(({ x, y }) => ({
+        x: centerX + x * cos - y * sin,
+        y: centerY + x * sin + y * cos,
+      }));
+
+      // Check if any rotated corner is inside the marquee rect
+      for (const corner of rotatedCorners) {
+        if (corner.x >= minX && corner.x <= maxX && corner.y >= minY && corner.y <= maxY) {
+          return true;
+        }
+      }
+
+      // Check if the marquee center is inside the rotated object
+      const marqueeCenterX = (minX + maxX) / 2;
+      const marqueeCenterY = (minY + maxY) / 2;
+      if (isPointInObject({ x: marqueeCenterX, y: marqueeCenterY }, obj)) {
+        return true;
+      }
+
+      // Check if any marquee corner is inside the rotated object
+      const marqueeCorners = [
+        { x: minX, y: minY },
+        { x: maxX, y: minY },
+        { x: maxX, y: maxY },
+        { x: minX, y: maxY },
+      ];
+      for (const corner of marqueeCorners) {
+        if (isPointInObject(corner, obj)) {
+          return true;
+        }
+      }
+
+      // Additional check: rotated object's bounding box vs marquee
+      // (handles cases where neither corners are inside the other)
+      const rotatedMinX = Math.min(...rotatedCorners.map(c => c.x));
+      const rotatedMaxX = Math.max(...rotatedCorners.map(c => c.x));
+      const rotatedMinY = Math.min(...rotatedCorners.map(c => c.y));
+      const rotatedMaxY = Math.max(...rotatedCorners.map(c => c.y));
+
+      return !(rotatedMinX > maxX || rotatedMaxX < minX || rotatedMinY > maxY || rotatedMaxY < minY);
     },
-    []
+    [isPointInObject]
   );
 
   // Create ToolContext for the tool system

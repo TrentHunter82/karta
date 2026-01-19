@@ -18,10 +18,64 @@ export interface BoundingBox {
 }
 
 /**
- * Calculates the axis-aligned bounding box that contains all given objects.
+ * Calculates the axis-aligned bounding box for a rotated rectangle.
+ * Takes an object's position, dimensions, and rotation, then returns
+ * the smallest AABB that fully contains the rotated shape.
  *
- * Note: This does not account for object rotation. For rotated objects,
- * use calculateRotatedBoundingBox instead.
+ * @param x - Object's x position
+ * @param y - Object's y position
+ * @param width - Object's width
+ * @param height - Object's height
+ * @param rotation - Rotation in degrees
+ * @returns The axis-aligned bounding box containing the rotated rectangle
+ */
+export const getRotatedBoundingBox = (
+  x: number,
+  y: number,
+  width: number,
+  height: number,
+  rotation: number
+): BoundingBox => {
+  // If no rotation, return original bounds
+  if (!rotation || rotation === 0) {
+    return { x, y, width, height };
+  }
+
+  const centerX = x + width / 2;
+  const centerY = y + height / 2;
+  const cos = Math.cos((rotation * Math.PI) / 180);
+  const sin = Math.sin((rotation * Math.PI) / 180);
+
+  // Half dimensions
+  const hw = width / 2;
+  const hh = height / 2;
+
+  // Calculate all four corners after rotation
+  const corners = [
+    { x: centerX + (-hw * cos - -hh * sin), y: centerY + (-hw * sin + -hh * cos) }, // top-left
+    { x: centerX + (hw * cos - -hh * sin), y: centerY + (hw * sin + -hh * cos) },   // top-right
+    { x: centerX + (hw * cos - hh * sin), y: centerY + (hw * sin + hh * cos) },     // bottom-right
+    { x: centerX + (-hw * cos - hh * sin), y: centerY + (-hw * sin + hh * cos) },   // bottom-left
+  ];
+
+  // Find min/max to get AABB
+  const minX = Math.min(...corners.map(c => c.x));
+  const maxX = Math.max(...corners.map(c => c.x));
+  const minY = Math.min(...corners.map(c => c.y));
+  const maxY = Math.max(...corners.map(c => c.y));
+
+  return {
+    x: minX,
+    y: minY,
+    width: maxX - minX,
+    height: maxY - minY,
+  };
+};
+
+/**
+ * Calculates the axis-aligned bounding box that contains all given objects.
+ * Accounts for object rotation to ensure the bounding box fully contains
+ * rotated objects.
  *
  * @param objects - Array of canvas objects to calculate bounds for
  * @returns The bounding box containing all objects, or zero-size box if empty
@@ -37,10 +91,12 @@ export const calculateBoundingBox = (objects: CanvasObject[]): BoundingBox => {
   let maxY = -Infinity;
 
   objects.forEach(obj => {
-    minX = Math.min(minX, obj.x);
-    minY = Math.min(minY, obj.y);
-    maxX = Math.max(maxX, obj.x + obj.width);
-    maxY = Math.max(maxY, obj.y + obj.height);
+    // Get rotation-aware bounding box for each object
+    const bounds = getRotatedBoundingBox(obj.x, obj.y, obj.width, obj.height, obj.rotation);
+    minX = Math.min(minX, bounds.x);
+    minY = Math.min(minY, bounds.y);
+    maxX = Math.max(maxX, bounds.x + bounds.width);
+    maxY = Math.max(maxY, bounds.y + bounds.height);
   });
 
   return { x: minX, y: minY, width: maxX - minX, height: maxY - minY };
