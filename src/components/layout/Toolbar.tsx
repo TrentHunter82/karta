@@ -1,6 +1,7 @@
 import { useRef, type ReactNode } from 'react';
 import './Toolbar.css';
 import { useCanvasStore } from '../../stores/canvasStore';
+import { useToastStore } from '../../stores/toastStore';
 import type { ToolType, ImageObject, VideoObject } from '../../types/canvas';
 
 interface ToolButton {
@@ -16,8 +17,8 @@ const tools: ToolButton[] = [
     name: 'Select',
     shortcut: 'V',
     icon: (
-      <svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor">
-        <path d="M4 2L16 10L10 11L8 17L4 2Z" />
+      <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M4 2L16 10L10 11L8 17L4 2Z" fill="currentColor" stroke="none" />
       </svg>
     ),
   },
@@ -26,8 +27,8 @@ const tools: ToolButton[] = [
     name: 'Hand',
     shortcut: 'H',
     icon: (
-      <svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor">
-        <path d="M10 2C9.45 2 9 2.45 9 3V9H7V6C7 5.45 6.55 5 6 5C5.45 5 5 5.45 5 6V11C5 11.55 5.45 12 6 12H7V10H9V13H11V10H13V12H14C14.55 12 15 11.55 15 11V6C15 5.45 14.55 5 14 5C13.45 5 13 5.45 13 6V9H11V3C11 2.45 10.55 2 10 2ZM6 14V18H14V14H6Z" />
+      <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M10 2v8M7 5v5M13 5v5M5 8v6a2 2 0 002 2h6a2 2 0 002-2V8" />
       </svg>
     ),
   },
@@ -36,8 +37,39 @@ const tools: ToolButton[] = [
     name: 'Rectangle',
     shortcut: 'R',
     icon: (
-      <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+      <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
         <rect x="3" y="4" width="14" height="12" rx="1" />
+      </svg>
+    ),
+  },
+  {
+    id: 'ellipse',
+    name: 'Ellipse',
+    shortcut: 'O',
+    icon: (
+      <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+        <ellipse cx="10" cy="10" rx="7" ry="5" />
+      </svg>
+    ),
+  },
+  {
+    id: 'line',
+    name: 'Line',
+    shortcut: 'L',
+    icon: (
+      <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+        <line x1="4" y1="16" x2="16" y2="4" />
+      </svg>
+    ),
+  },
+  {
+    id: 'arrow',
+    name: 'Arrow',
+    shortcut: '⇧L',
+    icon: (
+      <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+        <line x1="4" y1="16" x2="14" y2="6" />
+        <polyline points="9,4 16,4 16,11" />
       </svg>
     ),
   },
@@ -46,8 +78,8 @@ const tools: ToolButton[] = [
     name: 'Text',
     shortcut: 'T',
     icon: (
-      <svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor">
-        <path d="M4 4V7H6V6H9V14H7V16H13V14H11V6H14V7H16V4H4Z" />
+      <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M4 5h12M10 5v11M7 16h6" />
       </svg>
     ),
   },
@@ -56,7 +88,7 @@ const tools: ToolButton[] = [
     name: 'Frame',
     shortcut: 'F',
     icon: (
-      <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+      <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
         <rect x="3" y="4" width="14" height="12" rx="1" />
         <line x1="3" y1="7" x2="17" y2="7" />
       </svg>
@@ -67,8 +99,8 @@ const tools: ToolButton[] = [
     name: 'Pen',
     shortcut: 'P',
     icon: (
-      <svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor">
-        <path d="M3 17L4 13L14 3L17 6L7 16L3 17ZM14.5 6.5L13.5 5.5L5 14L6 15L14.5 6.5Z" />
+      <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M14 3l3 3-10 10H4v-3L14 3z" />
       </svg>
     ),
   },
@@ -83,6 +115,9 @@ export function Toolbar() {
   const getNextZIndex = useCanvasStore((state) => state.getNextZIndex);
   const setSelection = useCanvasStore((state) => state.setSelection);
   const viewport = useCanvasStore((state) => state.viewport);
+  const selectedCount = useCanvasStore((state) => state.selectedIds.size);
+  const alignObjects = useCanvasStore((state) => state.alignObjects);
+  const distributeObjects = useCanvasStore((state) => state.distributeObjects);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleToolClick = (tool: ToolType) => {
@@ -149,10 +184,18 @@ export function Toolbar() {
           addObject(newVideo);
           setSelection([newVideo.id]);
         };
+        video.onerror = () => {
+          useToastStore.getState().addToast({
+            message: 'Failed to load video. Format may not be supported.',
+            type: 'error',
+            duration: 5000
+          });
+        };
         video.src = dataUrl;
       } else {
         // Handle image file
         const img = new Image();
+        img.crossOrigin = 'anonymous';
 
         img.onload = () => {
           // Calculate dimensions, scaling down if necessary
@@ -196,8 +239,23 @@ export function Toolbar() {
           setSelection([newImage.id]);
         };
 
+        img.onerror = () => {
+          useToastStore.getState().addToast({
+            message: 'Failed to load image. Please try a different file.',
+            type: 'error',
+            duration: 5000
+          });
+        };
+
         img.src = dataUrl;
       }
+    };
+
+    reader.onerror = () => {
+      useToastStore.getState().addToast({
+        message: 'Failed to read file. Please try again.',
+        type: 'error'
+      });
     };
 
     reader.readAsDataURL(file);
@@ -222,8 +280,8 @@ export function Toolbar() {
                 <span className="tool-shortcut">{tool.shortcut}</span>
               </span>
             </button>
-            {/* Divider after Text tool (index 3) */}
-            {index === 3 && <div className="toolbar-divider" />}
+            {/* Divider after Arrow tool (index 5) */}
+            {index === 5 && <div className="toolbar-divider" />}
           </div>
         ))}
         {/* Divider before import button */}
@@ -232,15 +290,157 @@ export function Toolbar() {
         <button
           className="tool-button"
           onClick={handleImportClick}
-          title="Import Media"
+          title="Import Image / Video"
         >
-          <svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor">
-            <path d="M3 4C3 3.45 3.45 3 4 3H16C16.55 3 17 3.45 17 4V16C17 16.55 16.55 17 16 17H4C3.45 17 3 16.55 3 16V4ZM5 5V12.5L7.5 10L10 12.5L13 9L15 12V5H5ZM5 15H15V14L13 11L10 14L7.5 11.5L5 14V15ZM7 8C7.55 8 8 7.55 8 7C8 6.45 7.55 6 7 6C6.45 6 6 6.45 6 7C6 7.55 6.45 8 7 8Z" />
+          <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+            {/* Film frame - industrial media icon */}
+            <rect x="2" y="4" width="16" height="12" rx="1" />
+            {/* Sprocket holes - film strip aesthetic */}
+            <rect x="3" y="5" width="2" height="2" rx="0.5" fill="currentColor" stroke="none" />
+            <rect x="3" y="13" width="2" height="2" rx="0.5" fill="currentColor" stroke="none" />
+            <rect x="15" y="5" width="2" height="2" rx="0.5" fill="currentColor" stroke="none" />
+            <rect x="15" y="13" width="2" height="2" rx="0.5" fill="currentColor" stroke="none" />
+            {/* Play triangle - indicates video capability */}
+            <path d="M8 7.5v5l4-2.5-4-2.5z" fill="currentColor" stroke="none" />
           </svg>
           <span className="tool-tooltip">
-            Import Media
+            Image / Video
           </span>
         </button>
+
+        {/* Alignment buttons - visible when 2+ objects selected */}
+        {selectedCount >= 2 && (
+          <>
+            <div className="toolbar-divider" />
+            <button
+              className="tool-button alignment-button"
+              onClick={() => alignObjects('left')}
+              title="Align Left (Ctrl+Shift+L)"
+            >
+              <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                <line x1="3" y1="2" x2="3" y2="18" />
+                <rect x="6" y="4" width="8" height="4" rx="1" />
+                <rect x="6" y="12" width="11" height="4" rx="1" />
+              </svg>
+              <span className="tool-tooltip">
+                Align Left
+                <span className="tool-shortcut">Ctrl+Shift+L</span>
+              </span>
+            </button>
+            <button
+              className="tool-button alignment-button"
+              onClick={() => alignObjects('centerH')}
+              title="Align Center Horizontal (Ctrl+Shift+H)"
+            >
+              <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                <line x1="10" y1="2" x2="10" y2="18" />
+                <rect x="4" y="4" width="12" height="4" rx="1" />
+                <rect x="6" y="12" width="8" height="4" rx="1" />
+              </svg>
+              <span className="tool-tooltip">
+                Align Center H
+                <span className="tool-shortcut">Ctrl+Shift+H</span>
+              </span>
+            </button>
+            <button
+              className="tool-button alignment-button"
+              onClick={() => alignObjects('right')}
+              title="Align Right (Ctrl+Shift+R)"
+            >
+              <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                <line x1="17" y1="2" x2="17" y2="18" />
+                <rect x="6" y="4" width="8" height="4" rx="1" />
+                <rect x="3" y="12" width="11" height="4" rx="1" />
+              </svg>
+              <span className="tool-tooltip">
+                Align Right
+                <span className="tool-shortcut">Ctrl+Shift+R</span>
+              </span>
+            </button>
+            <button
+              className="tool-button alignment-button"
+              onClick={() => alignObjects('top')}
+              title="Align Top (Ctrl+Shift+T)"
+            >
+              <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                <line x1="2" y1="3" x2="18" y2="3" />
+                <rect x="4" y="6" width="4" height="8" rx="1" />
+                <rect x="12" y="6" width="4" height="11" rx="1" />
+              </svg>
+              <span className="tool-tooltip">
+                Align Top
+                <span className="tool-shortcut">Ctrl+Shift+T</span>
+              </span>
+            </button>
+            <button
+              className="tool-button alignment-button"
+              onClick={() => alignObjects('centerV')}
+              title="Align Center Vertical (Ctrl+Shift+E)"
+            >
+              <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                <line x1="2" y1="10" x2="18" y2="10" />
+                <rect x="4" y="4" width="4" height="12" rx="1" />
+                <rect x="12" y="6" width="4" height="8" rx="1" />
+              </svg>
+              <span className="tool-tooltip">
+                Align Center V
+                <span className="tool-shortcut">Ctrl+Shift+E</span>
+              </span>
+            </button>
+            <button
+              className="tool-button alignment-button"
+              onClick={() => alignObjects('bottom')}
+              title="Align Bottom (Ctrl+Shift+B)"
+            >
+              <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                <line x1="2" y1="17" x2="18" y2="17" />
+                <rect x="4" y="6" width="4" height="8" rx="1" />
+                <rect x="12" y="3" width="4" height="11" rx="1" />
+              </svg>
+              <span className="tool-tooltip">
+                Align Bottom
+                <span className="tool-shortcut">Ctrl+Shift+B</span>
+              </span>
+            </button>
+          </>
+        )}
+
+        {/* Distribution buttons - visible when 3+ objects selected */}
+        {selectedCount >= 3 && (
+          <>
+            <div className="toolbar-divider" />
+            <button
+              className="tool-button alignment-button"
+              onClick={() => distributeObjects('horizontal')}
+              title="Distribute Horizontally (Ctrl+Alt+H)"
+            >
+              <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                <rect x="2" y="6" width="4" height="8" rx="1" />
+                <rect x="8" y="6" width="4" height="8" rx="1" />
+                <rect x="14" y="6" width="4" height="8" rx="1" />
+              </svg>
+              <span className="tool-tooltip">
+                Distribute H
+                <span className="tool-shortcut">Ctrl+Alt+H</span>
+              </span>
+            </button>
+            <button
+              className="tool-button alignment-button"
+              onClick={() => distributeObjects('vertical')}
+              title="Distribute Vertically (Ctrl+Alt+V)"
+            >
+              <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                <rect x="6" y="2" width="8" height="4" rx="1" />
+                <rect x="6" y="8" width="8" height="4" rx="1" />
+                <rect x="6" y="14" width="8" height="4" rx="1" />
+              </svg>
+              <span className="tool-tooltip">
+                Distribute V
+                <span className="tool-shortcut">Ctrl+Alt+V</span>
+              </span>
+            </button>
+          </>
+        )}
       </div>
       {/* Hidden file input for image/video import */}
       <input

@@ -1,7 +1,10 @@
 import { useRef, useEffect, useState, useCallback } from 'react';
 import { useCanvasStore } from '../../stores/canvasStore';
-import type { CanvasObject, RectangleObject, EllipseObject, TextObject, FrameObject, PathObject, PathPoint, ImageObject, VideoObject } from '../../types/canvas';
+import { useToastStore } from '../../stores/toastStore';
+import type { CanvasObject, RectangleObject, EllipseObject, TextObject, FrameObject, PathObject, PathPoint, ImageObject, VideoObject, GroupObject, LineObject, ArrowObject } from '../../types/canvas';
 import { CursorPresence } from './CursorPresence';
+import { Minimap } from './Minimap';
+import { measureTextDimensions } from '../../utils/textMeasurement';
 import './Canvas.css';
 
 // Image cache for loaded images
@@ -14,7 +17,6 @@ const videoElementCache = new Map<string, HTMLVideoElement>();
 const MIN_ZOOM = 0.1; // 10%
 const MAX_ZOOM = 5.0; // 500%
 const ZOOM_SENSITIVITY = 0.001;
-const GRID_SIZE = 20;
 const HANDLE_SIZE = 8;
 const ROTATION_HANDLE_OFFSET = 20;
 const SELECTION_COLOR = '#0066ff';
@@ -54,6 +56,7 @@ export function Canvas() {
   const textInputRef = useRef<HTMLInputElement>(null);
   const lastClickTime = useRef<number>(0);
   const lastClickObjectId = useRef<string | null>(null);
+  const justStartedEditingRef = useRef(false); // Guard flag to prevent blur during initial render
 
   // Store state
   const objects = useCanvasStore((state) => state.objects);
@@ -69,6 +72,10 @@ export function Canvas() {
   const getNextZIndex = useCanvasStore((state) => state.getNextZIndex);
   const setCursorPosition = useCanvasStore((state) => state.setCursorPosition);
   const pushHistory = useCanvasStore((state) => state.pushHistory);
+  const editingGroupId = useCanvasStore((state) => state.editingGroupId);
+  const enterGroupEditMode = useCanvasStore((state) => state.enterGroupEditMode);
+  const exitGroupEditMode = useCanvasStore((state) => state.exitGroupEditMode);
+  const getAbsolutePosition = useCanvasStore((state) => state.getAbsolutePosition);
 
   const [isPanning, setIsPanning] = useState(false);
   const [isSpacePressed, setIsSpacePressed] = useState(false);
@@ -94,7 +101,7 @@ export function Canvas() {
   const marqueeEnd = useRef({ x: 0, y: 0 });
   const marqueeShiftKey = useRef(false);
   const resizeHandle = useRef<HandleType>(null);
-  const resizeStartObjState = useRef<{ x: number; y: number; width: number; height: number } | null>(null);
+  const resizeStartObjState = useRef<{ x: number; y: number; width: number; height: number; fontSize?: number } | null>(null);
   const resizeShiftKey = useRef(false);
   const rotationStartAngle = useRef(0);
   const rotationObjStartRotation = useRef(0);
@@ -106,6 +113,11 @@ export function Canvas() {
   const frameDrawEnd = useRef({ x: 0, y: 0 });
   const frameInputRef = useRef<HTMLInputElement>(null);
   const pathDrawPoints = useRef<PathPoint[]>([]);
+  // Line/Arrow drawing state
+  const [isDrawingLine, setIsDrawingLine] = useState(false);
+  const lineDrawStart = useRef({ x: 0, y: 0 });
+  const lineDrawEnd = useRef({ x: 0, y: 0 });
+  const lineDrawShiftKey = useRef(false);
 
   // Resize canvas to fill container
   const resizeCanvas = useCallback(() => {
@@ -160,17 +172,48 @@ export function Canvas() {
       const height = obj.height * zoom;
 
       switch (obj.type) {
-        case 'rectangle':
-          if (obj.fill) {
-            ctx.fillStyle = obj.fill;
-            ctx.fillRect(0, 0, width, height);
-          }
-          if (obj.stroke && obj.strokeWidth) {
-            ctx.strokeStyle = obj.stroke;
-            ctx.lineWidth = obj.strokeWidth * zoom;
-            ctx.strokeRect(0, 0, width, height);
+        case 'rectangle': {
+          const rectObj = obj as RectangleObject;
+          const cornerRadius = (rectObj.cornerRadius || 0) * zoom;
+          const r = Math.min(cornerRadius, width / 2, height / 2);
+
+          if (r > 0) {
+            // Draw rounded rectangle
+            ctx.beginPath();
+            ctx.moveTo(r, 0);
+            ctx.lineTo(width - r, 0);
+            ctx.quadraticCurveTo(width, 0, width, r);
+            ctx.lineTo(width, height - r);
+            ctx.quadraticCurveTo(width, height, width - r, height);
+            ctx.lineTo(r, height);
+            ctx.quadraticCurveTo(0, height, 0, height - r);
+            ctx.lineTo(0, r);
+            ctx.quadraticCurveTo(0, 0, r, 0);
+            ctx.closePath();
+
+            if (obj.fill) {
+              ctx.fillStyle = obj.fill;
+              ctx.fill();
+            }
+            if (obj.stroke && obj.strokeWidth) {
+              ctx.strokeStyle = obj.stroke;
+              ctx.lineWidth = obj.strokeWidth * zoom;
+              ctx.stroke();
+            }
+          } else {
+            // Draw regular rectangle
+            if (obj.fill) {
+              ctx.fillStyle = obj.fill;
+              ctx.fillRect(0, 0, width, height);
+            }
+            if (obj.stroke && obj.strokeWidth) {
+              ctx.strokeStyle = obj.stroke;
+              ctx.lineWidth = obj.strokeWidth * zoom;
+              ctx.strokeRect(0, 0, width, height);
+            }
           }
           break;
+        }
         case 'ellipse':
           ctx.beginPath();
           ctx.ellipse(width / 2, height / 2, width / 2, height / 2, 0, 0, Math.PI * 2);
@@ -185,12 +228,53 @@ export function Canvas() {
           }
           break;
         case 'text': {
-          ctx.fillStyle = obj.fill || '#ffffff';
-          ctx.font = `${obj.fontSize * zoom}px ${obj.fontFamily}`;
-          ctx.textAlign = obj.textAlign;
+          const textObj = obj as TextObject;
+          ctx.fillStyle = textObj.fill || '#ffffff';
+          const fontStyle = textObj.fontStyle || 'normal';
+          const fontWeight = textObj.fontWeight || 400;
+          const fontSize = textObj.fontSize * zoom;
+          ctx.font = `${fontStyle} ${fontWeight} ${fontSize}px ${textObj.fontFamily}`;
+          ctx.textAlign = textObj.textAlign || 'left';
           ctx.textBaseline = 'top';
-          const textX = obj.textAlign === 'center' ? width / 2 : obj.textAlign === 'right' ? width : 0;
-          ctx.fillText(obj.text, textX, 0);
+          const textX = textObj.textAlign === 'center' ? width / 2 : textObj.textAlign === 'right' ? width : 0;
+
+          // Handle multi-line text
+          const lines = textObj.text.split('\n');
+          const lineHeightPx = fontSize * (textObj.lineHeight || 1.2);
+
+          lines.forEach((line, index) => {
+            const y = index * lineHeightPx;
+            ctx.fillText(line, textX, y);
+
+            // Draw text decoration (underline or line-through)
+            if (textObj.textDecoration && textObj.textDecoration !== 'none') {
+              const metrics = ctx.measureText(line);
+              const lineWidth = metrics.width;
+              let decorationX = textX;
+
+              // Adjust starting X based on text alignment
+              if (textObj.textAlign === 'center') {
+                decorationX = textX - lineWidth / 2;
+              } else if (textObj.textAlign === 'right') {
+                decorationX = textX - lineWidth;
+              }
+
+              ctx.strokeStyle = textObj.fill || '#ffffff';
+              ctx.lineWidth = Math.max(1, fontSize / 12);
+              ctx.beginPath();
+
+              if (textObj.textDecoration === 'underline') {
+                const underlineY = y + fontSize * 0.9;
+                ctx.moveTo(decorationX, underlineY);
+                ctx.lineTo(decorationX + lineWidth, underlineY);
+              } else if (textObj.textDecoration === 'line-through') {
+                const strikeY = y + fontSize * 0.5;
+                ctx.moveTo(decorationX, strikeY);
+                ctx.lineTo(decorationX + lineWidth, strikeY);
+              }
+              ctx.stroke();
+            }
+          });
           break;
         }
         case 'frame':
@@ -228,6 +312,7 @@ export function Canvas() {
             // Load the image if not already loading
             if (!imageCache.has(imgObj.src)) {
               const newImg = new Image();
+              newImg.crossOrigin = 'anonymous';
               // Set a placeholder to indicate loading has started
               imageCache.set(imgObj.src, newImg);
               newImg.onload = () => {
@@ -346,6 +431,78 @@ export function Canvas() {
           ctx.fill();
           break;
         }
+        case 'group': {
+          // Groups are rendered as dashed bounding boxes when selected or in edit mode
+          // The children are rendered separately
+          // Draw a subtle indicator for the group bounds
+          ctx.strokeStyle = 'rgba(100, 100, 100, 0.3)';
+          ctx.lineWidth = 1;
+          ctx.setLineDash([4, 4]);
+          ctx.strokeRect(0, 0, width, height);
+          ctx.setLineDash([]);
+          break;
+        }
+        case 'line': {
+          const lineObj = obj as LineObject;
+          ctx.beginPath();
+          ctx.moveTo(lineObj.x1 * zoom, lineObj.y1 * zoom);
+          ctx.lineTo(lineObj.x2 * zoom, lineObj.y2 * zoom);
+          ctx.strokeStyle = obj.stroke || '#ffffff';
+          ctx.lineWidth = (obj.strokeWidth || 2) * zoom;
+          ctx.lineCap = 'round';
+          ctx.stroke();
+          break;
+        }
+        case 'arrow': {
+          const arrowObj = obj as ArrowObject;
+          const arrowSize = (arrowObj.arrowSize || 1) * 10 * zoom;
+          const strokeW = (obj.strokeWidth || 2) * zoom;
+
+          // Draw the line
+          ctx.beginPath();
+          ctx.moveTo(arrowObj.x1 * zoom, arrowObj.y1 * zoom);
+          ctx.lineTo(arrowObj.x2 * zoom, arrowObj.y2 * zoom);
+          ctx.strokeStyle = obj.stroke || '#ffffff';
+          ctx.lineWidth = strokeW;
+          ctx.lineCap = 'round';
+          ctx.stroke();
+
+          // Calculate arrow direction
+          const dx = arrowObj.x2 - arrowObj.x1;
+          const dy = arrowObj.y2 - arrowObj.y1;
+          const angle = Math.atan2(dy, dx);
+
+          // Draw arrowhead at end
+          if (arrowObj.arrowEnd !== false) {
+            ctx.save();
+            ctx.translate(arrowObj.x2 * zoom, arrowObj.y2 * zoom);
+            ctx.rotate(angle);
+            ctx.beginPath();
+            ctx.moveTo(0, 0);
+            ctx.lineTo(-arrowSize, -arrowSize / 2);
+            ctx.lineTo(-arrowSize, arrowSize / 2);
+            ctx.closePath();
+            ctx.fillStyle = obj.stroke || '#ffffff';
+            ctx.fill();
+            ctx.restore();
+          }
+
+          // Draw arrowhead at start
+          if (arrowObj.arrowStart) {
+            ctx.save();
+            ctx.translate(arrowObj.x1 * zoom, arrowObj.y1 * zoom);
+            ctx.rotate(angle + Math.PI);
+            ctx.beginPath();
+            ctx.moveTo(0, 0);
+            ctx.lineTo(-arrowSize, -arrowSize / 2);
+            ctx.lineTo(-arrowSize, arrowSize / 2);
+            ctx.closePath();
+            ctx.fillStyle = obj.stroke || '#ffffff';
+            ctx.fill();
+            ctx.restore();
+          }
+          break;
+        }
       }
 
       ctx.restore();
@@ -360,6 +517,11 @@ export function Canvas() {
       const screenPos = canvasToScreen(obj.x, obj.y);
       const width = obj.width * zoom;
       const height = obj.height * zoom;
+
+      // Debug log for text objects
+      if (obj.type === 'text') {
+        console.log('[drawSelectionBox] Text object dimensions:', { id: obj.id, objWidth: obj.width, objHeight: obj.height, zoom, screenWidth: width, screenHeight: height });
+      }
 
       ctx.save();
       ctx.translate(screenPos.x, screenPos.y);
@@ -605,6 +767,51 @@ export function Canvas() {
     [isDrawingPath, canvasToScreen, viewport.zoom]
   );
 
+  // Draw line/arrow preview while drawing
+  const drawLinePreview = useCallback(
+    (ctx: CanvasRenderingContext2D) => {
+      if (!isDrawingLine) return;
+
+      const start = lineDrawStart.current;
+      const end = lineDrawEnd.current;
+
+      const startScreen = canvasToScreen(start.x, start.y);
+      const endScreen = canvasToScreen(end.x, end.y);
+
+      ctx.save();
+
+      // Draw line
+      ctx.beginPath();
+      ctx.moveTo(startScreen.x, startScreen.y);
+      ctx.lineTo(endScreen.x, endScreen.y);
+      ctx.strokeStyle = '#ffffff';
+      ctx.lineWidth = 2 * viewport.zoom;
+      ctx.lineCap = 'round';
+      ctx.stroke();
+
+      // Draw arrowhead for arrow tool
+      if (activeTool === 'arrow') {
+        const angle = Math.atan2(end.y - start.y, end.x - start.x);
+        const arrowSize = 10 * viewport.zoom;
+
+        ctx.save();
+        ctx.translate(endScreen.x, endScreen.y);
+        ctx.rotate(angle);
+        ctx.beginPath();
+        ctx.moveTo(0, 0);
+        ctx.lineTo(-arrowSize, -arrowSize / 2);
+        ctx.lineTo(-arrowSize, arrowSize / 2);
+        ctx.closePath();
+        ctx.fillStyle = '#ffffff';
+        ctx.fill();
+        ctx.restore();
+      }
+
+      ctx.restore();
+    },
+    [isDrawingLine, activeTool, canvasToScreen, viewport.zoom]
+  );
+
   // Draw the canvas content
   const draw = useCallback(() => {
     const canvas = canvasRef.current;
@@ -615,40 +822,42 @@ export function Canvas() {
     if (!ctx) return;
 
     const rect = container.getBoundingClientRect();
-    const { x: panX, y: panY, zoom } = viewport;
 
-    // Clear canvas
-    ctx.fillStyle = '#1a1a1a';
+    // Clear canvas with sleek dark gradient - TE inspired
+    const gradient = ctx.createRadialGradient(
+      rect.width / 2, 0, 0,
+      rect.width / 2, rect.height, rect.height
+    );
+    gradient.addColorStop(0, '#141414');
+    gradient.addColorStop(0.5, '#0a0a0a');
+    gradient.addColorStop(1, '#050505');
+    ctx.fillStyle = gradient;
     ctx.fillRect(0, 0, rect.width, rect.height);
 
-    // Draw dot grid pattern
-    ctx.save();
-
-    // Calculate grid spacing based on zoom
-    const gridSpacing = GRID_SIZE * zoom;
-
-    // Calculate offset for panning
-    const offsetX = (panX * zoom) % gridSpacing;
-    const offsetY = (panY * zoom) % gridSpacing;
-
-    // Draw dots
-    ctx.fillStyle = '#3a3a3a';
-    const dotSize = Math.max(1, 2 * zoom);
-
-    for (let x = offsetX; x < rect.width; x += gridSpacing) {
-      for (let y = offsetY; y < rect.height; y += gridSpacing) {
-        ctx.beginPath();
-        ctx.arc(x, y, dotSize / 2, 0, Math.PI * 2);
-        ctx.fill();
-      }
-    }
-
-    ctx.restore();
-
     // Draw objects sorted by zIndex (lowest first so higher zIndex renders on top)
-    const sortedObjects = Array.from(objects.values()).sort((a, b) => a.zIndex - b.zIndex);
+    // Skip objects that are hidden (visible === false) or are children of groups (they're rendered with their parent)
+    const sortedObjects = Array.from(objects.values())
+      .filter((obj) => obj.visible !== false && !obj.parentId)
+      .sort((a, b) => a.zIndex - b.zIndex);
     sortedObjects.forEach((obj) => {
       drawObject(ctx, obj);
+      // If this is a group, render its children with absolute positions
+      if (obj.type === 'group') {
+        const group = obj as GroupObject;
+        const groupPos = getAbsolutePosition(group);
+        group.children.forEach((childId) => {
+          const child = objects.get(childId);
+          if (child && child.visible !== false) {
+            // Create a temporary object with absolute position for rendering
+            const absChild = {
+              ...child,
+              x: groupPos.x + child.x,
+              y: groupPos.y + child.y,
+            };
+            drawObject(ctx, absChild as CanvasObject);
+          }
+        });
+      }
     });
 
     // Draw selection boxes for selected objects
@@ -670,7 +879,10 @@ export function Canvas() {
 
     // Draw path preview while drawing
     drawPathPreview(ctx);
-  }, [viewport, objects, selectedIds, drawObject, drawSelectionBox, drawMarqueeRect, drawRectPreview, drawFramePreview, drawPathPreview, imageLoadTrigger]);
+
+    // Draw line/arrow preview while drawing
+    drawLinePreview(ctx);
+  }, [viewport, objects, selectedIds, drawObject, drawSelectionBox, drawMarqueeRect, drawRectPreview, drawFramePreview, drawPathPreview, drawLinePreview, imageLoadTrigger]);
 
   // Handle window resize
   useEffect(() => {
@@ -708,44 +920,208 @@ export function Canvas() {
     };
   }, []);
 
+  // Window-level event listeners for drag operations
+  // This ensures dragging continues smoothly even when mouse leaves the canvas
+  useEffect(() => {
+    if (!isDragging && !isPanning && !isResizing && !isRotating) return;
+
+    let animationFrameId: number | null = null;
+    let pendingMouseEvent: MouseEvent | null = null;
+
+    const processMouseMove = () => {
+      const e = pendingMouseEvent;
+      if (!e) return;
+      pendingMouseEvent = null;
+      animationFrameId = null;
+
+      const canvas = canvasRef.current;
+      if (!canvas) return;
+
+      const rect = canvas.getBoundingClientRect();
+
+      // Handle dragging objects
+      if (isDragging && selectedIds.size > 0) {
+        const dx = (e.clientX - lastMousePos.current.x) / viewport.zoom;
+        const dy = (e.clientY - lastMousePos.current.y) / viewport.zoom;
+
+        // Only update if there's actual movement
+        if (dx !== 0 || dy !== 0) {
+          const updates = Array.from(selectedIds).map((id) => {
+            const obj = objects.get(id);
+            if (!obj) return null;
+            return {
+              id,
+              changes: {
+                x: obj.x + dx,
+                y: obj.y + dy,
+              },
+            };
+          }).filter((u): u is { id: string; changes: { x: number; y: number } } => u !== null);
+
+          if (updates.length > 0) {
+            updateObjects(updates);
+          }
+        }
+      }
+
+      // Handle panning
+      if (isPanning) {
+        const dx = e.clientX - lastMousePos.current.x;
+        const dy = e.clientY - lastMousePos.current.y;
+
+        if (dx !== 0 || dy !== 0) {
+          setViewport({
+            x: viewport.x + dx / viewport.zoom,
+            y: viewport.y + dy / viewport.zoom,
+          });
+        }
+      }
+
+      // Update the last mouse position
+      lastMousePos.current = { x: e.clientX, y: e.clientY };
+
+      // Update cursor position if mouse is over canvas
+      if (e.clientX >= rect.left && e.clientX <= rect.right &&
+          e.clientY >= rect.top && e.clientY <= rect.bottom) {
+        const screenX = e.clientX - rect.left;
+        const screenY = e.clientY - rect.top;
+        const canvasCursorPos = {
+          x: screenX / viewport.zoom - viewport.x,
+          y: screenY / viewport.zoom - viewport.y,
+        };
+        setCursorPosition(canvasCursorPos);
+      }
+    };
+
+    const handleWindowMouseMove = (e: MouseEvent) => {
+      // Store the latest mouse event and schedule processing via requestAnimationFrame
+      // This throttles updates to 60fps for smooth performance with many objects
+      pendingMouseEvent = e;
+      if (animationFrameId === null) {
+        animationFrameId = requestAnimationFrame(processMouseMove);
+      }
+    };
+
+    const handleWindowMouseUp = () => {
+      // Cancel any pending animation frame
+      if (animationFrameId !== null) {
+        cancelAnimationFrame(animationFrameId);
+        animationFrameId = null;
+      }
+      // Process any final pending mouse movement
+      if (pendingMouseEvent) {
+        processMouseMove();
+      }
+
+      setIsDragging(false);
+      setIsPanning(false);
+      setIsResizing(false);
+      setIsRotating(false);
+      setActiveResizeHandle(null);
+      resizeHandle.current = null;
+      resizeStartObjState.current = null;
+    };
+
+    window.addEventListener('mousemove', handleWindowMouseMove);
+    window.addEventListener('mouseup', handleWindowMouseUp);
+
+    return () => {
+      window.removeEventListener('mousemove', handleWindowMouseMove);
+      window.removeEventListener('mouseup', handleWindowMouseUp);
+      if (animationFrameId !== null) {
+        cancelAnimationFrame(animationFrameId);
+      }
+    };
+  }, [isDragging, isPanning, isResizing, isRotating, selectedIds, objects, viewport, updateObjects, setViewport, setCursorPosition]);
+
+  // Helper function to check if a point is inside an object's bounds
+  const isPointInObject = useCallback(
+    (canvasPos: { x: number; y: number }, obj: CanvasObject, objAbsX?: number, objAbsY?: number): boolean => {
+      const objX = objAbsX ?? obj.x;
+      const objY = objAbsY ?? obj.y;
+
+      const cos = Math.cos((-obj.rotation * Math.PI) / 180);
+      const sin = Math.sin((-obj.rotation * Math.PI) / 180);
+
+      // Translate point relative to object center
+      const centerX = objX + obj.width / 2;
+      const centerY = objY + obj.height / 2;
+      const dx = canvasPos.x - centerX;
+      const dy = canvasPos.y - centerY;
+
+      // Rotate point back
+      const rotatedX = dx * cos - dy * sin + obj.width / 2;
+      const rotatedY = dx * sin + dy * cos + obj.height / 2;
+
+      return rotatedX >= 0 && rotatedX <= obj.width && rotatedY >= 0 && rotatedY <= obj.height;
+    },
+    []
+  );
+
   // Hit test to find object at screen position
   const hitTest = useCallback(
     (screenX: number, screenY: number): CanvasObject | null => {
       const canvasPos = screenToCanvas(screenX, screenY);
 
-      // Iterate objects by zIndex descending (top-most/highest zIndex first)
-      const objectsArray = Array.from(objects.values()).sort((a, b) => b.zIndex - a.zIndex);
+      // Get all top-level objects (not children of groups) sorted by zIndex descending
+      const topLevelObjects = Array.from(objects.values())
+        .filter((obj) => obj.visible !== false && !obj.parentId)
+        .sort((a, b) => b.zIndex - a.zIndex);
 
-      for (const obj of objectsArray) {
-        // Simple bounding box hit test (doesn't account for rotation)
-        // For more accuracy, we would need to apply inverse rotation
-        const cos = Math.cos((-obj.rotation * Math.PI) / 180);
-        const sin = Math.sin((-obj.rotation * Math.PI) / 180);
+      // If we're in group edit mode, also check the children of the editing group
+      if (editingGroupId) {
+        const editingGroup = objects.get(editingGroupId) as GroupObject | undefined;
+        if (editingGroup) {
+          const groupPos = getAbsolutePosition(editingGroup);
+          // Check children of the editing group first (they should be on top)
+          for (const childId of editingGroup.children) {
+            const child = objects.get(childId);
+            if (child && child.visible !== false) {
+              const absX = groupPos.x + child.x;
+              const absY = groupPos.y + child.y;
+              if (isPointInObject(canvasPos, child, absX, absY)) {
+                return child;
+              }
+            }
+          }
+        }
+      }
 
-        // Translate point relative to object center
-        const centerX = obj.x + obj.width / 2;
-        const centerY = obj.y + obj.height / 2;
-        const dx = canvasPos.x - centerX;
-        const dy = canvasPos.y - centerY;
+      for (const obj of topLevelObjects) {
+        // If this is a group, check its children first (for visual accuracy)
+        if (obj.type === 'group') {
+          const group = obj as GroupObject;
+          const groupPos = getAbsolutePosition(group);
 
-        // Rotate point back
-        const rotatedX = dx * cos - dy * sin + obj.width / 2;
-        const rotatedY = dx * sin + dy * cos + obj.height / 2;
-
-        // Check if within bounds
-        if (
-          rotatedX >= 0 &&
-          rotatedX <= obj.width &&
-          rotatedY >= 0 &&
-          rotatedY <= obj.height
-        ) {
-          return obj;
+          // If not in edit mode for this group, just check if click is in group bounds
+          if (editingGroupId !== group.id) {
+            // Check if we hit any visible child
+            for (const childId of group.children) {
+              const child = objects.get(childId);
+              if (child && child.visible !== false) {
+                const absX = groupPos.x + child.x;
+                const absY = groupPos.y + child.y;
+                if (isPointInObject(canvasPos, child, absX, absY)) {
+                  // Return the group, not the child (unless in edit mode)
+                  return group;
+                }
+              }
+            }
+          }
+          // Also check group bounds itself
+          if (isPointInObject(canvasPos, obj)) {
+            return obj;
+          }
+        } else {
+          if (isPointInObject(canvasPos, obj)) {
+            return obj;
+          }
         }
       }
 
       return null;
     },
-    [objects, screenToCanvas]
+    [objects, screenToCanvas, editingGroupId, getAbsolutePosition, isPointInObject]
   );
 
   // Hit test for resize handles on a selected object
@@ -852,7 +1228,7 @@ export function Canvas() {
     return intersectingIds;
   }, [objects, objectIntersectsRect]);
 
-  // Handle mouse wheel zoom
+  // Handle mouse wheel zoom (zoom toward cursor position)
   const handleWheel = useCallback((e: React.WheelEvent<HTMLCanvasElement>) => {
     e.preventDefault();
 
@@ -863,14 +1239,21 @@ export function Canvas() {
     const mouseX = e.clientX - rect.left;
     const mouseY = e.clientY - rect.top;
 
-    // Calculate zoom
-    const delta = -e.deltaY * ZOOM_SENSITIVITY;
+    // Calculate zoom delta (handle both wheel and trackpad pinch-to-zoom)
+    // Trackpad pinch-to-zoom sends ctrlKey=true with deltaY
+    const delta = e.ctrlKey ? -e.deltaY * 0.01 : -e.deltaY * ZOOM_SENSITIVITY;
     const newZoom = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, viewport.zoom * (1 + delta)));
-    const zoomFactor = newZoom / viewport.zoom;
 
-    // Adjust pan to zoom centered on cursor
-    const newPanX = mouseX / viewport.zoom - (mouseX / viewport.zoom - viewport.x) / zoomFactor;
-    const newPanY = mouseY / viewport.zoom - (mouseY / viewport.zoom - viewport.y) / zoomFactor;
+    // If zoom didn't change, don't update
+    if (newZoom === viewport.zoom) return;
+
+    // Calculate new pan to keep cursor position fixed in canvas space
+    // Formula: canvas_pos = screen_pos / zoom - pan
+    // We want: canvas_pos_before = canvas_pos_after
+    // So: screen / old_zoom - old_pan = screen / new_zoom - new_pan
+    // Therefore: new_pan = screen / new_zoom - screen / old_zoom + old_pan
+    const newPanX = viewport.x + mouseX * (1 / newZoom - 1 / viewport.zoom);
+    const newPanY = viewport.y + mouseY * (1 / newZoom - 1 / viewport.zoom);
 
     setViewport({
       x: newPanX,
@@ -888,8 +1271,8 @@ export function Canvas() {
     const screenX = e.clientX - rect.left;
     const screenY = e.clientY - rect.top;
 
-    // Middle mouse button (1) or left button with space pressed - panning
-    if (e.button === 1 || (e.button === 0 && isSpacePressed)) {
+    // Middle mouse button (1) or left button with space pressed or hand tool - panning
+    if (e.button === 1 || (e.button === 0 && isSpacePressed) || (e.button === 0 && activeTool === 'hand')) {
       e.preventDefault();
       setIsPanning(true);
       lastMousePos.current = { x: e.clientX, y: e.clientY };
@@ -902,7 +1285,8 @@ export function Canvas() {
       if (selectedIds.size === 1) {
         const selectedId = Array.from(selectedIds)[0];
         const selectedObj = objects.get(selectedId);
-        if (selectedObj) {
+        // Don't allow resize/rotate for locked objects
+        if (selectedObj && !selectedObj.locked) {
           // Check rotation handle first
           const rotationHandle = hitTestRotationHandle(screenX, screenY, selectedObj);
           if (rotationHandle) {
@@ -939,6 +1323,7 @@ export function Canvas() {
               y: selectedObj.y,
               width: selectedObj.width,
               height: selectedObj.height,
+              fontSize: selectedObj.type === 'text' ? (selectedObj as TextObject).fontSize : undefined,
             };
             resizeShiftKey.current = e.shiftKey;
             lastMousePos.current = { x: e.clientX, y: e.clientY };
@@ -963,8 +1348,24 @@ export function Canvas() {
 
         // Handle double-click on text objects to enter edit mode
         if (isDoubleClick && hitObject.type === 'text') {
+          const textObj = hitObject as TextObject;
+          // Recalculate and update dimensions to match actual text content
+          const dimensions = measureTextDimensions({
+            text: textObj.text,
+            fontSize: textObj.fontSize,
+            fontFamily: textObj.fontFamily,
+            fontWeight: textObj.fontWeight,
+            fontStyle: textObj.fontStyle,
+            lineHeight: textObj.lineHeight,
+          });
+          updateObject(hitObject.id, {
+            width: dimensions.width,
+            height: dimensions.height,
+          });
           setSelection([hitObject.id]);
+          justStartedEditingRef.current = true; // Set guard flag before entering edit mode
           setEditingTextId(hitObject.id);
+          setTimeout(() => { justStartedEditingRef.current = false; }, 500); // Clear guard after 500ms
           return; // Don't start dragging
         }
 
@@ -975,8 +1376,15 @@ export function Canvas() {
           return; // Don't start dragging
         }
 
-        // Handle click on video objects to play/pause
-        if (hitObject.type === 'video') {
+        // Handle double-click on group objects to enter group edit mode
+        if (isDoubleClick && hitObject.type === 'group') {
+          setSelection([hitObject.id]);
+          enterGroupEditMode(hitObject.id);
+          return; // Don't start dragging
+        }
+
+        // Handle double-click on video objects to toggle play/pause
+        if (isDoubleClick && hitObject.type === 'video') {
           setSelection([hitObject.id]);
           // Toggle video playback
           if (playingVideoId === hitObject.id) {
@@ -985,6 +1393,23 @@ export function Canvas() {
             setPlayingVideoId(hitObject.id);
           }
           return; // Don't start dragging
+        }
+
+        // Check if object is locked - don't allow dragging locked objects
+        if (hitObject.locked) {
+          // Still allow selection, but don't start dragging
+          if (!e.shiftKey) {
+            setSelection([hitObject.id]);
+          } else {
+            // Shift+click - toggle selection
+            if (selectedIds.has(hitObject.id)) {
+              const newSelection = Array.from(selectedIds).filter((id) => id !== hitObject.id);
+              setSelection(newSelection);
+            } else {
+              setSelection([...Array.from(selectedIds), hitObject.id]);
+            }
+          }
+          return; // Don't start dragging locked objects
         }
 
         // Click on object
@@ -1002,10 +1427,16 @@ export function Canvas() {
 
           // Check if clicking on already selected object
           if (selectedIds.has(hitObject.id)) {
-            // Start dragging the selection
-            setIsDragging(true);
-            dragStartCanvasPos.current = { x: canvasPos.x, y: canvasPos.y };
-            lastMousePos.current = { x: e.clientX, y: e.clientY };
+            // Start dragging the selection (if not locked)
+            const allUnlocked = Array.from(selectedIds).every((id) => {
+              const obj = objects.get(id);
+              return obj && !obj.locked;
+            });
+            if (allUnlocked) {
+              setIsDragging(true);
+              dragStartCanvasPos.current = { x: canvasPos.x, y: canvasPos.y };
+              lastMousePos.current = { x: e.clientX, y: e.clientY };
+            }
           } else {
             // Select only this object and start dragging
             setSelection([hitObject.id]);
@@ -1015,7 +1446,11 @@ export function Canvas() {
           }
         }
       } else {
-        // Click on empty canvas - start marquee selection
+        // Click on empty canvas - exit group edit mode if active
+        if (editingGroupId) {
+          exitGroupEditMode();
+        }
+        // Start marquee selection
         const canvasPos = screenToCanvas(screenX, screenY);
         marqueeStart.current = { x: canvasPos.x, y: canvasPos.y };
         marqueeEnd.current = { x: canvasPos.x, y: canvasPos.y };
@@ -1044,14 +1479,26 @@ export function Canvas() {
     if (e.button === 0 && activeTool === 'text') {
       const canvasPos = screenToCanvas(screenX, screenY);
 
+      // Measure initial dimensions for empty text
+      const initialDimensions = measureTextDimensions({
+        text: '',
+        fontSize: 16,
+        fontFamily: 'Inter, system-ui, sans-serif',
+        fontWeight: 400,
+        fontStyle: 'normal',
+        lineHeight: 1.2,
+      });
+
+      console.log('[createText] Initial dimensions:', initialDimensions);
+
       // Create a new text object at the click position
       const newText: TextObject = {
         id: crypto.randomUUID(),
         type: 'text',
         x: canvasPos.x,
         y: canvasPos.y,
-        width: 200, // Default width
-        height: 24, // Approximately 16px font + padding
+        width: initialDimensions.width,
+        height: initialDimensions.height,
         rotation: 0,
         opacity: 1,
         zIndex: getNextZIndex(),
@@ -1059,12 +1506,26 @@ export function Canvas() {
         text: '',
         fontSize: 16,
         fontFamily: 'Inter, system-ui, sans-serif',
+        fontWeight: 400,
+        fontStyle: 'normal',
+        textDecoration: 'none',
         textAlign: 'left',
+        lineHeight: 1.2,
       };
 
+      console.log('[createText] Adding text object with dimensions:', { width: newText.width, height: newText.height, id: newText.id });
       addObject(newText);
+
+      // Verify the object was added with correct dimensions
+      setTimeout(() => {
+        const addedObj = useCanvasStore.getState().objects.get(newText.id);
+        console.log('[createText] Verified stored dimensions:', { width: addedObj?.width, height: addedObj?.height });
+      }, 100);
+
       setSelection([newText.id]);
+      justStartedEditingRef.current = true; // Set guard flag before entering edit mode
       setEditingTextId(newText.id); // Enter edit mode immediately
+      setTimeout(() => { justStartedEditingRef.current = false; }, 500); // Clear guard after 500ms
       setActiveTool('select'); // Switch to select tool
     }
 
@@ -1084,7 +1545,38 @@ export function Canvas() {
       setIsDrawingPath(true);
       setSelection([]); // Clear selection when drawing
     }
-  }, [isSpacePressed, activeTool, hitTest, hitTestHandle, hitTestRotationHandle, selectedIds, setSelection, screenToCanvas, canvasToScreen, objects, addObject, setActiveTool, getNextZIndex, playingVideoId, pushHistory]);
+
+    // Left click with ellipse tool - draw ellipse
+    if (e.button === 0 && activeTool === 'ellipse') {
+      const canvasPos = screenToCanvas(screenX, screenY);
+      rectDrawStart.current = { x: canvasPos.x, y: canvasPos.y };
+      rectDrawEnd.current = { x: canvasPos.x, y: canvasPos.y };
+      rectDrawShiftKey.current = e.shiftKey;
+      rectDrawAltKey.current = true; // Force ellipse mode
+      setIsDrawingRect(true);
+      setSelection([]); // Clear selection when drawing
+    }
+
+    // Left click with line tool - draw line
+    if (e.button === 0 && activeTool === 'line') {
+      const canvasPos = screenToCanvas(screenX, screenY);
+      lineDrawStart.current = { x: canvasPos.x, y: canvasPos.y };
+      lineDrawEnd.current = { x: canvasPos.x, y: canvasPos.y };
+      lineDrawShiftKey.current = e.shiftKey;
+      setIsDrawingLine(true);
+      setSelection([]); // Clear selection when drawing
+    }
+
+    // Left click with arrow tool - draw arrow
+    if (e.button === 0 && activeTool === 'arrow') {
+      const canvasPos = screenToCanvas(screenX, screenY);
+      lineDrawStart.current = { x: canvasPos.x, y: canvasPos.y };
+      lineDrawEnd.current = { x: canvasPos.x, y: canvasPos.y };
+      lineDrawShiftKey.current = e.shiftKey;
+      setIsDrawingLine(true);
+      setSelection([]); // Clear selection when drawing
+    }
+  }, [isSpacePressed, activeTool, hitTest, hitTestHandle, hitTestRotationHandle, selectedIds, setSelection, screenToCanvas, canvasToScreen, objects, addObject, setActiveTool, getNextZIndex, playingVideoId, pushHistory, enterGroupEditMode, exitGroupEditMode, editingGroupId]);
 
   // Handle mouse move for panning, dragging, and hover detection
   const handleMouseMove = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
@@ -1245,10 +1737,39 @@ export function Canvas() {
         }
       }
 
-      updateObjects([{
-        id: selectedId,
-        changes: { x: newX, y: newY, width: newWidth, height: newHeight },
-      }]);
+      // For text objects, scale fontSize proportionally
+      const selectedObj = objects.get(selectedId);
+      if (selectedObj && selectedObj.type === 'text' && startState.fontSize) {
+        const textObj = selectedObj as TextObject;
+        const scaleRatio = newWidth / startState.width;
+        const newFontSize = Math.max(1, Math.round(startState.fontSize * scaleRatio));
+
+        // Use measureTextDimensions to get proper dimensions for the new font size
+        const dimensions = measureTextDimensions({
+          text: textObj.text,
+          fontSize: newFontSize,
+          fontFamily: textObj.fontFamily,
+          fontWeight: textObj.fontWeight || 400,
+          fontStyle: textObj.fontStyle || 'normal',
+          lineHeight: textObj.lineHeight || 1.2,
+        });
+
+        updateObjects([{
+          id: selectedId,
+          changes: {
+            x: newX,
+            y: newY,
+            width: dimensions.width,
+            height: dimensions.height,
+            fontSize: newFontSize,
+          },
+        }]);
+      } else {
+        updateObjects([{
+          id: selectedId,
+          changes: { x: newX, y: newY, width: newWidth, height: newHeight },
+        }]);
+      }
 
       return;
     }
@@ -1306,7 +1827,10 @@ export function Canvas() {
       const canvasPos = screenToCanvas(screenX, screenY);
       rectDrawEnd.current = { x: canvasPos.x, y: canvasPos.y };
       rectDrawShiftKey.current = e.shiftKey;
-      rectDrawAltKey.current = e.altKey; // Track Alt key for ellipse mode
+      // Only update altKey for rectangle tool (ellipse tool forces it to true)
+      if (activeTool === 'rectangle') {
+        rectDrawAltKey.current = e.altKey;
+      }
       // Force redraw to show rectangle/ellipse preview
       draw();
       return;
@@ -1326,6 +1850,30 @@ export function Canvas() {
       const canvasPos = screenToCanvas(screenX, screenY);
       pathDrawPoints.current.push({ x: canvasPos.x, y: canvasPos.y });
       // Force redraw to show path preview
+      draw();
+      return;
+    }
+
+    // Handle line/arrow drawing
+    if (isDrawingLine) {
+      const canvasPos = screenToCanvas(screenX, screenY);
+      let endX = canvasPos.x;
+      let endY = canvasPos.y;
+
+      // Shift key constrains to 45° angles
+      if (lineDrawShiftKey.current || e.shiftKey) {
+        const dx = endX - lineDrawStart.current.x;
+        const dy = endY - lineDrawStart.current.y;
+        const angle = Math.atan2(dy, dx);
+        const length = Math.sqrt(dx * dx + dy * dy);
+        // Snap to 45° increments
+        const snappedAngle = Math.round(angle / (Math.PI / 4)) * (Math.PI / 4);
+        endX = lineDrawStart.current.x + length * Math.cos(snappedAngle);
+        endY = lineDrawStart.current.y + length * Math.sin(snappedAngle);
+      }
+
+      lineDrawEnd.current = { x: endX, y: endY };
+      lineDrawShiftKey.current = e.shiftKey;
       draw();
       return;
     }
@@ -1366,7 +1914,7 @@ export function Canvas() {
         setHoveredObjectId(null);
       }
     }
-  }, [isPanning, isDragging, isResizing, isRotating, isMarqueeSelecting, isDrawingRect, isDrawingFrame, isDrawingPath, viewport, setViewport, selectedIds, objects, updateObjects, activeTool, isSpacePressed, hitTest, hitTestHandle, hitTestRotationHandle, screenToCanvas, canvasToScreen, draw, setCursorPosition]);
+  }, [isPanning, isDragging, isResizing, isRotating, isMarqueeSelecting, isDrawingRect, isDrawingFrame, isDrawingPath, isDrawingLine, viewport, setViewport, selectedIds, objects, updateObjects, activeTool, isSpacePressed, hitTest, hitTestHandle, hitTestRotationHandle, screenToCanvas, canvasToScreen, draw, setCursorPosition]);
 
   // Handle mouse up to stop panning, dragging, and finalize marquee selection
   const handleMouseUp = useCallback(() => {
@@ -1550,6 +2098,81 @@ export function Canvas() {
       pathDrawPoints.current = [];
     }
 
+    // Finalize line/arrow drawing
+    if (isDrawingLine) {
+      const start = lineDrawStart.current;
+      const end = lineDrawEnd.current;
+      const dx = end.x - start.x;
+      const dy = end.y - start.y;
+      const length = Math.sqrt(dx * dx + dy * dy);
+
+      // Only create line if it has meaningful length
+      if (length >= MIN_OBJECT_SIZE) {
+        // Normalize coordinates
+        const x = Math.min(start.x, end.x);
+        const y = Math.min(start.y, end.y);
+        const width = Math.max(Math.abs(dx), 1);
+        const height = Math.max(Math.abs(dy), 1);
+
+        // Calculate relative positions
+        const x1 = start.x - x;
+        const y1 = start.y - y;
+        const x2 = end.x - x;
+        const y2 = end.y - y;
+
+        if (activeTool === 'arrow') {
+          // Create arrow object
+          const newArrow: ArrowObject = {
+            id: crypto.randomUUID(),
+            type: 'arrow',
+            x,
+            y,
+            width,
+            height,
+            rotation: 0,
+            opacity: 1,
+            zIndex: getNextZIndex(),
+            stroke: '#ffffff',
+            strokeWidth: 2,
+            x1,
+            y1,
+            x2,
+            y2,
+            arrowStart: false,
+            arrowEnd: true,
+            arrowSize: 1,
+          };
+          addObject(newArrow);
+          setSelection([newArrow.id]);
+        } else {
+          // Create line object
+          const newLine: LineObject = {
+            id: crypto.randomUUID(),
+            type: 'line',
+            x,
+            y,
+            width,
+            height,
+            rotation: 0,
+            opacity: 1,
+            zIndex: getNextZIndex(),
+            stroke: '#ffffff',
+            strokeWidth: 2,
+            x1,
+            y1,
+            x2,
+            y2,
+          };
+          addObject(newLine);
+          setSelection([newLine.id]);
+        }
+      }
+
+      // Switch to select tool after drawing
+      setActiveTool('select');
+      setIsDrawingLine(false);
+    }
+
     setIsPanning(false);
     setIsDragging(false);
     setIsResizing(false);
@@ -1557,24 +2180,22 @@ export function Canvas() {
     setActiveResizeHandle(null);
     resizeHandle.current = null;
     resizeStartObjState.current = null;
-  }, [isMarqueeSelecting, isDrawingRect, isDrawingFrame, isDrawingPath, getObjectsInMarquee, selectedIds, setSelection, addObject, setActiveTool, getNextZIndex]);
+  }, [isMarqueeSelecting, isDrawingRect, isDrawingFrame, isDrawingPath, isDrawingLine, activeTool, getObjectsInMarquee, selectedIds, setSelection, addObject, setActiveTool, getNextZIndex]);
 
-  // Handle mouse leave to stop panning and dragging
+  // Handle mouse leave - only reset UI states, not drag states
+  // Drag states (isDragging, isPanning, isResizing, isRotating) are handled by window-level listeners
+  // so dragging continues smoothly even when mouse leaves the canvas
   const handleMouseLeave = useCallback(() => {
-    setIsPanning(false);
-    setIsDragging(false);
+    // Only reset drawing and UI states - NOT drag states!
+    // isDragging, isPanning, isResizing, isRotating are handled by window listeners
     setIsMarqueeSelecting(false);
-    setIsResizing(false);
-    setIsRotating(false);
     setIsDrawingRect(false);
     setIsDrawingFrame(false);
     setIsDrawingPath(false);
-    setActiveResizeHandle(null);
+    setIsDrawingLine(false);
     setHoveredObjectId(null);
     setHoveredHandle(null);
     setHoveredRotationHandle(null);
-    resizeHandle.current = null;
-    resizeStartObjState.current = null;
     pathDrawPoints.current = [];
     // Clear cursor position when mouse leaves canvas
     setCursorPosition(null);
@@ -1700,7 +2321,20 @@ export function Canvas() {
             setSelection([lastAddedId]);
           }
         };
+        img.onerror = () => {
+          useToastStore.getState().addToast({
+            message: 'Failed to load image. Please try a different file.',
+            type: 'error',
+            duration: 5000
+          });
+        };
         img.src = dataUrl;
+      };
+      reader.onerror = () => {
+        useToastStore.getState().addToast({
+          message: 'Failed to read file. Please try again.',
+          type: 'error'
+        });
       };
       reader.readAsDataURL(file);
 
@@ -1760,7 +2394,20 @@ export function Canvas() {
             setSelection([lastAddedId]);
           }
         };
+        video.onerror = () => {
+          useToastStore.getState().addToast({
+            message: 'Failed to load video. Format may not be supported.',
+            type: 'error',
+            duration: 5000
+          });
+        };
         video.src = dataUrl;
+      };
+      reader.onerror = () => {
+        useToastStore.getState().addToast({
+          message: 'Failed to read file. Please try again.',
+          type: 'error'
+        });
       };
       reader.readAsDataURL(file);
 
@@ -1780,9 +2427,13 @@ export function Canvas() {
     if (isDrawingRect) return 'crosshair';
     if (isDrawingFrame) return 'crosshair';
     if (isDrawingPath) return 'crosshair';
+    if (isDrawingLine) return 'crosshair';
     if (isSpacePressed || activeTool === 'hand') return 'grab';
     if (activeTool === 'frame') return 'crosshair';
     if (activeTool === 'pen') return 'crosshair';
+    if (activeTool === 'ellipse') return 'crosshair';
+    if (activeTool === 'line') return 'crosshair';
+    if (activeTool === 'arrow') return 'crosshair';
     if (activeTool === 'select') {
       // Check for rotation handle hover
       if (hoveredRotationHandle) {
@@ -1803,13 +2454,55 @@ export function Canvas() {
   // Handle text input changes
   const handleTextInput = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     if (!editingTextId) return;
-    updateObject(editingTextId, { text: e.target.value });
+
+    // Get fresh state from store to avoid stale closure issues
+    const currentObjects = useCanvasStore.getState().objects;
+    const textObj = currentObjects.get(editingTextId) as TextObject | undefined;
+    if (!textObj || textObj.type !== 'text') return;
+
+    const newText = e.target.value;
+    const dimensions = measureTextDimensions({
+      text: newText,
+      fontSize: textObj.fontSize,
+      fontFamily: textObj.fontFamily,
+      fontWeight: textObj.fontWeight,
+      fontStyle: textObj.fontStyle,
+      lineHeight: textObj.lineHeight,
+    });
+
+    console.log('[handleTextInput] Updating dimensions:', { newText, dimensions, textObj: { fontSize: textObj.fontSize, fontFamily: textObj.fontFamily } });
+
+    updateObject(editingTextId, {
+      text: newText,
+      width: dimensions.width,
+      height: dimensions.height,
+    });
   }, [editingTextId, updateObject]);
 
   // Exit text edit mode
   const exitTextEditMode = useCallback(() => {
+    if (editingTextId) {
+      // Get fresh state from store
+      const currentObjects = useCanvasStore.getState().objects;
+      const textObj = currentObjects.get(editingTextId) as TextObject | undefined;
+      if (textObj && textObj.type === 'text') {
+        const dimensions = measureTextDimensions({
+          text: textObj.text,
+          fontSize: textObj.fontSize,
+          fontFamily: textObj.fontFamily,
+          fontWeight: textObj.fontWeight,
+          fontStyle: textObj.fontStyle,
+          lineHeight: textObj.lineHeight,
+        });
+        console.log('[exitTextEditMode] Final dimensions:', { text: textObj.text, dimensions });
+        updateObject(editingTextId, {
+          width: dimensions.width,
+          height: dimensions.height,
+        });
+      }
+    }
     setEditingTextId(null);
-  }, []);
+  }, [editingTextId, updateObject]);
 
   // Handle keyboard events for text editing
   const handleTextKeyDown = useCallback((e: React.KeyboardEvent<HTMLInputElement>) => {
@@ -1828,15 +2521,31 @@ export function Canvas() {
 
   // Focus the text input when entering edit mode
   useEffect(() => {
-    if (editingTextId && textInputRef.current) {
-      textInputRef.current.focus();
+    if (editingTextId) {
+      let retryCount = 0;
+      const maxRetries = 5;
+
+      const focusInput = () => {
+        if (textInputRef.current) {
+          textInputRef.current.focus();
+          textInputRef.current.select();
+          // Verify focus was successful, retry if not
+          if (document.activeElement !== textInputRef.current && retryCount < maxRetries) {
+            retryCount++;
+            requestAnimationFrame(focusInput);
+          }
+        }
+      };
+
+      // Delay initial focus attempt to ensure input is fully mounted
+      setTimeout(focusInput, 50);
     }
   }, [editingTextId]);
 
   // Get the editing text object and its screen position
   const getEditingTextStyle = useCallback((): React.CSSProperties | null => {
     if (!editingTextId) return null;
-    const textObj = objects.get(editingTextId);
+    const textObj = objects.get(editingTextId) as TextObject | undefined;
     if (!textObj || textObj.type !== 'text') return null;
 
     const screenPos = canvasToScreen(textObj.x, textObj.y);
@@ -1850,22 +2559,25 @@ export function Canvas() {
       transformOrigin: 'top left',
       fontSize: `${fontSize}px`,
       fontFamily: textObj.fontFamily,
+      fontWeight: textObj.fontWeight || 400,
+      fontStyle: textObj.fontStyle || 'normal',
+      textDecoration: textObj.textDecoration || 'none',
       color: textObj.fill || '#ffffff',
-      background: 'transparent',
-      border: 'none',
-      outline: 'none',
-      padding: 0,
-      margin: 0,
-      minWidth: `${textObj.width * viewport.zoom}px`,
-      caretColor: '#ffffff',
+      minWidth: '20px', // Minimal width, selection handles match actual text size
     };
   }, [editingTextId, objects, canvasToScreen, viewport.zoom]);
 
   // Handle click outside to exit text edit mode
   const handleCanvasClick = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
-    // If clicking on the canvas container but not on the input, exit edit mode
-    if (editingTextId && e.target === containerRef.current) {
-      exitTextEditMode();
+    // Don't process if we just started editing (guard against race conditions)
+    if (justStartedEditingRef.current) return;
+
+    // If clicking on the canvas container or canvas itself but not on the input, exit edit mode
+    if (editingTextId) {
+      const isClickOnInput = textInputRef.current && textInputRef.current.contains(e.target as Node);
+      if (!isClickOnInput) {
+        exitTextEditMode();
+      }
     }
   }, [editingTextId, exitTextEditMode]);
 
@@ -2030,11 +2742,27 @@ export function Canvas() {
           ref={textInputRef}
           type="text"
           className="text-edit-input"
-          style={getEditingTextStyle() || undefined}
+          style={getEditingTextStyle() || { position: 'absolute', left: 100, top: 100, color: '#ffffff' }}
           value={getEditingTextValue()}
           onChange={handleTextInput}
           onKeyDown={handleTextKeyDown}
-          onBlur={exitTextEditMode}
+          onBlur={() => {
+            // Don't exit if we just started editing (guard against focus race conditions)
+            if (justStartedEditingRef.current) return;
+            // Small delay to prevent immediate exit when focus shifts during render
+            setTimeout(() => {
+              // Don't exit if guard flag is set (could be set during the timeout)
+              if (justStartedEditingRef.current) return;
+              // Only exit if the input is not focused anymore
+              if (document.activeElement !== textInputRef.current) {
+                exitTextEditMode();
+              }
+            }, 100);
+          }}
+          onClick={(e) => e.stopPropagation()}
+          onMouseDown={(e) => e.stopPropagation()}
+          autoFocus
+          placeholder="Type here..."
         />
       )}
       {editingFrameId && (
@@ -2050,6 +2778,7 @@ export function Canvas() {
         />
       )}
       <CursorPresence />
+      <Minimap />
     </main>
   );
 }

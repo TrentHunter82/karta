@@ -857,3 +857,36 @@
   - Duplicate is similar to copy+paste but uses original positions and single step
   - crypto.randomUUID() generates unique IDs for pasted objects
 ---
+
+## PRD-04: Error Handling and User Feedback
+- What was implemented:
+  - React Error Boundary component (ErrorBoundary.tsx) with fallback UI and retry button
+  - Toast notification system with Zustand store (toastStore.ts)
+  - ToastContainer component displaying stacked notifications in bottom-right
+  - Four toast types: success (green), error (red), warning (yellow), info (blue)
+  - Auto-dismiss after 3 seconds by default, configurable duration
+  - Toast feedback for copy/paste/delete/duplicate operations
+  - Error handling for file operations (FileReader, Image, Video load errors)
+  - Export feedback (success/error toasts) in PropertiesPanel
+  - Connection status feedback (connected/disconnected/reconnecting toasts)
+  - Undo/redo feedback toasts
+- Files created:
+  - src/stores/toastStore.ts (Toast interface, useToastStore with addToast/removeToast)
+  - src/components/ErrorBoundary.tsx (React class component for error boundary)
+  - src/components/ErrorBoundary.css (error boundary styling)
+  - src/components/Toast.tsx (ToastContainer component)
+  - src/components/Toast.css (toast notification styles with animations)
+- Files changed:
+  - src/App.tsx (added ErrorBoundary wrapping Canvas/PropertiesPanel, added ToastContainer)
+  - src/stores/canvasStore.ts (added toasts for delete, copy, paste, duplicate, undo, redo)
+  - src/stores/collaborationStore.ts (added toasts for connection status changes)
+  - src/components/layout/Toolbar.tsx (added error handling for file reader, image, video loads)
+  - src/components/layout/Canvas.tsx (added error handling for drag-drop file operations)
+  - src/components/layout/PropertiesPanel.tsx (added export success/error toasts)
+- Learnings for future iterations:
+  - Use useToastStore.getState().addToast() to add toasts from outside React components (stores)
+  - Toast auto-dismiss uses setTimeout in the store, cleanup on removeToast
+  - ErrorBoundary must be class component to use componentDidCatch and getDerivedStateFromError
+  - Position toasts above status bar (bottom: 60px) to not overlap
+  - slideIn animation creates smooth entrance effect
+---

@@ -1,0 +1,45 @@
+.minimap {
+  position: absolute;
+  bottom: 40px;
+  left: 60px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  cursor: pointer;
+  box-shadow: var(--shadow-lg);
+  z-index: 100;
+  background: var(--color-bg-secondary);
+  transition: all 0.2s ease;
+}
+
+.minimap canvas {
+  display: block;
+}
+
+.minimap:hover {
+  border-color: var(--color-accent);
+  box-shadow:
+    var(--shadow-lg),
+    0 0 16px var(--color-accent-muted);
+}
+
+.minimap:hover .minimap-label {
+  opacity: 1;
+  color: var(--color-accent);
+}
+
+.minimap-label {
+  position: absolute;
+  bottom: 4px;
+  left: 0;
+  right: 0;
+  text-align: center;
+  font-size: var(--font-size-xs);
+  font-family: var(--font-mono);
+  color: var(--color-text-muted);
+  opacity: 0;
+  transition: all 0.2s ease;
+  pointer-events: none;
+  text-transform: uppercase;
+  letter-spacing: var(--letter-spacing-wide);
+}

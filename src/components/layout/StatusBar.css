@@ -1,12 +1,13 @@
 .statusbar {
   height: var(--statusbar-height);
   background-color: var(--color-bg-secondary);
-  border-top: 1px solid var(--color-border);
+  border-top: 1px solid var(--color-border-subtle);
   display: flex;
   align-items: center;
   justify-content: space-between;
   padding: 0 12px;
-  font-size: 11px;
+  font-size: var(--font-size-sm);
+  font-family: var(--font-mono);
   color: var(--color-text-muted);
 }
 
@@ -28,23 +29,38 @@
 }
 
 .statusbar-item {
-  font-family: 'SF Mono', Monaco, 'Cascadia Code', monospace;
-  letter-spacing: 0.5px;
+  font-family: var(--font-mono);
+  letter-spacing: var(--letter-spacing-wide);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* LED dot indicator */
+.statusbar-item::before {
+  content: '';
+  display: inline-block;
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: var(--color-accent);
+  box-shadow: 0 0 4px var(--color-accent);
 }
 
 /* Zoom Controls */
 .zoom-controls {
+  position: relative;
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: 2px;
 }
 
 .zoom-button {
-  width: 20px;
-  height: 20px;
+  width: 22px;
+  height: 22px;
   background: var(--color-bg-tertiary);
   border: 1px solid var(--color-border);
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
   color: var(--color-text-secondary);
   cursor: pointer;
   display: flex;
@@ -55,18 +71,93 @@
 
 .zoom-button:hover {
   background: var(--color-bg-hover);
-  color: var(--color-text-primary);
-  border-color: var(--color-border-hover);
+  color: var(--color-accent);
+  border-color: var(--color-accent);
 }
 
 .zoom-button:active {
   transform: scale(0.95);
 }
 
-.zoom-percentage {
-  min-width: 40px;
+.zoom-display {
+  min-width: 54px;
+  padding: 4px 10px;
+  background: var(--color-bg-tertiary);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-pill);
+  color: var(--color-accent);
+  font-size: var(--font-size-sm);
+  font-family: var(--font-mono);
+  cursor: pointer;
+  transition: all 0.15s ease;
   text-align: center;
-  font-family: 'SF Mono', Monaco, 'Cascadia Code', monospace;
-  font-size: 10px;
+  letter-spacing: var(--letter-spacing-wide);
+}
+
+.zoom-display:hover {
+  background: var(--color-bg-hover);
+  border-color: var(--color-accent);
+  box-shadow: 0 0 8px var(--color-accent-muted);
+}
+
+/* Zoom Menu */
+.zoom-menu {
+  position: absolute;
+  bottom: 100%;
+  right: 0;
+  margin-bottom: 6px;
+  background: var(--color-bg-elevated);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  padding: 6px;
+  min-width: 170px;
+  box-shadow: var(--shadow-lg);
+  z-index: 1000;
+}
+
+.zoom-menu button {
+  width: 100%;
+  padding: 8px 12px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border: none;
+  background: transparent;
+  color: var(--color-text-primary);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  font-size: var(--font-size-md);
+  font-family: var(--font-mono);
+  text-align: left;
+  transition: all 0.15s ease;
+}
+
+.zoom-menu button:hover {
+  background: var(--color-bg-tertiary);
+}
+
+.zoom-menu button.active {
+  color: var(--color-accent);
+}
+
+.zoom-menu button.active::after {
+  content: '';
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--color-accent);
+  box-shadow: 0 0 6px var(--color-accent);
+  margin-left: 8px;
+}
+
+.zoom-menu-shortcut {
+  font-size: var(--font-size-xs);
   color: var(--color-text-muted);
+  font-family: var(--font-mono);
+}
+
+.zoom-menu-divider {
+  height: 1px;
+  background: var(--color-border-subtle);
+  margin: 6px 0;
 }

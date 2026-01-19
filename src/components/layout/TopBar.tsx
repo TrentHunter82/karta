@@ -100,25 +100,27 @@ export function TopBar() {
     <header className="topbar">
       <div className="topbar-left">
         <div className="topbar-branding">
+          {/* KARTA wordmark - Helvetica Light style with inverted first A */}
           <svg
-            className="topbar-logo"
-            width="20"
-            height="20"
-            viewBox="0 0 20 20"
-            fill="none"
+            className="topbar-wordmark"
+            width="62"
+            height="12"
+            viewBox="0 0 62 12"
+            fill="currentColor"
             xmlns="http://www.w3.org/2000/svg"
           >
-            <rect width="20" height="20" rx="4" fill="#0066ff" />
-            <path
-              d="M5 6L10 14L15 6"
-              stroke="white"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            />
+            {/* K - light weight */}
+            <path d="M0,0 L1.5,0 L1.5,5.25 L8,0 L10,0 L4.5,4.9 L10.5,12 L8.5,12 L3.5,6 L1.5,7.7 L1.5,12 L0,12 Z" />
+            {/* A - INVERTED (upside down) - light weight */}
+            <path d="M13,0 L14.5,0 L18,10 L21.5,0 L23,0 L18.8,12 L17.2,12 Z M14.8,3 L15.3,4 L20.7,4 L21.2,3 Z" fillRule="evenodd" />
+            {/* R - light weight */}
+            <path d="M26,0 L32,0 C34.5,0 36,1.1 36,3 C36,4.6 34.8,5.6 32.5,5.9 L36.5,12 L34.8,12 L31,6 L27.5,6 L27.5,12 L26,12 Z M27.5,1 L27.5,5 L31.8,5 C33.5,5 34.5,4.3 34.5,3 C34.5,1.7 33.5,1 31.8,1 Z" />
+            {/* T - light weight */}
+            <path d="M39,0 L49,0 L49,1 L44.75,1 L44.75,12 L43.25,12 L43.25,1 L39,1 Z" />
+            {/* A - normal - light weight */}
+            <path d="M62,12 L60.3,12 L58.8,9 L53.2,9 L51.7,12 L50,12 L55,0 L57,0 Z M53.7,8 L58.3,8 L56,2.6 Z" fillRule="evenodd" />
           </svg>
-          <span className="topbar-app-name">KARTA</span>
-          <span className="topbar-version">V1.0.0</span>
+          <span className="topbar-version">V1.0</span>
         </div>
       </div>
       <div className="topbar-center">

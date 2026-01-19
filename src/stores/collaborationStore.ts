@@ -1,6 +1,8 @@
 import { create } from 'zustand';
 import * as Y from 'yjs';
 import { WebsocketProvider } from 'y-websocket';
+import { useToastStore } from './toastStore';
+import { useCanvasStore } from './canvasStore';
 
 // Connection status type
 export type ConnectionStatus = 'disconnected' | 'connecting' | 'connected';
@@ -36,6 +38,9 @@ interface CollaborationState {
   localUser: { name: string; color: string };
   remoteUsers: Map<number, UserPresence>;
 
+  // Internal state (moved from module scope for better state management)
+  awarenessChangeHandler: (() => void) | null;
+
   // Actions
   connect: (roomId: string, serverUrl?: string) => void;
   disconnect: () => void;
@@ -49,11 +54,8 @@ interface CollaborationState {
 // In production, this should be your own y-websocket server
 const DEFAULT_SERVER_URL = 'wss://demos.yjs.dev/ws';
 
-// Create a shared Yjs document
-const ydoc = new Y.Doc();
-
-// Store awareness change handler for cleanup
-let awarenessChangeHandler: (() => void) | null = null;
+// Create a shared Yjs document (using let to allow recreation on disconnect)
+let ydoc = new Y.Doc();
 
 // Generate a random color for user presence
 const generateUserColor = (): string => {
@@ -87,6 +89,7 @@ export const useCollaborationStore = create<CollaborationState>((set, get) => ({
     color: generateUserColor(),
   },
   remoteUsers: new Map(),
+  awarenessChangeHandler: null,
 
   // Actions
   connect: (roomId: string, serverUrl: string = DEFAULT_SERVER_URL) => {
@@ -122,11 +125,19 @@ export const useCollaborationStore = create<CollaborationState>((set, get) => ({
 
       // Handle connection status changes
       provider.on('status', (event: { status: string }) => {
+        const previousStatus = get().connectionStatus;
         if (event.status === 'connected') {
           set({
             connectionStatus: 'connected',
             reconnectAttempts: 0
           });
+          // Show toast on successful connection (after disconnect or initial connect)
+          if (previousStatus !== 'connected') {
+            useToastStore.getState().addToast({
+              message: 'Connected to collaboration server',
+              type: 'success'
+            });
+          }
         } else if (event.status === 'disconnected') {
           const currentState = get();
           // Only show disconnected if we're not trying to reconnect
@@ -146,14 +157,28 @@ export const useCollaborationStore = create<CollaborationState>((set, get) => ({
       // Handle connection close for reconnection logic
       provider.on('connection-close', () => {
         const currentState = get();
+        const previousStatus = currentState.connectionStatus;
         if (currentState.reconnectAttempts < currentState.maxReconnectAttempts) {
           set({
             reconnectAttempts: currentState.reconnectAttempts + 1,
             connectionStatus: 'connecting'
           });
+          // Show warning on first disconnect
+          if (currentState.reconnectAttempts === 0 && previousStatus === 'connected') {
+            useToastStore.getState().addToast({
+              message: 'Disconnected from server. Reconnecting...',
+              type: 'warning'
+            });
+          }
           console.log(`[Collaboration] Connection lost. Reconnecting... (attempt ${currentState.reconnectAttempts + 1}/${currentState.maxReconnectAttempts})`);
         } else {
           set({ connectionStatus: 'disconnected' });
+          // Show error when max reconnection attempts reached
+          useToastStore.getState().addToast({
+            message: 'Connection lost. Please refresh the page to reconnect.',
+            type: 'error',
+            duration: 5000
+          });
           console.log('[Collaboration] Max reconnection attempts reached. Please try again manually.');
         }
       });
@@ -195,7 +220,7 @@ export const useCollaborationStore = create<CollaborationState>((set, get) => ({
       };
 
       // Store handler reference for cleanup
-      awarenessChangeHandler = handleAwarenessChange;
+      set({ awarenessChangeHandler: handleAwarenessChange });
       awareness.on('change', handleAwarenessChange);
       // Initial update
       handleAwarenessChange();
@@ -213,15 +238,24 @@ export const useCollaborationStore = create<CollaborationState>((set, get) => ({
 
     if (state.provider) {
       // Remove awareness listener before destroying
-      if (state.provider.awareness && awarenessChangeHandler) {
-        state.provider.awareness.off('change', awarenessChangeHandler);
-        awarenessChangeHandler = null;
+      if (state.provider.awareness && state.awarenessChangeHandler) {
+        state.provider.awareness.off('change', state.awarenessChangeHandler);
+        set({ awarenessChangeHandler: null });
       }
       state.provider.disconnect();
       state.provider.destroy();
     }
 
+    // Destroy the old Yjs document to prevent memory leaks
+    ydoc.destroy();
+    // Create a fresh Yjs document for the next connection
+    ydoc = new Y.Doc();
+
+    // Reset the canvas store's Yjs sync state so it reinitializes on next connect
+    useCanvasStore.getState().resetYjsSync();
+
     set({
+      doc: ydoc,
       provider: null,
       connectionStatus: 'disconnected',
       roomId: '',
@@ -261,7 +295,11 @@ export const useCollaborationStore = create<CollaborationState>((set, get) => ({
 }));
 
 // Export the shared Yjs document for use in other stores
+// Note: Use getYdoc() to always get the current instance after reconnection
 export { ydoc };
+
+// Getter to always get the current Yjs document instance (use this for dynamic access)
+export const getYdoc = () => ydoc;
 
 // Helper to get Yjs maps for canvas objects
 export const getYjsObjects = () => ydoc.getMap<Record<string, unknown>>('objects');

@@ -1,13 +1,33 @@
 :root {
-  /* Dark theme colors matching mockup */
-  --color-bg-primary: #1a1a1a;
-  --color-bg-secondary: #2a2a2a;
-  --color-bg-tertiary: #333333;
-  --color-border: #3a3a3a;
-  --color-text-primary: rgba(255, 255, 255, 0.87);
-  --color-text-secondary: rgba(255, 255, 255, 0.6);
-  --color-text-muted: rgba(255, 255, 255, 0.4);
-  --color-accent: #0066ff;
+  /* Teenage Engineering Design System */
+
+  /* Near-black background colors */
+  --color-bg-primary: #0a0a0a;      /* Near-black canvas */
+  --color-bg-secondary: #121212;     /* Panel backgrounds */
+  --color-bg-tertiary: #1a1a1a;      /* Inputs, hover states */
+  --color-bg-elevated: #0f0f0f;      /* Floating elements */
+  --color-bg-hover: #1f1f1f;         /* Hover states */
+
+  /* Border colors */
+  --color-border: #2a2a2a;           /* Subtle borders */
+  --color-border-subtle: #1a1a1a;
+  --color-border-hover: #3a3a3a;
+
+  /* Text colors - sharper contrast */
+  --color-text-primary: #ffffff;
+  --color-text-secondary: #888888;
+  --color-text-muted: #555555;
+
+  /* TE Orange accent system */
+  --color-accent: #FF5500;
+  --color-accent-hover: #FF6B1A;
+  --color-accent-muted: rgba(255, 85, 0, 0.3);
+  --color-accent-glow: rgba(255, 85, 0, 0.15);
+
+  /* LED-style status colors */
+  --color-status-success: #00FF66;
+  --color-status-warning: #FFB800;
+  --color-status-error: #FF3333;
 
   /* Layout dimensions */
   --toolbar-width: 48px;
@@ -15,9 +35,36 @@
   --properties-panel-width: 280px;
   --statusbar-height: 24px;
 
-  /* Typography */
-  font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-  font-size: 13px;
+  /* Shadows with depth */
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.5);
+  --shadow-md: 0 4px 8px rgba(0, 0, 0, 0.4);
+  --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.5);
+  --shadow-glow: 0 0 20px rgba(255, 85, 0, 0.2);
+  --shadow-inset: inset 0 2px 4px rgba(0, 0, 0, 0.4);
+
+  /* Border radii */
+  --radius-sm: 4px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+  --radius-pill: 50px;
+
+  /* Typography - Industrial monospace */
+  --font-display: 'JetBrains Mono', 'SF Mono', 'Fira Code', monospace;
+  --font-mono: 'SF Mono', 'Monaco', 'Consolas', monospace;
+
+  /* Font sizes - compact technical scale */
+  --font-size-xs: 9px;
+  --font-size-sm: 10px;
+  --font-size-md: 11px;
+  --font-size-lg: 12px;
+
+  /* Letter spacing */
+  --letter-spacing-wide: 1px;
+  --letter-spacing-ultra: 2px;
+
+  /* System font for body */
+  font-family: var(--font-display);
+  font-size: 12px;
   line-height: 1.4;
   font-weight: 400;
 
@@ -57,15 +104,22 @@ button {
 }
 
 input {
-  font-family: inherit;
-  font-size: inherit;
+  font-family: var(--font-mono);
+  font-size: var(--font-size-md);
   border: none;
   background: var(--color-bg-tertiary);
   color: var(--color-text-primary);
   padding: 4px 8px;
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
 }
 
 input:focus {
   outline: 1px solid var(--color-accent);
+  box-shadow: 0 0 0 2px var(--color-accent-muted);
+}
+
+/* Selection styling */
+::selection {
+  background: var(--color-accent-muted);
+  color: var(--color-text-primary);
 }

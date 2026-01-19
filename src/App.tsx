@@ -3,6 +3,8 @@ import { Toolbar, TopBar, PropertiesPanel, Canvas, StatusBar } from './component
 import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts';
 import { useCanvasStore } from './stores/canvasStore';
 import { useCollaborationStore } from './stores/collaborationStore';
+import { ErrorBoundary } from './components/ErrorBoundary';
+import { ToastContainer } from './components/Toast';
 import './App.css';
 
 function App() {
@@ -39,10 +41,15 @@ function App() {
       <TopBar />
       <div className="app-main">
         <Toolbar />
-        <Canvas />
-        <PropertiesPanel />
+        <ErrorBoundary>
+          <Canvas />
+        </ErrorBoundary>
+        <ErrorBoundary>
+          <PropertiesPanel />
+        </ErrorBoundary>
       </div>
       <StatusBar />
+      <ToastContainer />
     </div>
   );
 }

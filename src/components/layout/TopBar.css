@@ -1,7 +1,7 @@
 .topbar {
   height: var(--topbar-height);
   background-color: var(--color-bg-secondary);
-  border-bottom: 1px solid var(--color-border);
+  border-bottom: 1px solid var(--color-border-subtle);
   display: flex;
   align-items: center;
   padding: 0 12px;
@@ -26,33 +26,35 @@
   display: flex;
   justify-content: flex-end;
   align-items: center;
-  gap: 8px;
+  gap: 12px;
 }
 
 /* Branding */
 .topbar-branding {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 10px;
 }
 
-.topbar-logo {
+.topbar-wordmark {
   flex-shrink: 0;
+  color: var(--color-text-primary);
+  height: 18px;
+  width: auto;
 }
 
-.topbar-app-name {
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--color-text-primary);
-  letter-spacing: 0.5px;
+.topbar-wordmark .stripe {
+  fill: var(--color-bg-secondary);
 }
 
 .topbar-version {
-  font-size: 10px;
-  color: var(--color-text-muted);
+  font-size: var(--font-size-xs);
+  font-family: var(--font-mono);
+  color: var(--color-accent);
   background-color: var(--color-bg-tertiary);
-  padding: 2px 6px;
-  border-radius: 3px;
+  padding: 3px 8px;
+  border-radius: var(--radius-sm);
+  letter-spacing: var(--letter-spacing-wide);
 }
 
 /* Session Name */
@@ -60,52 +62,69 @@
   background: none;
   border: 1px solid transparent;
   color: var(--color-text-secondary);
-  font-size: 12px;
-  padding: 4px 8px;
-  border-radius: 4px;
+  font-size: var(--font-size-md);
+  font-family: var(--font-mono);
+  padding: 6px 12px;
+  border-radius: var(--radius-md);
   cursor: pointer;
-  transition: background-color 0.15s, border-color 0.15s;
+  transition: all 0.15s ease;
 }
 
 .session-name:hover {
   background-color: var(--color-bg-tertiary);
   border-color: var(--color-border);
+  color: var(--color-text-primary);
 }
 
 .session-name-input {
   background-color: var(--color-bg-tertiary);
   border: 1px solid var(--color-accent);
   color: var(--color-text-primary);
-  font-size: 12px;
-  padding: 4px 8px;
-  border-radius: 4px;
+  font-size: var(--font-size-md);
+  font-family: var(--font-mono);
+  padding: 6px 12px;
+  border-radius: var(--radius-md);
   outline: none;
   text-align: center;
-  width: 160px;
+  width: 180px;
+  box-shadow: 0 0 0 2px var(--color-accent-muted);
 }
 
-/* Connection Status */
+/* Connection Status - LED style */
 .connection-status {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 24px;
-  height: 24px;
-  border-radius: 4px;
+  width: 28px;
+  height: 28px;
+  border-radius: var(--radius-md);
   cursor: default;
+  transition: all 0.15s ease;
 }
 
 .connection-status.connected {
-  color: #4ade80;
+  color: var(--color-status-success);
+}
+
+.connection-status.connected svg circle:first-child {
+  filter: drop-shadow(0 0 4px var(--color-status-success));
 }
 
 .connection-status.connecting {
-  color: #fbbf24;
+  color: var(--color-status-warning);
   animation: pulse 1.5s ease-in-out infinite;
 }
 
+.connection-status.connecting svg circle:first-child {
+  filter: drop-shadow(0 0 4px var(--color-status-warning));
+}
+
 .connection-status.disconnected {
-  color: #ef4444;
+  color: var(--color-status-error);
+}
+
+.connection-status.disconnected svg circle:first-child {
+  filter: drop-shadow(0 0 4px var(--color-status-error));
 }
 
 @keyframes pulse {
@@ -114,7 +133,7 @@
     opacity: 1;
   }
   50% {
-    opacity: 0.5;
+    opacity: 0.4;
   }
 }
 
@@ -127,8 +146,8 @@
 
 /* User Avatar */
 .user-avatar {
-  width: 26px;
-  height: 26px;
+  width: 28px;
+  height: 28px;
   border-radius: 50%;
   background-color: var(--color-accent);
   display: flex;
@@ -136,7 +155,7 @@
   justify-content: center;
   cursor: default;
   border: 2px solid var(--color-bg-secondary);
-  margin-left: -6px;
+  margin-left: -8px;
   position: relative;
   transition: transform 0.15s ease, z-index 0s;
 }
@@ -146,29 +165,31 @@
 }
 
 .user-avatar:hover {
-  transform: translateY(-2px);
+  transform: translateY(-2px) scale(1.05);
   z-index: 10;
 }
 
 .user-avatar.is-local {
   border-color: var(--color-accent);
+  box-shadow: 0 0 8px var(--color-accent-muted);
 }
 
 .user-avatar span {
-  font-size: 10px;
+  font-size: var(--font-size-xs);
   font-weight: 600;
+  font-family: var(--font-mono);
   color: white;
-  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.4);
 }
 
 /* Overflow indicator (+N) */
 .user-avatar.overflow-indicator {
   background-color: var(--color-bg-tertiary);
-  border-color: var(--color-bg-secondary);
+  border-color: var(--color-border);
 }
 
 .user-avatar.overflow-indicator span {
   color: var(--color-text-secondary);
   text-shadow: none;
-  font-size: 9px;
+  font-size: var(--font-size-xs);
 }

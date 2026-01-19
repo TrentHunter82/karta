@@ -1,6 +1,8 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { useCanvasStore } from '../../stores/canvasStore';
-import type { CanvasObject, ImageObject, VideoObject } from '../../types/canvas';
+import { useToastStore } from '../../stores/toastStore';
+import type { CanvasObject, ImageObject, VideoObject, GroupObject, TextObject } from '../../types/canvas';
+import { measureTextDimensions } from '../../utils/textMeasurement';
 import './PropertiesPanel.css';
 
 // Image cache for export (reusing same approach as Canvas.tsx)
@@ -16,6 +18,7 @@ function loadImage(src: string): Promise<HTMLImageElement> {
       return;
     }
     const img = new Image();
+    img.crossOrigin = 'anonymous';
     img.onload = () => {
       exportImageCache.set(src, img);
       resolve(img);
@@ -102,12 +105,53 @@ async function drawObjectForExport(
       }
       break;
     case 'text': {
-      ctx.fillStyle = obj.fill || '#ffffff';
-      ctx.font = `${obj.fontSize}px ${obj.fontFamily}`;
-      ctx.textAlign = obj.textAlign;
+      const textObj = obj as TextObject;
+      ctx.fillStyle = textObj.fill || '#ffffff';
+      const fontStyle = textObj.fontStyle || 'normal';
+      const fontWeight = textObj.fontWeight || 400;
+      const fontSize = textObj.fontSize;
+      ctx.font = `${fontStyle} ${fontWeight} ${fontSize}px ${textObj.fontFamily}`;
+      ctx.textAlign = textObj.textAlign || 'left';
       ctx.textBaseline = 'top';
-      const textX = obj.textAlign === 'center' ? obj.width / 2 : obj.textAlign === 'right' ? obj.width : 0;
-      ctx.fillText(obj.text, textX, 0);
+      const textX = textObj.textAlign === 'center' ? obj.width / 2 : textObj.textAlign === 'right' ? obj.width : 0;
+
+      // Handle multi-line text
+      const lines = textObj.text.split('\n');
+      const lineHeightPx = fontSize * (textObj.lineHeight || 1.2);
+
+      lines.forEach((line, index) => {
+        const y = index * lineHeightPx;
+        ctx.fillText(line, textX, y);
+
+        // Draw text decoration (underline or line-through)
+        if (textObj.textDecoration && textObj.textDecoration !== 'none') {
+          const metrics = ctx.measureText(line);
+          const lineWidth = metrics.width;
+          let decorationX = textX;
+
+          // Adjust starting X based on text alignment
+          if (textObj.textAlign === 'center') {
+            decorationX = textX - lineWidth / 2;
+          } else if (textObj.textAlign === 'right') {
+            decorationX = textX - lineWidth;
+          }
+
+          ctx.strokeStyle = textObj.fill || '#ffffff';
+          ctx.lineWidth = Math.max(1, fontSize / 12);
+          ctx.beginPath();
+
+          if (textObj.textDecoration === 'underline') {
+            const underlineY = y + fontSize * 0.9;
+            ctx.moveTo(decorationX, underlineY);
+            ctx.lineTo(decorationX + lineWidth, underlineY);
+          } else if (textObj.textDecoration === 'line-through') {
+            const strikeY = y + fontSize * 0.5;
+            ctx.moveTo(decorationX, strikeY);
+            ctx.lineTo(decorationX + lineWidth, strikeY);
+          }
+          ctx.stroke();
+        }
+      });
       break;
     }
     case 'frame':
@@ -198,11 +242,12 @@ interface EditablePropertyRowProps {
   label: string;
   value: string;
   disabled?: boolean;
+  isMixed?: boolean;
   onChange: (value: number) => void;
   onChangeStart?: () => void;
 }
 
-function EditablePropertyRow({ label, value, disabled = false, onChange, onChangeStart }: EditablePropertyRowProps) {
+function EditablePropertyRow({ label, value, disabled = false, isMixed = false, onChange, onChangeStart }: EditablePropertyRowProps) {
   const [isEditing, setIsEditing] = useState(false);
   const [editValue, setEditValue] = useState(value);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -211,7 +256,8 @@ function EditablePropertyRow({ label, value, disabled = false, onChange, onChang
   const handleClick = () => {
     if (disabled || value === '---') return;
     originalValueRef.current = value;
-    setEditValue(value);
+    // For mixed values, start with empty input so user can type new value
+    setEditValue(isMixed ? '' : value);
     setIsEditing(true);
   };
 
@@ -252,6 +298,9 @@ function EditablePropertyRow({ label, value, disabled = false, onChange, onChang
 
   // When not editing, display the prop value directly (no sync needed)
   // When editing, display the local editValue
+  const displayValue = isMixed ? 'Mixed' : value;
+  const isEditable = !disabled && value !== '---';
+
   return (
     <div className="property-row">
       <span className="property-label">{label}</span>
@@ -261,16 +310,17 @@ function EditablePropertyRow({ label, value, disabled = false, onChange, onChang
           type="text"
           className="property-input"
           value={editValue}
+          placeholder={isMixed ? 'Mixed' : undefined}
           onChange={(e) => setEditValue(e.target.value)}
           onKeyDown={handleKeyDown}
           onBlur={handleBlur}
         />
       ) : (
         <span
-          className={`property-value ${!disabled && value !== '---' ? 'editable' : ''}`}
+          className={`property-value ${isEditable ? 'editable' : ''} ${isMixed ? 'mixed' : ''}`}
           onClick={handleClick}
         >
-          {value}
+          {displayValue}
         </span>
       )}
     </div>
@@ -280,11 +330,12 @@ function EditablePropertyRow({ label, value, disabled = false, onChange, onChang
 interface OpacityControlProps {
   value: number;
   disabled: boolean;
+  isMixed?: boolean;
   onChange: (value: number) => void;
   onChangeStart?: () => void;
 }
 
-function OpacityControl({ value, disabled, onChange, onChangeStart }: OpacityControlProps) {
+function OpacityControl({ value, disabled, isMixed = false, onChange, onChangeStart }: OpacityControlProps) {
   const [isEditing, setIsEditing] = useState(false);
   const [editValue, setEditValue] = useState((value * 100).toString());
   const [isDragging, setIsDragging] = useState(false);
@@ -295,7 +346,7 @@ function OpacityControl({ value, disabled, onChange, onChangeStart }: OpacityCon
   const handleInputClick = () => {
     if (disabled) return;
     originalValueRef.current = value;
-    setEditValue(Math.round(value * 100).toString());
+    setEditValue(isMixed ? '' : Math.round(value * 100).toString());
     setIsEditing(true);
   };
 
@@ -376,7 +427,7 @@ function OpacityControl({ value, disabled, onChange, onChangeStart }: OpacityCon
     };
   }, [isDragging, getOpacityFromMouse, onChange]);
 
-  const displayValue = disabled ? '---' : `${Math.round(value * 100)}%`;
+  const displayValue = disabled ? '---' : isMixed ? 'Mixed' : `${Math.round(value * 100)}%`;
   const sliderPercentage = value * 100;
 
   return (
@@ -389,13 +440,14 @@ function OpacityControl({ value, disabled, onChange, onChangeStart }: OpacityCon
             type="text"
             className="property-input"
             value={editValue}
+            placeholder={isMixed ? 'Mixed' : undefined}
             onChange={(e) => setEditValue(e.target.value)}
             onKeyDown={handleKeyDown}
             onBlur={handleBlur}
           />
         ) : (
           <span
-            className={`property-value ${!disabled ? 'editable' : ''}`}
+            className={`property-value ${!disabled ? 'editable' : ''} ${isMixed ? 'mixed' : ''}`}
             onClick={handleInputClick}
           >
             {displayValue}
@@ -404,7 +456,7 @@ function OpacityControl({ value, disabled, onChange, onChangeStart }: OpacityCon
       </div>
       <div
         ref={sliderRef}
-        className={`opacity-slider ${disabled ? 'disabled' : ''} ${isDragging ? 'dragging' : ''}`}
+        className={`opacity-slider ${disabled ? 'disabled' : ''} ${isDragging ? 'dragging' : ''} ${isMixed ? 'mixed' : ''}`}
         onMouseDown={handleSliderMouseDown}
       >
         <div className="opacity-slider-track" />
@@ -426,13 +478,16 @@ interface StrokeControlProps {
   width: number | undefined;
   enabled: boolean;
   disabled: boolean;
+  isColorMixed?: boolean;
+  isWidthMixed?: boolean;
+  isIndeterminate?: boolean;
   onColorChange: (value: string) => void;
   onWidthChange: (value: number) => void;
   onEnabledChange: (enabled: boolean) => void;
   onChangeStart?: () => void;
 }
 
-function StrokeControl({ color, width, enabled, disabled, onColorChange, onWidthChange, onEnabledChange, onChangeStart }: StrokeControlProps) {
+function StrokeControl({ color, width, enabled, disabled, isColorMixed = false, isWidthMixed = false, isIndeterminate = false, onColorChange, onWidthChange, onEnabledChange, onChangeStart }: StrokeControlProps) {
   const [isEditingColor, setIsEditingColor] = useState(false);
   const [editColorValue, setEditColorValue] = useState(color ?? '#ffffff');
   const [isEditingWidth, setIsEditingWidth] = useState(false);
@@ -440,21 +495,29 @@ function StrokeControl({ color, width, enabled, disabled, onColorChange, onWidth
   const [showColorPicker, setShowColorPicker] = useState(false);
   const colorInputRef = useRef<HTMLInputElement>(null);
   const widthInputRef = useRef<HTMLInputElement>(null);
+  const checkboxRef = useRef<HTMLInputElement>(null);
   const originalColorRef = useRef(color ?? '#ffffff');
   const originalWidthRef = useRef(width ?? 2);
   const colorPickerRef = useRef<HTMLDivElement>(null);
 
+  // Handle indeterminate checkbox state
+  useEffect(() => {
+    if (checkboxRef.current) {
+      checkboxRef.current.indeterminate = isIndeterminate;
+    }
+  }, [isIndeterminate]);
+
   const handleColorInputClick = () => {
     if (disabled) return;
     originalColorRef.current = color ?? '#ffffff';
-    setEditColorValue(color ?? '#ffffff');
+    setEditColorValue(isColorMixed ? '' : (color ?? '#ffffff'));
     setIsEditingColor(true);
   };
 
   const handleWidthInputClick = () => {
     if (disabled) return;
     originalWidthRef.current = width ?? 2;
-    setEditWidthValue((width ?? 2).toString());
+    setEditWidthValue(isWidthMixed ? '' : (width ?? 2).toString());
     setIsEditingWidth(true);
   };
 
@@ -556,17 +619,18 @@ function StrokeControl({ color, width, enabled, disabled, onColorChange, onWidth
     onEnabledChange(e.target.checked);
   };
 
-  const displayColor = disabled ? '---' : (color ?? '#ffffff');
+  const displayColor = disabled ? '---' : isColorMixed ? 'Mixed' : (color ?? '#ffffff');
   const swatchColor = disabled ? '#ffffff' : (color ?? '#ffffff');
-  const displayWidth = disabled ? '---' : `${width ?? 2}px`;
+  const displayWidth = disabled ? '---' : isWidthMixed ? 'Mixed' : `${width ?? 2}px`;
 
   return (
     <div className="stroke-control">
       <div className="property-row stroke-row">
         <div className="stroke-left">
           <input
+            ref={checkboxRef}
             type="checkbox"
-            className="stroke-checkbox"
+            className={`stroke-checkbox ${isIndeterminate ? 'indeterminate' : ''}`}
             checked={!disabled && enabled}
             disabled={disabled}
             onChange={handleCheckboxChange}
@@ -575,8 +639,8 @@ function StrokeControl({ color, width, enabled, disabled, onColorChange, onWidth
         </div>
         <div className="stroke-right">
           <button
-            className={`color-swatch ${disabled ? 'disabled' : ''}`}
-            style={{ backgroundColor: swatchColor }}
+            className={`color-swatch ${disabled ? 'disabled' : ''} ${isColorMixed ? 'mixed' : ''}`}
+            style={{ backgroundColor: isColorMixed ? undefined : swatchColor }}
             onClick={handleSwatchClick}
             disabled={disabled}
             aria-label="Open stroke color picker"
@@ -587,13 +651,14 @@ function StrokeControl({ color, width, enabled, disabled, onColorChange, onWidth
               type="text"
               className="property-input hex-input"
               value={editColorValue}
+              placeholder={isColorMixed ? 'Mixed' : undefined}
               onChange={(e) => setEditColorValue(e.target.value)}
               onKeyDown={handleColorKeyDown}
               onBlur={commitColorChange}
             />
           ) : (
             <span
-              className={`property-value ${!disabled ? 'editable' : ''}`}
+              className={`property-value ${!disabled ? 'editable' : ''} ${isColorMixed ? 'mixed' : ''}`}
               onClick={handleColorInputClick}
             >
               {displayColor}
@@ -609,13 +674,14 @@ function StrokeControl({ color, width, enabled, disabled, onColorChange, onWidth
             type="text"
             className="property-input stroke-width-input"
             value={editWidthValue}
+            placeholder={isWidthMixed ? 'Mixed' : undefined}
             onChange={(e) => setEditWidthValue(e.target.value)}
             onKeyDown={handleWidthKeyDown}
             onBlur={commitWidthChange}
           />
         ) : (
           <span
-            className={`property-value ${!disabled ? 'editable' : ''}`}
+            className={`property-value ${!disabled ? 'editable' : ''} ${isWidthMixed ? 'mixed' : ''}`}
             onClick={handleWidthInputClick}
           >
             {displayWidth}
@@ -638,23 +704,33 @@ interface FillControlProps {
   value: string | undefined;
   enabled: boolean;
   disabled: boolean;
+  isMixed?: boolean;
+  isIndeterminate?: boolean;
   onColorChange: (value: string) => void;
   onEnabledChange: (enabled: boolean) => void;
   onChangeStart?: () => void;
 }
 
-function FillControl({ value, enabled, disabled, onColorChange, onEnabledChange, onChangeStart }: FillControlProps) {
+function FillControl({ value, enabled, disabled, isMixed = false, isIndeterminate = false, onColorChange, onEnabledChange, onChangeStart }: FillControlProps) {
   const [isEditing, setIsEditing] = useState(false);
   const [editValue, setEditValue] = useState(value ?? '#4a4a4a');
   const [showColorPicker, setShowColorPicker] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
+  const checkboxRef = useRef<HTMLInputElement>(null);
   const originalValueRef = useRef(value ?? '#4a4a4a');
   const colorPickerRef = useRef<HTMLDivElement>(null);
+
+  // Handle indeterminate checkbox state
+  useEffect(() => {
+    if (checkboxRef.current) {
+      checkboxRef.current.indeterminate = isIndeterminate;
+    }
+  }, [isIndeterminate]);
 
   const handleInputClick = () => {
     if (disabled) return;
     originalValueRef.current = value ?? '#4a4a4a';
-    setEditValue(value ?? '#4a4a4a');
+    setEditValue(isMixed ? '' : (value ?? '#4a4a4a'));
     setIsEditing(true);
   };
 
@@ -729,7 +805,7 @@ function FillControl({ value, enabled, disabled, onColorChange, onEnabledChange,
     onEnabledChange(e.target.checked);
   };
 
-  const displayValue = disabled ? '---' : (value ?? '#4a4a4a');
+  const displayValue = disabled ? '---' : isMixed ? 'Mixed' : (value ?? '#4a4a4a');
   const swatchColor = disabled ? '#4a4a4a' : (value ?? '#4a4a4a');
 
   return (
@@ -737,8 +813,9 @@ function FillControl({ value, enabled, disabled, onColorChange, onEnabledChange,
       <div className="property-row fill-row">
         <div className="fill-left">
           <input
+            ref={checkboxRef}
             type="checkbox"
-            className="fill-checkbox"
+            className={`fill-checkbox ${isIndeterminate ? 'indeterminate' : ''}`}
             checked={!disabled && enabled}
             disabled={disabled}
             onChange={handleCheckboxChange}
@@ -747,8 +824,8 @@ function FillControl({ value, enabled, disabled, onColorChange, onEnabledChange,
         </div>
         <div className="fill-right">
           <button
-            className={`color-swatch ${disabled ? 'disabled' : ''}`}
-            style={{ backgroundColor: swatchColor }}
+            className={`color-swatch ${disabled ? 'disabled' : ''} ${isMixed ? 'mixed' : ''}`}
+            style={{ backgroundColor: isMixed ? undefined : swatchColor }}
             onClick={handleSwatchClick}
             disabled={disabled}
             aria-label="Open color picker"
@@ -759,13 +836,14 @@ function FillControl({ value, enabled, disabled, onColorChange, onEnabledChange,
               type="text"
               className="property-input hex-input"
               value={editValue}
+              placeholder={isMixed ? 'Mixed' : undefined}
               onChange={(e) => setEditValue(e.target.value)}
               onKeyDown={handleKeyDown}
               onBlur={handleBlur}
             />
           ) : (
             <span
-              className={`property-value ${!disabled ? 'editable' : ''}`}
+              className={`property-value ${!disabled ? 'editable' : ''} ${isMixed ? 'mixed' : ''}`}
               onClick={handleInputClick}
             >
               {displayValue}
@@ -975,11 +1053,12 @@ function ColorPicker({ color, onChange }: ColorPickerProps) {
 interface RotationControlProps {
   value: number;
   disabled: boolean;
+  isMixed?: boolean;
   onChange: (value: number) => void;
   onChangeStart?: () => void;
 }
 
-function RotationControl({ value, disabled, onChange, onChangeStart }: RotationControlProps) {
+function RotationControl({ value, disabled, isMixed = false, onChange, onChangeStart }: RotationControlProps) {
   const [isEditing, setIsEditing] = useState(false);
   const [editValue, setEditValue] = useState(value.toString());
   const [isDragging, setIsDragging] = useState(false);
@@ -992,7 +1071,7 @@ function RotationControl({ value, disabled, onChange, onChangeStart }: RotationC
   const handleInputClick = () => {
     if (disabled) return;
     originalValueRef.current = value;
-    setEditValue(Math.round(value).toString());
+    setEditValue(isMixed ? '' : Math.round(value).toString());
     setIsEditing(true);
   };
 
@@ -1088,7 +1167,7 @@ function RotationControl({ value, disabled, onChange, onChangeStart }: RotationC
     };
   }, [isDragging, getAngleFromMouse, onChange]);
 
-  const displayValue = disabled ? '---' : `${Math.round(value)}°`;
+  const displayValue = disabled ? '---' : isMixed ? 'Mixed' : `${Math.round(value)}°`;
   // Dial indicator angle: rotate from top (0°)
   const indicatorStyle = disabled ? {} : { transform: `rotate(${value}deg)` };
 
@@ -1102,13 +1181,14 @@ function RotationControl({ value, disabled, onChange, onChangeStart }: RotationC
             type="text"
             className="property-input"
             value={editValue}
+            placeholder={isMixed ? 'Mixed' : undefined}
             onChange={(e) => setEditValue(e.target.value)}
             onKeyDown={handleKeyDown}
             onBlur={handleBlur}
           />
         ) : (
           <span
-            className={`property-value ${!disabled ? 'editable' : ''}`}
+            className={`property-value ${!disabled ? 'editable' : ''} ${isMixed ? 'mixed' : ''}`}
             onClick={handleInputClick}
           >
             {displayValue}
@@ -1117,7 +1197,7 @@ function RotationControl({ value, disabled, onChange, onChangeStart }: RotationC
       </div>
       <div
         ref={dialRef}
-        className={`rotation-dial ${disabled ? 'disabled' : ''} ${isDragging ? 'dragging' : ''}`}
+        className={`rotation-dial ${disabled ? 'disabled' : ''} ${isDragging ? 'dragging' : ''} ${isMixed ? 'mixed' : ''}`}
         onMouseDown={handleDialMouseDown}
       >
         <div className="rotation-dial-track" />
@@ -1194,6 +1274,11 @@ function ExportSection({ objects, selectedIds }: ExportSectionProps) {
       const ctx = exportCanvas.getContext('2d');
 
       if (!ctx) {
+        useToastStore.getState().addToast({
+          message: 'Export failed: Could not create canvas context',
+          type: 'error',
+          duration: 5000
+        });
         setIsExporting(false);
         return;
       }
@@ -1217,6 +1302,17 @@ function ExportSection({ objects, selectedIds }: ExportSectionProps) {
       link.download = selectedIds.size > 0 ? 'selection.png' : 'canvas.png';
       link.href = dataUrl;
       link.click();
+
+      useToastStore.getState().addToast({
+        message: 'Exported as PNG',
+        type: 'success'
+      });
+    } catch (error) {
+      useToastStore.getState().addToast({
+        message: `Export failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        type: 'error',
+        duration: 5000
+      });
     } finally {
       setIsExporting(false);
     }
@@ -1255,13 +1351,47 @@ function HierarchySection() {
   const selectedIds = useCanvasStore((state) => state.selectedIds);
   const setSelection = useCanvasStore((state) => state.setSelection);
   const reorderObject = useCanvasStore((state) => state.reorderObject);
+  const updateObject = useCanvasStore((state) => state.updateObject);
+  const editingGroupId = useCanvasStore((state) => state.editingGroupId);
+  const enterGroupEditMode = useCanvasStore((state) => state.enterGroupEditMode);
+  const exitGroupEditMode = useCanvasStore((state) => state.exitGroupEditMode);
 
   const [draggedId, setDraggedId] = useState<string | null>(null);
   const [dragOverId, setDragOverId] = useState<string | null>(null);
   const [dragOverPosition, setDragOverPosition] = useState<'above' | 'below' | null>(null);
+  const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
 
   // Sort objects by zIndex (highest first for display - top of list = front)
-  const sortedObjects = Array.from(objects.values()).sort((a, b) => b.zIndex - a.zIndex);
+  // Only show top-level objects (not children of groups)
+  const sortedObjects = Array.from(objects.values())
+    .filter((obj) => !obj.parentId)
+    .sort((a, b) => b.zIndex - a.zIndex);
+
+  const toggleGroupExpanded = (groupId: string) => {
+    const newExpanded = new Set(expandedGroups);
+    if (newExpanded.has(groupId)) {
+      newExpanded.delete(groupId);
+    } else {
+      newExpanded.add(groupId);
+    }
+    setExpandedGroups(newExpanded);
+  };
+
+  const handleVisibilityToggle = (e: React.MouseEvent, id: string) => {
+    e.stopPropagation();
+    const obj = objects.get(id);
+    if (obj) {
+      updateObject(id, { visible: obj.visible === false ? true : false });
+    }
+  };
+
+  const handleLockToggle = (e: React.MouseEvent, id: string) => {
+    e.stopPropagation();
+    const obj = objects.get(id);
+    if (obj) {
+      updateObject(id, { locked: !obj.locked });
+    }
+  };
 
   const handleItemClick = (id: string, e: React.MouseEvent) => {
     if (e.shiftKey && selectedIds.size > 0) {
@@ -1285,6 +1415,14 @@ function HierarchySection() {
     } else {
       // Normal click: select only this object
       setSelection([id]);
+    }
+  };
+
+  const handleItemDoubleClick = (id: string) => {
+    const obj = objects.get(id);
+    if (obj?.type === 'group') {
+      enterGroupEditMode(id);
+      setExpandedGroups(new Set([...expandedGroups, id]));
     }
   };
 
@@ -1358,6 +1496,10 @@ function HierarchySection() {
     if (obj.type === 'frame' && 'name' in obj) {
       return (obj as { name: string }).name;
     }
+    if (obj.type === 'group') {
+      const group = obj as GroupObject;
+      return `Group (${group.children.length})`;
+    }
     return obj.type.charAt(0).toUpperCase() + obj.type.slice(1);
   };
 
@@ -1370,40 +1512,157 @@ function HierarchySection() {
       case 'path': return '✎';
       case 'image': return '🖼';
       case 'video': return '▶';
+      case 'group': return '⊞';
+      case 'line': return '⁄';
+      case 'arrow': return '→';
+      case 'polygon': return '⬡';
+      case 'star': return '★';
       default: return '?';
     }
+  };
+
+  // Generate selection count text
+  const getSelectionText = () => {
+    if (selectedIds.size === 0) {
+      return objects.size > 0 ? `${objects.size} Items` : 'Canvas Empty';
+    }
+    if (selectedIds.size === objects.size && objects.size > 0) {
+      return `All (${objects.size} objects)`;
+    }
+    return `${selectedIds.size} ${selectedIds.size === 1 ? 'object' : 'objects'} selected`;
+  };
+
+  // Render a hierarchy item with its children (for groups)
+  const renderHierarchyItem = (obj: CanvasObject, depth: number = 0) => {
+    const isGroup = obj.type === 'group';
+    const isExpanded = expandedGroups.has(obj.id);
+    const isVisible = obj.visible !== false;
+    const isLocked = obj.locked === true;
+    const isEditingGroup = editingGroupId === obj.id;
+
+    return (
+      <div key={obj.id}>
+        <div
+          className={`hierarchy-item ${selectedIds.has(obj.id) ? 'selected' : ''} ${draggedId === obj.id ? 'dragging' : ''} ${dragOverId === obj.id ? `drag-over-${dragOverPosition}` : ''} ${isEditingGroup ? 'editing-group' : ''} ${!isVisible ? 'hidden-object' : ''} ${isLocked ? 'locked-object' : ''}`}
+          style={{ paddingLeft: `${8 + depth * 16}px` }}
+          onClick={(e) => handleItemClick(obj.id, e)}
+          onDoubleClick={() => handleItemDoubleClick(obj.id)}
+          draggable
+          onDragStart={(e) => handleDragStart(e, obj.id)}
+          onDragOver={(e) => handleDragOver(e, obj.id)}
+          onDragLeave={handleDragLeave}
+          onDrop={(e) => handleDrop(e, obj.id)}
+          onDragEnd={handleDragEnd}
+        >
+          <span className="hierarchy-drag-handle">⋮⋮</span>
+          {isGroup && (
+            <button
+              className={`hierarchy-expand-btn ${isExpanded ? 'expanded' : ''}`}
+              onClick={(e) => {
+                e.stopPropagation();
+                toggleGroupExpanded(obj.id);
+              }}
+            >
+              ▸
+            </button>
+          )}
+          <span className="hierarchy-icon">
+            {getTypeIcon(obj.type)}
+          </span>
+          <span className="hierarchy-name">
+            {getObjectName(obj)}
+          </span>
+          <div className="hierarchy-controls">
+            <button
+              className={`hierarchy-visibility-btn ${!isVisible ? 'hidden' : ''}`}
+              onClick={(e) => handleVisibilityToggle(e, obj.id)}
+              title={isVisible ? 'Hide object' : 'Show object'}
+            >
+              {isVisible ? '👁' : '👁‍🗨'}
+            </button>
+            <button
+              className={`hierarchy-lock-btn ${isLocked ? 'locked' : ''}`}
+              onClick={(e) => handleLockToggle(e, obj.id)}
+              title={isLocked ? 'Unlock object' : 'Lock object'}
+            >
+              {isLocked ? '🔒' : '🔓'}
+            </button>
+          </div>
+        </div>
+        {/* Render group children when expanded */}
+        {isGroup && isExpanded && (
+          <div className="hierarchy-group-children">
+            {(obj as GroupObject).children.map((childId) => {
+              const childObj = objects.get(childId);
+              if (childObj) {
+                return renderHierarchyItem(childObj, depth + 1);
+              }
+              return null;
+            })}
+          </div>
+        )}
+      </div>
+    );
   };
 
   return (
     <CollapsibleSection title={`HIERARCHY`}>
       <div className="hierarchy-info">
-        {objects.size > 0 ? `${objects.size} Items` : 'Canvas Empty'}
+        {getSelectionText()}
+        {editingGroupId && (
+          <button
+            className="exit-group-edit-btn"
+            onClick={() => exitGroupEditMode()}
+            title="Exit group edit mode"
+          >
+            ← Exit Group
+          </button>
+        )}
       </div>
       <div className="hierarchy-list">
-        {sortedObjects.map((obj) => (
-          <div
-            key={obj.id}
-            className={`hierarchy-item ${selectedIds.has(obj.id) ? 'selected' : ''} ${draggedId === obj.id ? 'dragging' : ''} ${dragOverId === obj.id ? `drag-over-${dragOverPosition}` : ''}`}
-            onClick={(e) => handleItemClick(obj.id, e)}
-            draggable
-            onDragStart={(e) => handleDragStart(e, obj.id)}
-            onDragOver={(e) => handleDragOver(e, obj.id)}
-            onDragLeave={handleDragLeave}
-            onDrop={(e) => handleDrop(e, obj.id)}
-            onDragEnd={handleDragEnd}
-          >
-            <span className="hierarchy-drag-handle">⋮⋮</span>
-            <span className="hierarchy-icon">
-              {getTypeIcon(obj.type)}
-            </span>
-            <span className="hierarchy-name">
-              {getObjectName(obj)}
-            </span>
-          </div>
-        ))}
+        {sortedObjects.map((obj) => renderHierarchyItem(obj))}
       </div>
     </CollapsibleSection>
   );
+}
+
+// Helper to get shared value across multiple objects
+function getSharedValue<T>(
+  objects: CanvasObject[],
+  getter: (obj: CanvasObject) => T,
+  compare?: (a: T, b: T) => boolean
+): T | 'mixed' | undefined {
+  if (objects.length === 0) return undefined;
+  const firstValue = getter(objects[0]);
+  const compareFn = compare || ((a, b) => a === b);
+  const allSame = objects.every(obj => compareFn(getter(obj), firstValue));
+  return allSame ? firstValue : 'mixed';
+}
+
+// Helper to get shared numeric value (rounded for display)
+function getSharedNumericValue(
+  objects: CanvasObject[],
+  getter: (obj: CanvasObject) => number
+): number | 'mixed' | undefined {
+  if (objects.length === 0) return undefined;
+  const firstValue = Math.round(getter(objects[0]));
+  const allSame = objects.every(obj => Math.round(getter(obj)) === firstValue);
+  return allSame ? firstValue : 'mixed';
+}
+
+// Helper to check checkbox state for multi-selection
+function getCheckboxState(
+  objects: CanvasObject[],
+  getter: (obj: CanvasObject) => boolean
+): { checked: boolean; indeterminate: boolean } {
+  if (objects.length === 0) return { checked: false, indeterminate: false };
+  const states = objects.map(getter);
+  const allTrue = states.every(Boolean);
+  const allFalse = states.every(s => !s);
+  return {
+    checked: allTrue,
+    indeterminate: !allTrue && !allFalse
+  };
 }
 
 export function PropertiesPanel() {
@@ -1412,22 +1671,33 @@ export function PropertiesPanel() {
   const selectedIds = useCanvasStore((state) => state.selectedIds);
   const objects = useCanvasStore((state) => state.objects);
   const updateObject = useCanvasStore((state) => state.updateObject);
+  const updateObjects = useCanvasStore((state) => state.updateObjects);
   const pushHistory = useCanvasStore((state) => state.pushHistory);
 
   const hasSelection = selectedIds.size > 0;
-  const selectedObjects = Array.from(selectedIds).map((id) => objects.get(id)).filter(Boolean);
+  const selectedObjects = Array.from(selectedIds).map((id) => objects.get(id)).filter(Boolean) as CanvasObject[];
   const singleSelection = selectedObjects.length === 1 ? selectedObjects[0] : null;
+  const isMultiSelection = selectedObjects.length > 1;
 
-  // Check if multiple objects have same value for a property
-  const getMultiSelectValue = (getter: (obj: NonNullable<typeof singleSelection>) => number): string => {
+  // Get display value for numeric properties
+  const getDisplayValue = (getter: (obj: CanvasObject) => number): string => {
     if (!hasSelection || selectedObjects.length === 0) return '---';
-    if (selectedObjects.length === 1) {
-      return Math.round(getter(selectedObjects[0]!)).toString();
-    }
-    // Multiple selection - check if all have same value
-    const firstValue = Math.round(getter(selectedObjects[0]!));
-    const allSame = selectedObjects.every((obj) => Math.round(getter(obj!)) === firstValue);
-    return allSame ? firstValue.toString() : '---';
+    const result = getSharedNumericValue(selectedObjects, getter);
+    if (result === undefined) return '---';
+    if (result === 'mixed') return 'Mixed';
+    return result.toString();
+  };
+
+  // Get actual numeric value for controls (returns first object's value for mixed)
+  const getNumericValue = (getter: (obj: CanvasObject) => number): number => {
+    if (selectedObjects.length === 0) return 0;
+    return getter(selectedObjects[0]);
+  };
+
+  // Check if a numeric value is mixed
+  const isValueMixed = (getter: (obj: CanvasObject) => number): boolean => {
+    if (selectedObjects.length <= 1) return false;
+    return getSharedNumericValue(selectedObjects, getter) === 'mixed';
   };
 
   return (
@@ -1456,10 +1726,18 @@ export function PropertiesPanel() {
           <CollapsibleSection title="TRANSFORM">
             <EditablePropertyRow
               label="X-POS"
-              value={getMultiSelectValue((obj) => obj.x)}
+              value={getDisplayValue((obj) => obj.x)}
               disabled={!hasSelection}
+              isMixed={isValueMixed((obj) => obj.x)}
               onChange={(value) => {
-                if (singleSelection) {
+                if (isMultiSelection) {
+                  // Relative positioning: apply delta to all objects
+                  const delta = value - selectedObjects[0].x;
+                  updateObjects(selectedObjects.map(obj => ({
+                    id: obj.id,
+                    changes: { x: obj.x + delta }
+                  })));
+                } else if (singleSelection) {
                   updateObject(singleSelection.id, { x: value });
                 }
               }}
@@ -1467,10 +1745,18 @@ export function PropertiesPanel() {
             />
             <EditablePropertyRow
               label="Y-POS"
-              value={getMultiSelectValue((obj) => obj.y)}
+              value={getDisplayValue((obj) => obj.y)}
               disabled={!hasSelection}
+              isMixed={isValueMixed((obj) => obj.y)}
               onChange={(value) => {
-                if (singleSelection) {
+                if (isMultiSelection) {
+                  // Relative positioning: apply delta to all objects
+                  const delta = value - selectedObjects[0].y;
+                  updateObjects(selectedObjects.map(obj => ({
+                    id: obj.id,
+                    changes: { y: obj.y + delta }
+                  })));
+                } else if (singleSelection) {
                   updateObject(singleSelection.id, { y: value });
                 }
               }}
@@ -1479,10 +1765,30 @@ export function PropertiesPanel() {
             <div className="size-row">
               <EditablePropertyRow
                 label="WIDTH"
-                value={getMultiSelectValue((obj) => obj.width)}
+                value={getDisplayValue((obj) => obj.width)}
                 disabled={!hasSelection}
+                isMixed={isValueMixed((obj) => obj.width)}
                 onChange={(value) => {
-                  if (singleSelection) {
+                  if (isMultiSelection) {
+                    // For multi-selection with constrain proportions, each object maintains its own ratio
+                    if (constrainProportions) {
+                      updateObjects(selectedObjects.map(obj => {
+                        const aspectRatio = obj.height / obj.width;
+                        return {
+                          id: obj.id,
+                          changes: {
+                            width: value,
+                            height: Math.round(value * aspectRatio)
+                          }
+                        };
+                      }));
+                    } else {
+                      updateObjects(selectedObjects.map(obj => ({
+                        id: obj.id,
+                        changes: { width: value }
+                      })));
+                    }
+                  } else if (singleSelection) {
                     if (constrainProportions && singleSelection.width > 0) {
                       const aspectRatio = singleSelection.height / singleSelection.width;
                       updateObject(singleSelection.id, {
@@ -1519,10 +1825,30 @@ export function PropertiesPanel() {
               </button>
               <EditablePropertyRow
                 label="HEIGHT"
-                value={getMultiSelectValue((obj) => obj.height)}
+                value={getDisplayValue((obj) => obj.height)}
                 disabled={!hasSelection}
+                isMixed={isValueMixed((obj) => obj.height)}
                 onChange={(value) => {
-                  if (singleSelection) {
+                  if (isMultiSelection) {
+                    // For multi-selection with constrain proportions, each object maintains its own ratio
+                    if (constrainProportions) {
+                      updateObjects(selectedObjects.map(obj => {
+                        const aspectRatio = obj.width / obj.height;
+                        return {
+                          id: obj.id,
+                          changes: {
+                            height: value,
+                            width: Math.round(value * aspectRatio)
+                          }
+                        };
+                      }));
+                    } else {
+                      updateObjects(selectedObjects.map(obj => ({
+                        id: obj.id,
+                        changes: { height: value }
+                      })));
+                    }
+                  } else if (singleSelection) {
                     if (constrainProportions && singleSelection.height > 0) {
                       const aspectRatio = singleSelection.width / singleSelection.height;
                       updateObject(singleSelection.id, {
@@ -1538,10 +1864,17 @@ export function PropertiesPanel() {
               />
             </div>
             <RotationControl
-              value={singleSelection?.rotation ?? 0}
+              value={getNumericValue((obj) => obj.rotation)}
               disabled={!hasSelection}
+              isMixed={isValueMixed((obj) => obj.rotation)}
               onChange={(value) => {
-                if (singleSelection) {
+                if (isMultiSelection) {
+                  // Absolute rotation: all objects get same rotation
+                  updateObjects(selectedObjects.map(obj => ({
+                    id: obj.id,
+                    changes: { rotation: value }
+                  })));
+                } else if (singleSelection) {
                   updateObject(singleSelection.id, { rotation: value });
                 }
               }}
@@ -1552,31 +1885,63 @@ export function PropertiesPanel() {
           {/* Appearance Section */}
           <CollapsibleSection title="APPEARANCE">
             <OpacityControl
-              value={singleSelection?.opacity ?? 1}
+              value={getNumericValue((obj) => obj.opacity)}
               disabled={!hasSelection}
+              isMixed={isValueMixed((obj) => obj.opacity)}
               onChange={(value) => {
-                if (singleSelection) {
+                if (isMultiSelection) {
+                  // Absolute opacity: all objects get same opacity
+                  updateObjects(selectedObjects.map(obj => ({
+                    id: obj.id,
+                    changes: { opacity: value }
+                  })));
+                } else if (singleSelection) {
                   updateObject(singleSelection.id, { opacity: value });
                 }
               }}
               onChangeStart={pushHistory}
             />
             <FillControl
-              value={singleSelection?.fill}
-              enabled={singleSelection?.fill !== undefined}
+              value={(() => {
+                const result = getSharedValue(selectedObjects, obj => obj.fill);
+                return result === 'mixed' ? undefined : result;
+              })()}
+              enabled={(() => {
+                const state = getCheckboxState(selectedObjects, obj => obj.fill !== undefined);
+                return state.checked;
+              })()}
               disabled={!hasSelection}
+              isMixed={getSharedValue(selectedObjects, obj => obj.fill) === 'mixed'}
+              isIndeterminate={getCheckboxState(selectedObjects, obj => obj.fill !== undefined).indeterminate}
               onColorChange={(color) => {
-                if (singleSelection) {
+                if (isMultiSelection) {
+                  updateObjects(selectedObjects.map(obj => ({
+                    id: obj.id,
+                    changes: { fill: color }
+                  })));
+                } else if (singleSelection) {
                   updateObject(singleSelection.id, { fill: color });
                 }
               }}
               onEnabledChange={(enabled) => {
-                if (singleSelection) {
+                if (isMultiSelection) {
                   if (enabled) {
-                    // Enable fill with default color
+                    // Enable fill for all - use existing color or default
+                    updateObjects(selectedObjects.map(obj => ({
+                      id: obj.id,
+                      changes: { fill: obj.fill ?? '#4a4a4a' }
+                    })));
+                  } else {
+                    // Disable fill for all
+                    updateObjects(selectedObjects.map(obj => ({
+                      id: obj.id,
+                      changes: { fill: undefined }
+                    })));
+                  }
+                } else if (singleSelection) {
+                  if (enabled) {
                     updateObject(singleSelection.id, { fill: '#4a4a4a' });
                   } else {
-                    // Disable fill by setting to undefined
                     updateObject(singleSelection.id, { fill: undefined });
                   }
                 }
@@ -1584,27 +1949,64 @@ export function PropertiesPanel() {
               onChangeStart={pushHistory}
             />
             <StrokeControl
-              color={singleSelection?.stroke}
-              width={singleSelection?.strokeWidth}
-              enabled={singleSelection?.stroke !== undefined}
+              color={(() => {
+                const result = getSharedValue(selectedObjects, obj => obj.stroke);
+                return result === 'mixed' ? undefined : result;
+              })()}
+              width={(() => {
+                const result = getSharedNumericValue(selectedObjects, obj => obj.strokeWidth ?? 0);
+                return result === 'mixed' ? undefined : result === undefined ? undefined : result;
+              })()}
+              enabled={(() => {
+                const state = getCheckboxState(selectedObjects, obj => obj.stroke !== undefined);
+                return state.checked;
+              })()}
               disabled={!hasSelection}
+              isColorMixed={getSharedValue(selectedObjects, obj => obj.stroke) === 'mixed'}
+              isWidthMixed={getSharedNumericValue(selectedObjects, obj => obj.strokeWidth ?? 0) === 'mixed'}
+              isIndeterminate={getCheckboxState(selectedObjects, obj => obj.stroke !== undefined).indeterminate}
               onColorChange={(color) => {
-                if (singleSelection) {
+                if (isMultiSelection) {
+                  updateObjects(selectedObjects.map(obj => ({
+                    id: obj.id,
+                    changes: { stroke: color }
+                  })));
+                } else if (singleSelection) {
                   updateObject(singleSelection.id, { stroke: color });
                 }
               }}
               onWidthChange={(width) => {
-                if (singleSelection) {
+                if (isMultiSelection) {
+                  updateObjects(selectedObjects.map(obj => ({
+                    id: obj.id,
+                    changes: { strokeWidth: width }
+                  })));
+                } else if (singleSelection) {
                   updateObject(singleSelection.id, { strokeWidth: width });
                 }
               }}
               onEnabledChange={(enabled) => {
-                if (singleSelection) {
+                if (isMultiSelection) {
                   if (enabled) {
-                    // Enable stroke with default color and width
+                    // Enable stroke for all - use existing values or defaults
+                    updateObjects(selectedObjects.map(obj => ({
+                      id: obj.id,
+                      changes: {
+                        stroke: obj.stroke ?? '#ffffff',
+                        strokeWidth: obj.strokeWidth ?? 2
+                      }
+                    })));
+                  } else {
+                    // Disable stroke for all
+                    updateObjects(selectedObjects.map(obj => ({
+                      id: obj.id,
+                      changes: { stroke: undefined, strokeWidth: undefined }
+                    })));
+                  }
+                } else if (singleSelection) {
+                  if (enabled) {
                     updateObject(singleSelection.id, { stroke: '#ffffff', strokeWidth: 2 });
                   } else {
-                    // Disable stroke by setting to undefined
                     updateObject(singleSelection.id, { stroke: undefined, strokeWidth: undefined });
                   }
                 }
@@ -1612,6 +2014,335 @@ export function PropertiesPanel() {
               onChangeStart={pushHistory}
             />
           </CollapsibleSection>
+
+          {/* Shape Section - Only show when rectangle objects are selected */}
+          {selectedObjects.some(obj => obj.type === 'rectangle') && (
+            <CollapsibleSection title="SHAPE">
+              {/* Corner Radius - Only for rectangles */}
+              <EditablePropertyRow
+                label="CORNER"
+                value={(() => {
+                  const rectObjs = selectedObjects.filter(obj => obj.type === 'rectangle');
+                  if (rectObjs.length === 0) return '---';
+                  const first = (rectObjs[0] as { cornerRadius?: number }).cornerRadius ?? 0;
+                  const allSame = rectObjs.every(obj => ((obj as { cornerRadius?: number }).cornerRadius ?? 0) === first);
+                  return allSame ? Math.round(first).toString() : 'Mixed';
+                })()}
+                disabled={!hasSelection}
+                isMixed={(() => {
+                  const rectObjs = selectedObjects.filter(obj => obj.type === 'rectangle');
+                  if (rectObjs.length <= 1) return false;
+                  const first = (rectObjs[0] as { cornerRadius?: number }).cornerRadius ?? 0;
+                  return !rectObjs.every(obj => ((obj as { cornerRadius?: number }).cornerRadius ?? 0) === first);
+                })()}
+                onChange={(value) => {
+                  const rectObjs = selectedObjects.filter(obj => obj.type === 'rectangle');
+                  updateObjects(rectObjs.map(obj => ({
+                    id: obj.id,
+                    changes: { cornerRadius: Math.max(0, value) }
+                  })));
+                }}
+                onChangeStart={pushHistory}
+              />
+            </CollapsibleSection>
+          )}
+
+          {/* Text Section - Only show when text objects are selected */}
+          {selectedObjects.some(obj => obj.type === 'text') && (
+            <CollapsibleSection title="TEXT">
+              {/* Font Family */}
+              <div className="property-row">
+                <span className="property-label">Font</span>
+                <select
+                  className="font-select"
+                  value={(() => {
+                    const textObjs = selectedObjects.filter(obj => obj.type === 'text') as TextObject[];
+                    if (textObjs.length === 0) return '';
+                    const first = textObjs[0].fontFamily;
+                    return textObjs.every(obj => obj.fontFamily === first) ? first : '';
+                  })()}
+                  onChange={(e) => {
+                    pushHistory();
+                    const textObjs = selectedObjects.filter(obj => obj.type === 'text') as TextObject[];
+                    const newFontFamily = e.target.value;
+                    updateObjects(textObjs.map(obj => {
+                      const dimensions = measureTextDimensions({
+                        text: obj.text,
+                        fontSize: obj.fontSize,
+                        fontFamily: newFontFamily,
+                        fontWeight: obj.fontWeight,
+                        fontStyle: obj.fontStyle,
+                        lineHeight: obj.lineHeight,
+                      });
+                      return {
+                        id: obj.id,
+                        changes: { fontFamily: newFontFamily, width: dimensions.width, height: dimensions.height }
+                      };
+                    }));
+                  }}
+                  disabled={!hasSelection}
+                >
+                  <option value="Inter, system-ui, sans-serif">Inter</option>
+                  <option value="Arial, sans-serif">Arial</option>
+                  <option value="Helvetica, sans-serif">Helvetica</option>
+                  <option value="Georgia, serif">Georgia</option>
+                  <option value="Times New Roman, serif">Times New Roman</option>
+                  <option value="Courier New, monospace">Courier New</option>
+                  <option value="SF Mono, Monaco, Consolas, monospace">SF Mono</option>
+                </select>
+              </div>
+
+              {/* Font Size */}
+              <EditablePropertyRow
+                label="Size"
+                value={(() => {
+                  const textObjs = selectedObjects.filter(obj => obj.type === 'text') as TextObject[];
+                  if (textObjs.length === 0) return '---';
+                  const first = textObjs[0].fontSize;
+                  return textObjs.every(obj => obj.fontSize === first) ? String(first) : 'Mixed';
+                })()}
+                disabled={!hasSelection}
+                isMixed={(() => {
+                  const textObjs = selectedObjects.filter(obj => obj.type === 'text') as TextObject[];
+                  if (textObjs.length <= 1) return false;
+                  const first = textObjs[0].fontSize;
+                  return !textObjs.every(obj => obj.fontSize === first);
+                })()}
+                onChange={(value) => {
+                  const textObjs = selectedObjects.filter(obj => obj.type === 'text') as TextObject[];
+                  const newFontSize = value;
+                  updateObjects(textObjs.map(obj => {
+                    const dimensions = measureTextDimensions({
+                      text: obj.text,
+                      fontSize: newFontSize,
+                      fontFamily: obj.fontFamily,
+                      fontWeight: obj.fontWeight,
+                      fontStyle: obj.fontStyle,
+                      lineHeight: obj.lineHeight,
+                    });
+                    return {
+                      id: obj.id,
+                      changes: { fontSize: newFontSize, width: dimensions.width, height: dimensions.height }
+                    };
+                  }));
+                }}
+                onChangeStart={pushHistory}
+              />
+
+              {/* Text Style Buttons (Bold, Italic, Underline, Strikethrough) */}
+              <div className="text-style-buttons">
+                <button
+                  className={`text-style-btn ${(() => {
+                    const textObjs = selectedObjects.filter(obj => obj.type === 'text') as TextObject[];
+                    return textObjs.every(obj => (obj.fontWeight || 400) >= 700) ? 'active' : '';
+                  })()}`}
+                  onClick={() => {
+                    pushHistory();
+                    const textObjs = selectedObjects.filter(obj => obj.type === 'text') as TextObject[];
+                    const allBold = textObjs.every(obj => (obj.fontWeight || 400) >= 700);
+                    const newFontWeight = allBold ? 400 : 700;
+                    updateObjects(textObjs.map(obj => {
+                      const dimensions = measureTextDimensions({
+                        text: obj.text,
+                        fontSize: obj.fontSize,
+                        fontFamily: obj.fontFamily,
+                        fontWeight: newFontWeight,
+                        fontStyle: obj.fontStyle,
+                        lineHeight: obj.lineHeight,
+                      });
+                      return {
+                        id: obj.id,
+                        changes: { fontWeight: newFontWeight, width: dimensions.width, height: dimensions.height }
+                      };
+                    }));
+                  }}
+                  disabled={!hasSelection}
+                  title="Bold (Ctrl+B)"
+                >
+                  <strong>B</strong>
+                </button>
+                <button
+                  className={`text-style-btn ${(() => {
+                    const textObjs = selectedObjects.filter(obj => obj.type === 'text') as TextObject[];
+                    return textObjs.every(obj => obj.fontStyle === 'italic') ? 'active' : '';
+                  })()}`}
+                  onClick={() => {
+                    pushHistory();
+                    const textObjs = selectedObjects.filter(obj => obj.type === 'text') as TextObject[];
+                    const allItalic = textObjs.every(obj => obj.fontStyle === 'italic');
+                    const newFontStyle = allItalic ? 'normal' : 'italic';
+                    updateObjects(textObjs.map(obj => {
+                      const dimensions = measureTextDimensions({
+                        text: obj.text,
+                        fontSize: obj.fontSize,
+                        fontFamily: obj.fontFamily,
+                        fontWeight: obj.fontWeight,
+                        fontStyle: newFontStyle,
+                        lineHeight: obj.lineHeight,
+                      });
+                      return {
+                        id: obj.id,
+                        changes: { fontStyle: newFontStyle, width: dimensions.width, height: dimensions.height }
+                      };
+                    }));
+                  }}
+                  disabled={!hasSelection}
+                  title="Italic (Ctrl+I)"
+                >
+                  <em>I</em>
+                </button>
+                <button
+                  className={`text-style-btn ${(() => {
+                    const textObjs = selectedObjects.filter(obj => obj.type === 'text') as TextObject[];
+                    return textObjs.every(obj => obj.textDecoration === 'underline') ? 'active' : '';
+                  })()}`}
+                  onClick={() => {
+                    pushHistory();
+                    const textObjs = selectedObjects.filter(obj => obj.type === 'text') as TextObject[];
+                    const allUnderline = textObjs.every(obj => obj.textDecoration === 'underline');
+                    updateObjects(textObjs.map(obj => ({
+                      id: obj.id,
+                      changes: { textDecoration: allUnderline ? 'none' : 'underline' }
+                    })));
+                  }}
+                  disabled={!hasSelection}
+                  title="Underline (Ctrl+U)"
+                >
+                  <span style={{ textDecoration: 'underline' }}>U</span>
+                </button>
+                <button
+                  className={`text-style-btn ${(() => {
+                    const textObjs = selectedObjects.filter(obj => obj.type === 'text') as TextObject[];
+                    return textObjs.every(obj => obj.textDecoration === 'line-through') ? 'active' : '';
+                  })()}`}
+                  onClick={() => {
+                    pushHistory();
+                    const textObjs = selectedObjects.filter(obj => obj.type === 'text') as TextObject[];
+                    const allStrike = textObjs.every(obj => obj.textDecoration === 'line-through');
+                    updateObjects(textObjs.map(obj => ({
+                      id: obj.id,
+                      changes: { textDecoration: allStrike ? 'none' : 'line-through' }
+                    })));
+                  }}
+                  disabled={!hasSelection}
+                  title="Strikethrough"
+                >
+                  <span style={{ textDecoration: 'line-through' }}>S</span>
+                </button>
+              </div>
+
+              {/* Text Alignment */}
+              <div className="text-align-buttons">
+                <button
+                  className={`text-align-btn ${(() => {
+                    const textObjs = selectedObjects.filter(obj => obj.type === 'text') as TextObject[];
+                    return textObjs.every(obj => (obj.textAlign || 'left') === 'left') ? 'active' : '';
+                  })()}`}
+                  onClick={() => {
+                    pushHistory();
+                    const textObjs = selectedObjects.filter(obj => obj.type === 'text');
+                    updateObjects(textObjs.map(obj => ({
+                      id: obj.id,
+                      changes: { textAlign: 'left' }
+                    })));
+                  }}
+                  disabled={!hasSelection}
+                  title="Align Left"
+                >
+                  <svg width="14" height="14" viewBox="0 0 14 14" fill="currentColor">
+                    <rect x="1" y="2" width="12" height="1.5" />
+                    <rect x="1" y="5" width="8" height="1.5" />
+                    <rect x="1" y="8" width="10" height="1.5" />
+                    <rect x="1" y="11" width="6" height="1.5" />
+                  </svg>
+                </button>
+                <button
+                  className={`text-align-btn ${(() => {
+                    const textObjs = selectedObjects.filter(obj => obj.type === 'text') as TextObject[];
+                    return textObjs.every(obj => obj.textAlign === 'center') ? 'active' : '';
+                  })()}`}
+                  onClick={() => {
+                    pushHistory();
+                    const textObjs = selectedObjects.filter(obj => obj.type === 'text');
+                    updateObjects(textObjs.map(obj => ({
+                      id: obj.id,
+                      changes: { textAlign: 'center' }
+                    })));
+                  }}
+                  disabled={!hasSelection}
+                  title="Align Center"
+                >
+                  <svg width="14" height="14" viewBox="0 0 14 14" fill="currentColor">
+                    <rect x="1" y="2" width="12" height="1.5" />
+                    <rect x="3" y="5" width="8" height="1.5" />
+                    <rect x="2" y="8" width="10" height="1.5" />
+                    <rect x="4" y="11" width="6" height="1.5" />
+                  </svg>
+                </button>
+                <button
+                  className={`text-align-btn ${(() => {
+                    const textObjs = selectedObjects.filter(obj => obj.type === 'text') as TextObject[];
+                    return textObjs.every(obj => obj.textAlign === 'right') ? 'active' : '';
+                  })()}`}
+                  onClick={() => {
+                    pushHistory();
+                    const textObjs = selectedObjects.filter(obj => obj.type === 'text');
+                    updateObjects(textObjs.map(obj => ({
+                      id: obj.id,
+                      changes: { textAlign: 'right' }
+                    })));
+                  }}
+                  disabled={!hasSelection}
+                  title="Align Right"
+                >
+                  <svg width="14" height="14" viewBox="0 0 14 14" fill="currentColor">
+                    <rect x="1" y="2" width="12" height="1.5" />
+                    <rect x="5" y="5" width="8" height="1.5" />
+                    <rect x="3" y="8" width="10" height="1.5" />
+                    <rect x="7" y="11" width="6" height="1.5" />
+                  </svg>
+                </button>
+              </div>
+
+              {/* Line Height */}
+              <div className="property-row">
+                <span className="property-label">Line Height</span>
+                <input
+                  type="number"
+                  className="property-input line-height-input"
+                  step="0.1"
+                  min="0.5"
+                  max="3"
+                  value={(() => {
+                    const textObjs = selectedObjects.filter(obj => obj.type === 'text') as TextObject[];
+                    if (textObjs.length === 0) return 1.2;
+                    const first = textObjs[0].lineHeight || 1.2;
+                    return textObjs.every(obj => (obj.lineHeight || 1.2) === first) ? first : '';
+                  })()}
+                  onChange={(e) => {
+                    const textObjs = selectedObjects.filter(obj => obj.type === 'text') as TextObject[];
+                    const newLineHeight = parseFloat(e.target.value) || 1.2;
+                    updateObjects(textObjs.map(obj => {
+                      const dimensions = measureTextDimensions({
+                        text: obj.text,
+                        fontSize: obj.fontSize,
+                        fontFamily: obj.fontFamily,
+                        fontWeight: obj.fontWeight,
+                        fontStyle: obj.fontStyle,
+                        lineHeight: newLineHeight,
+                      });
+                      return {
+                        id: obj.id,
+                        changes: { lineHeight: newLineHeight, width: dimensions.width, height: dimensions.height }
+                      };
+                    }));
+                  }}
+                  onFocus={() => pushHistory()}
+                  disabled={!hasSelection}
+                />
+              </div>
+            </CollapsibleSection>
+          )}
 
           {/* Hierarchy Section */}
           <HierarchySection />
