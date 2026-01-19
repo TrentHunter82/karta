@@ -60,6 +60,7 @@ interface CanvasState {
   setActiveTool: (tool: ToolType) => void;
   reorderObject: (id: string, newZIndex: number) => void;
   getNextZIndex: () => number;
+  getObjectsInsideFrame: (frameId: string) => string[];
   setCursorPosition: (position: { x: number; y: number } | null) => void;
   initializeYjsSync: () => void;
   resetYjsSync: () => void;
@@ -582,6 +583,36 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
       }
     }
     return maxZIndex + 1;
+  },
+
+  getObjectsInsideFrame: (frameId: string): string[] => {
+    const state = useCanvasStore.getState();
+    const frame = state.objects.get(frameId);
+    if (!frame || frame.type !== 'frame') return [];
+
+    const containedIds: string[] = [];
+
+    for (const [id, obj] of state.objects) {
+      // Skip the frame itself, groups, other frames, and objects with parents
+      if (id === frameId || obj.type === 'frame' || obj.type === 'group' || obj.parentId) {
+        continue;
+      }
+
+      // Check if object's center is inside frame bounds
+      const centerX = obj.x + obj.width / 2;
+      const centerY = obj.y + obj.height / 2;
+
+      if (
+        centerX >= frame.x &&
+        centerX <= frame.x + frame.width &&
+        centerY >= frame.y &&
+        centerY <= frame.y + frame.height
+      ) {
+        containedIds.push(id);
+      }
+    }
+
+    return containedIds;
   },
 
   setCursorPosition: (position) => set({ cursorPosition: position }),

@@ -76,7 +76,7 @@ export class FrameTool extends BaseTool {
       height: 0,
       rotation: 0,
       opacity: 1,
-      zIndex: this.ctx.getNextZIndex(),
+      zIndex: -1000, // Frames always render behind other objects
       fill: '#2a2a2a',
       stroke: '#3a3a3a',
       strokeWidth: 1,

@@ -81,6 +81,8 @@ export class EllipseTool extends BaseTool {
       opacity: 1,
       zIndex: this.ctx.getNextZIndex(),
       fill: '#4a4a4a',
+      stroke: '#666666',
+      strokeWidth: 0,
     };
 
     this.ctx.addObject(ellipse);

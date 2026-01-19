@@ -96,6 +96,59 @@
   padding: 0 12px 12px;
 }
 
+/* Property Row */
+.property-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.property-row.inline {
+  flex-wrap: wrap;
+}
+
+.property-row-label {
+  font-size: var(--font-size-xs);
+  font-family: var(--font-display);
+  color: var(--color-text-muted);
+  min-width: 50px;
+  letter-spacing: var(--letter-spacing-wide);
+  text-transform: uppercase;
+}
+
+.property-row-content {
+  flex: 1;
+}
+
+/* Property Text Input */
+.property-text-input {
+  width: 100%;
+  padding: 6px 8px;
+  font-size: var(--font-size-md);
+  font-family: var(--font-mono);
+  color: var(--color-text-primary);
+  background-color: var(--color-bg-primary);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  outline: none;
+  transition: all 0.15s ease;
+}
+
+.property-text-input:hover {
+  border-color: var(--color-border-hover);
+}
+
+.property-text-input:focus {
+  border-color: var(--color-accent);
+  box-shadow: 0 0 0 2px var(--color-accent-muted);
+}
+
+.property-text-input::placeholder {
+  color: var(--color-text-muted);
+  font-style: italic;
+}
+
 /* Property Grid */
 .property-grid {
   display: grid;
