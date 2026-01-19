@@ -1228,3 +1228,20 @@ if (event.key === '[') {
   - For intersection tests, check corners in both directions (A corners in B, B corners in A)
   - Spatial indexing with AABB is still efficient if using rotated AABB
   - Multiple intersection checks needed: corners inside other shape AND AABB overlap
+
+
+---
+
+## PRD-Polish Iteration 2 - impl-1: Cursor Changes Review
+- What was reviewed:
+  - Verified cursor handling across all tools via tool system
+  - BaseTool.setCursor() properly propagates to ToolContext.setCursor()
+  - Canvas getCursorStyle() handles special cases (panning, space pressed)
+- Findings (all correct):
+  - HandTool: grab/grabbing ✓
+  - SelectTool: default, move, grab (rotation), directional resize cursors ✓
+  - TextTool: text (I-beam) ✓
+  - Drawing tools (Rectangle, Ellipse, Frame, Line, Arrow, Pen): crosshair ✓
+  - HANDLE_CURSORS mapping correctly maps all 8 handles to directional cursors
+- Status: No changes needed - cursor system is well-implemented
+---
