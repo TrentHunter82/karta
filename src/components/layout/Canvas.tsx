@@ -1,5 +1,8 @@
 import { useRef, useEffect, useState, useCallback } from 'react';
 import { useCanvasStore } from '../../stores/canvasStore';
+import { useSelectionStore } from '../../stores/selectionStore';
+import { useViewportStore } from '../../stores/viewportStore';
+import { useGroupStore } from '../../stores/groupStore';
 import { useToastStore } from '../../stores/toastStore';
 import type { CanvasObject, RectangleObject, TextObject, ImageObject, VideoObject, GroupObject, LineObject, ArrowObject } from '../../types/canvas';
 import { CursorPresence } from './CursorPresence';
@@ -46,8 +49,8 @@ export function Canvas() {
 
   // Store state
   const objects = useCanvasStore((state) => state.objects);
-  const selectedIds = useCanvasStore((state) => state.selectedIds);
-  const viewport = useCanvasStore((state) => state.viewport);
+  const selectedIds = useSelectionStore((state) => state.selectedIds);
+  const viewport = useViewportStore((state) => state.viewport);
   const activeTool = useCanvasStore((state) => state.activeTool);
   const setViewport = useCanvasStore((state) => state.setViewport);
   const setSelection = useCanvasStore((state) => state.setSelection);
@@ -58,7 +61,7 @@ export function Canvas() {
   const getNextZIndex = useCanvasStore((state) => state.getNextZIndex);
   const setCursorPosition = useCanvasStore((state) => state.setCursorPosition);
   const pushHistory = useCanvasStore((state) => state.pushHistory);
-  const editingGroupId = useCanvasStore((state) => state.editingGroupId);
+  const editingGroupId = useGroupStore((state) => state.editingGroupId);
   const enterGroupEditMode = useCanvasStore((state) => state.enterGroupEditMode);
   const exitGroupEditMode = useCanvasStore((state) => state.exitGroupEditMode);
   const getAbsolutePosition = useCanvasStore((state) => state.getAbsolutePosition);
@@ -245,11 +248,21 @@ export function Canvas() {
           break;
         case 'path':
           if (obj.points.length > 0) {
+            // Calculate the original extent of points (stored at creation time)
+            let maxPointX = 0, maxPointY = 0;
+            for (const p of obj.points) {
+              maxPointX = Math.max(maxPointX, p.x);
+              maxPointY = Math.max(maxPointY, p.y);
+            }
+            // Scale points to current width/height (allows resizing)
+            const scaleX = maxPointX > 0 ? width / maxPointX : zoom;
+            const scaleY = maxPointY > 0 ? height / maxPointY : zoom;
+
             ctx.beginPath();
             const firstPoint = obj.points[0];
-            ctx.moveTo(firstPoint.x * zoom, firstPoint.y * zoom);
+            ctx.moveTo(firstPoint.x * scaleX, firstPoint.y * scaleY);
             for (let i = 1; i < obj.points.length; i++) {
-              ctx.lineTo(obj.points[i].x * zoom, obj.points[i].y * zoom);
+              ctx.lineTo(obj.points[i].x * scaleX, obj.points[i].y * scaleY);
             }
             ctx.strokeStyle = obj.stroke || '#ffffff';
             ctx.lineWidth = (obj.strokeWidth || 2) * zoom;
@@ -1538,7 +1551,7 @@ export function Canvas() {
       transformOrigin: 'top left',
       objectFit: 'cover' as const,
       opacity: videoObj.opacity,
-      pointerEvents: 'auto' as const,
+      pointerEvents: 'none' as const,
       borderRadius: '0',
       zIndex: 100,
     };
@@ -1593,9 +1606,7 @@ export function Canvas() {
           autoPlay
           muted
           playsInline
-          controls
           onEnded={stopVideoPlayback}
-          onClick={(e) => e.stopPropagation()}
         />
       )}
       {editingTextId && (
