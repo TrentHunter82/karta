@@ -338,9 +338,13 @@ export class SelectTool extends BaseTool {
       });
 
       if (allUnlocked) {
-        // Alt+drag = duplicate objects at current position, then drag originals
+        // Alt+drag = duplicate objects and drag the duplicates (originals stay in place)
         if (e.altKey) {
-          this.ctx.duplicateObjects(Array.from(selectedIds));
+          const newIds = this.ctx.duplicateObjects(Array.from(selectedIds));
+          if (newIds.length > 0) {
+            // Select the duplicates so we drag them, leaving originals in place
+            this.ctx.setSelection(newIds);
+          }
         }
         this.startDragging(canvasX, canvasY, e);
       }
@@ -348,9 +352,13 @@ export class SelectTool extends BaseTool {
       // Select only this object and start dragging
       this.ctx.setSelection([obj.id]);
 
-      // Alt+drag = duplicate object at current position, then drag original
+      // Alt+drag = duplicate object and drag the duplicate (original stays in place)
       if (e.altKey && !obj.locked) {
-        this.ctx.duplicateObjects([obj.id]);
+        const newIds = this.ctx.duplicateObjects([obj.id]);
+        if (newIds.length > 0) {
+          // Select the duplicate so we drag it, leaving original in place
+          this.ctx.setSelection(newIds);
+        }
       }
       this.startDragging(canvasX, canvasY, e);
     }
