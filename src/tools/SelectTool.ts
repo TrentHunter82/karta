@@ -338,11 +338,20 @@ export class SelectTool extends BaseTool {
       });
 
       if (allUnlocked) {
+        // Alt+drag = duplicate objects at current position, then drag originals
+        if (e.altKey) {
+          this.ctx.duplicateObjects(Array.from(selectedIds));
+        }
         this.startDragging(canvasX, canvasY, e);
       }
     } else {
       // Select only this object and start dragging
       this.ctx.setSelection([obj.id]);
+
+      // Alt+drag = duplicate object at current position, then drag original
+      if (e.altKey && !obj.locked) {
+        this.ctx.duplicateObjects([obj.id]);
+      }
       this.startDragging(canvasX, canvasY, e);
     }
 
@@ -409,6 +418,28 @@ export class SelectTool extends BaseTool {
         };
       })
       .filter((u): u is { id: string; changes: { x: number; y: number } } => u !== null);
+
+    // Add contained objects for any selected frames (spatial containment)
+    const additionalUpdates: typeof updates = [];
+    for (const { id } of updates) {
+      const obj = objects.get(id);
+      if (obj?.type === 'frame') {
+        const containedIds = this.ctx.getObjectsInsideFrame(id);
+        for (const containedId of containedIds) {
+          // Skip if already in updates (e.g., user selected both frame and object)
+          if (updates.some(u => u.id === containedId)) continue;
+
+          const contained = objects.get(containedId);
+          if (contained) {
+            additionalUpdates.push({
+              id: containedId,
+              changes: { x: contained.x + dx, y: contained.y + dy },
+            });
+          }
+        }
+      }
+    }
+    updates.push(...additionalUpdates);
 
     if (updates.length > 0) {
       this.ctx.updateObjects(updates);

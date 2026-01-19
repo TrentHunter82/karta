@@ -47,6 +47,7 @@ export interface ToolContext {
   setSelection: (ids: string[]) => void;
   pushHistory: () => void;
   setActiveTool: (tool: ToolType) => void;
+  duplicateObjects: (ids: string[]) => string[];  // Returns new object IDs
 
   // Group operations
   enterGroupEditMode: (groupId: string) => void;
@@ -62,6 +63,7 @@ export interface ToolContext {
 
   // Utilities
   getNextZIndex: () => number;
+  getObjectsInsideFrame: (frameId: string) => string[];
   hitTest: (screenX: number, screenY: number) => CanvasObject | null;
   hitTestHandle: (screenX: number, screenY: number, obj: CanvasObject) => HandleType;
   hitTestRotationHandle: (screenX: number, screenY: number, obj: CanvasObject) => RotationHandle;

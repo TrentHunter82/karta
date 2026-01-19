@@ -7,6 +7,7 @@ import { useToastStore } from '../../stores/toastStore';
 import type { CanvasObject, RectangleObject, TextObject, ImageObject, VideoObject, GroupObject, LineObject, ArrowObject } from '../../types/canvas';
 import { CursorPresence } from './CursorPresence';
 import { Minimap } from './Minimap';
+import { ContextMenu } from '../ContextMenu';
 import { measureTextDimensions } from '../../utils/textMeasurement';
 import { ToolManager } from '../../tools';
 import type { ToolContext, ToolMouseEvent, HandleType as ToolHandleType, RotationHandle as ToolRotationHandle } from '../../tools/types';
@@ -76,6 +77,7 @@ export function Canvas() {
   const [imageLoadTrigger, setImageLoadTrigger] = useState(0);
   const [isDragOver, setIsDragOver] = useState(false);
   const [playingVideoId, setPlayingVideoId] = useState<string | null>(null);
+  const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null);
   const lastMousePos = useRef({ x: 0, y: 0 });
 
   // Tool system
@@ -872,6 +874,23 @@ export function Canvas() {
     setSelection,
     pushHistory,
     setActiveTool,
+    duplicateObjects: (ids: string[]) => {
+      const newIds: string[] = [];
+      const currentObjects = useCanvasStore.getState().objects;
+      ids.forEach(id => {
+        const obj = currentObjects.get(id);
+        if (obj && !obj.locked) {
+          const newObj = {
+            ...JSON.parse(JSON.stringify(obj)),
+            id: crypto.randomUUID(),
+            zIndex: getNextZIndex(),
+          };
+          addObject(newObj);
+          newIds.push(newObj.id);
+        }
+      });
+      return newIds;
+    },
     enterGroupEditMode,
     exitGroupEditMode,
     getAbsolutePosition,
@@ -881,6 +900,7 @@ export function Canvas() {
     setViewport,
 
     getNextZIndex,
+    getObjectsInsideFrame: (frameId: string) => useCanvasStore.getState().getObjectsInsideFrame(frameId),
     hitTest: (x: number, y: number) => hitTest(x, y),
     hitTestHandle: (x: number, y: number, obj: CanvasObject) => hitTestHandle(x, y, obj),
     hitTestRotationHandle: (x: number, y: number, obj: CanvasObject) => hitTestRotationHandle(x, y, obj),
@@ -949,6 +969,11 @@ export function Canvas() {
 
   // Handle mouse down
   const handleMouseDown = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
+    // Close context menu if open
+    if (contextMenu) {
+      setContextMenu(null);
+    }
+
     const canvas = canvasRef.current;
     if (!canvas) return;
 
@@ -1054,7 +1079,7 @@ export function Canvas() {
         return;
       }
     }
-  }, [isSpacePressed, activeTool, hitTest, screenToCanvas, setSelection, updateObject, playingVideoId]);
+  }, [isSpacePressed, activeTool, hitTest, screenToCanvas, setSelection, updateObject, playingVideoId, contextMenu]);
 
   // Handle mouse move
   const handleMouseMove = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
@@ -1152,12 +1177,33 @@ export function Canvas() {
     setCursorPosition(null);
   }, [setCursorPosition]);
 
-  // Prevent context menu on middle click
+  // Handle context menu (right-click)
   const handleContextMenu = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+
+    // Middle click - just prevent default
     if (e.button === 1) {
-      e.preventDefault();
+      return;
     }
-  }, []);
+
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+
+    const rect = canvas.getBoundingClientRect();
+    const screenX = e.clientX - rect.left;
+    const screenY = e.clientY - rect.top;
+
+    // Hit test to see if clicking on an object
+    const hitObject = hitTest(screenX, screenY);
+
+    // If clicking on unselected object, select it first
+    if (hitObject && !selectedIds.has(hitObject.id)) {
+      setSelection([hitObject.id]);
+    }
+
+    // Show context menu at click position
+    setContextMenu({ x: e.clientX, y: e.clientY });
+  }, [hitTest, selectedIds, setSelection]);
 
   // Handle drag over for file drops
   const handleDragOver = useCallback((e: React.DragEvent<HTMLCanvasElement>) => {
@@ -1643,6 +1689,14 @@ export function Canvas() {
           onChange={handleFrameNameInput}
           onKeyDown={handleFrameNameKeyDown}
           onBlur={exitFrameNameEditMode}
+        />
+      )}
+      {contextMenu && (
+        <ContextMenu
+          x={contextMenu.x}
+          y={contextMenu.y}
+          onClose={() => setContextMenu(null)}
+          targetObjectId={null}
         />
       )}
       <CursorPresence />

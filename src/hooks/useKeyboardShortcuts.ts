@@ -335,6 +335,60 @@ export function useKeyboardShortcuts(options: KeyboardShortcutsOptions = {}) {
         return;
       }
 
+      // Arrow key nudging
+      if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(event.key)) {
+        const { selectedIds } = useCanvasStore.getState();
+        if (selectedIds.size === 0) return;
+
+        event.preventDefault();
+        const amount = event.shiftKey ? 10 : 1;
+
+        let dx = 0, dy = 0;
+        if (event.key === 'ArrowUp') dy = -amount;
+        if (event.key === 'ArrowDown') dy = amount;
+        if (event.key === 'ArrowLeft') dx = -amount;
+        if (event.key === 'ArrowRight') dx = amount;
+
+        pushHistory();
+        const objects = useCanvasStore.getState().objects;
+        const updates = Array.from(selectedIds)
+          .map(id => objects.get(id))
+          .filter((obj): obj is NonNullable<typeof obj> => obj != null && !obj.locked)
+          .map(obj => ({ id: obj.id, changes: { x: obj.x + dx, y: obj.y + dy } }));
+
+        if (updates.length > 0) {
+          updateObjects(updates);
+        }
+        return;
+      }
+
+      // Tab navigation between objects
+      if (event.key === 'Tab') {
+        event.preventDefault();
+
+        const objects = Array.from(useCanvasStore.getState().objects.values())
+          .filter(obj => !obj.parentId && obj.visible !== false)
+          .sort((a, b) => a.zIndex - b.zIndex);
+
+        if (objects.length === 0) return;
+
+        const { selectedIds } = useCanvasStore.getState();
+        const currentId = selectedIds.size === 1 ? Array.from(selectedIds)[0] : null;
+        const currentIndex = currentId ? objects.findIndex(o => o.id === currentId) : -1;
+
+        let nextIndex: number;
+        if (event.shiftKey) {
+          // Shift+Tab: previous object
+          nextIndex = currentIndex <= 0 ? objects.length - 1 : currentIndex - 1;
+        } else {
+          // Tab: next object
+          nextIndex = currentIndex >= objects.length - 1 ? 0 : currentIndex + 1;
+        }
+
+        setSelection([objects[nextIndex].id]);
+        return;
+      }
+
       const key = event.key.toLowerCase();
 
       // Check for Shift+key tool shortcuts first
