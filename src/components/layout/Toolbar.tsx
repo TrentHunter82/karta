@@ -2,6 +2,7 @@ import { useRef, type ReactNode } from 'react';
 import './Toolbar.css';
 import { useCanvasStore } from '../../stores/canvasStore';
 import { useToastStore } from '../../stores/toastStore';
+import { useTemplateStore } from '../../stores/templateStore';
 import type { ToolType, ImageObject, VideoObject } from '../../types/canvas';
 
 interface ToolButton {
@@ -119,6 +120,7 @@ export function Toolbar() {
   const alignObjects = useCanvasStore((state) => state.alignObjects);
   const distributeObjects = useCanvasStore((state) => state.distributeObjects);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const { showTemplatePanel, toggleTemplatePanel } = useTemplateStore();
 
   const handleToolClick = (tool: ToolType) => {
     setActiveTool(tool);
@@ -305,6 +307,23 @@ export function Toolbar() {
           </svg>
           <span className="tool-tooltip">
             Image / Video
+          </span>
+        </button>
+        {/* Templates button */}
+        <button
+          className={`tool-button ${showTemplatePanel ? 'active' : ''}`}
+          onClick={toggleTemplatePanel}
+          title="Templates"
+        >
+          <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+            {/* Grid layout icon representing templates */}
+            <rect x="2" y="2" width="7" height="7" rx="1" />
+            <rect x="11" y="2" width="7" height="7" rx="1" />
+            <rect x="2" y="11" width="7" height="7" rx="1" />
+            <rect x="11" y="11" width="7" height="7" rx="1" />
+          </svg>
+          <span className="tool-tooltip">
+            Templates
           </span>
         </button>
 

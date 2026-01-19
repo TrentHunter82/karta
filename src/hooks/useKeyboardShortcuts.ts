@@ -2,6 +2,10 @@ import { useEffect } from 'react';
 import { useCanvasStore } from '../stores/canvasStore';
 import type { ToolType, TextObject } from '../types/canvas';
 
+interface KeyboardShortcutsOptions {
+  onOpenShortcuts?: () => void;
+}
+
 const TOOL_SHORTCUTS: Record<string, ToolType> = {
   v: 'select',
   h: 'hand',
@@ -22,7 +26,8 @@ const SHIFT_TOOL_SHORTCUTS: Record<string, ToolType> = {
  * Hook that sets up global keyboard shortcuts for tool switching, zoom control, and undo/redo.
  * Shortcuts are disabled when typing in input fields.
  */
-export function useKeyboardShortcuts() {
+export function useKeyboardShortcuts(options: KeyboardShortcutsOptions = {}) {
+  const { onOpenShortcuts } = options;
   const setActiveTool = useCanvasStore((state) => state.setActiveTool);
   const setViewport = useCanvasStore((state) => state.setViewport);
   const setSelection = useCanvasStore((state) => state.setSelection);
@@ -316,6 +321,13 @@ export function useKeyboardShortcuts() {
         return;
       }
 
+      // ? key opens keyboard shortcuts modal
+      if (event.key === '?' || (event.shiftKey && event.key === '/')) {
+        event.preventDefault();
+        onOpenShortcuts?.();
+        return;
+      }
+
       // M key toggles minimap
       if (event.key === 'm' || event.key === 'M') {
         event.preventDefault();
@@ -348,5 +360,5 @@ export function useKeyboardShortcuts() {
     return () => {
       window.removeEventListener('keydown', handleKeyDown);
     };
-  }, [setActiveTool, setViewport, setSelection, undo, redo, deleteSelectedObjects, copySelection, paste, duplicate, alignObjects, distributeObjects, zoomToFit, zoomToSelection, setZoomPreset, toggleMinimap, groupSelection, ungroupSelection, updateObjects, pushHistory]);
+  }, [setActiveTool, setViewport, setSelection, undo, redo, deleteSelectedObjects, copySelection, paste, duplicate, alignObjects, distributeObjects, zoomToFit, zoomToSelection, setZoomPreset, toggleMinimap, groupSelection, ungroupSelection, updateObjects, pushHistory, onOpenShortcuts]);
 }
