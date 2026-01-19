@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import * as Y from 'yjs';
-import type { CanvasObject, Viewport, ToolType } from '../types/canvas';
+import type { CanvasObject, Viewport, ToolType, GroupObject } from '../types/canvas';
 import { getYdoc } from './collaborationStore';
 import { useToastStore } from './toastStore';
 import { QuadTree, type Bounds } from '../utils/quadtree';
@@ -9,19 +9,33 @@ import { useClipboardStore } from './clipboardStore';
 import { useViewportStore } from './viewportStore';
 import { useSelectionStore, calculateAlignmentUpdates, calculateDistributionUpdates, type AlignmentType, type DistributionDirection } from './selectionStore';
 import { useGroupStore, getAbsolutePosition, calculateGroupData, calculateUngroupData } from './groupStore';
+import { objectToYjs, yjsToObject, createYjsUpdateQueue } from '../utils/yjsUtils';
+import { calculateBoundingBox, sanitizeCoordinates } from '../utils/geometryUtils';
 
-// Grid settings interface
+/**
+ * Configuration for the canvas grid overlay and snapping behavior.
+ */
 export interface GridSettings {
+  /** Whether the grid is visible on the canvas */
   visible: boolean;
-  size: number; // pixels
+  /** Grid cell size in pixels */
+  size: number;
+  /** Whether objects snap to grid lines when moved */
   snapEnabled: boolean;
+  /** Whether objects snap to edges of other objects */
   snapToObjects: boolean;
 }
 
-// Snap guide for visual feedback
+/**
+ * Visual guide line shown during snap operations.
+ * Helps users see alignment with grid or other objects.
+ */
 export interface SnapGuide {
+  /** Direction of the guide line */
   type: 'horizontal' | 'vertical';
-  position: number; // canvas coordinate
+  /** Position in canvas coordinates */
+  position: number;
+  /** ID of the object this guide aligns with (if snap-to-object) */
   sourceId?: string;
 }
 
@@ -120,162 +134,28 @@ interface CanvasState {
 // Get Yjs shared types for objects
 const getYObjects = () => getYdoc().getMap<Y.Map<unknown>>('objects');
 
-// Debounced Yjs sync configuration
-const SYNC_DEBOUNCE_MS = 50;
-let syncTimeout: ReturnType<typeof setTimeout> | null = null;
-let pendingUpdates: Map<string, Record<string, unknown>> = new Map();
+// Create debounced Yjs update queue
+const yjsUpdateQueue = createYjsUpdateQueue(getYdoc, getYObjects);
+const queueYjsUpdate = yjsUpdateQueue.queueUpdate;
 
-const queueYjsUpdate = (id: string, changes: Record<string, unknown>) => {
-  const existing = pendingUpdates.get(id) || {};
-  pendingUpdates.set(id, { ...existing, ...changes });
-
-  if (syncTimeout) {
-    clearTimeout(syncTimeout);
-  }
-
-  syncTimeout = setTimeout(() => {
-    flushYjsUpdates();
-  }, SYNC_DEBOUNCE_MS);
-};
-
-const flushYjsUpdates = () => {
-  if (pendingUpdates.size === 0) return;
-
-  const updates = new Map(pendingUpdates);
-  pendingUpdates.clear();
-  syncTimeout = null;
-
-  getYdoc().transact(() => {
-    updates.forEach((changes, id) => {
-      const yMap = getYObjects().get(id);
-      if (yMap) {
-        Object.entries(changes).forEach(([key, value]) => {
-          yMap.set(key, value);
-        });
-      }
-    });
-  });
-
-  console.log(`[CanvasStore] Flushed ${updates.size} debounced Yjs updates`);
-};
-
-const objectToYjs = (obj: CanvasObject): Record<string, unknown> => {
-  const plainObj: Record<string, unknown> = {};
-  for (const [key, value] of Object.entries(obj)) {
-    if (key === 'points' && Array.isArray(value)) {
-      plainObj[key] = value.map((p: { x: number; y: number }) => ({ x: p.x, y: p.y }));
-    } else {
-      plainObj[key] = value;
-    }
-  }
-  return plainObj;
-};
-
-const isValidBaseObject = (obj: Record<string, unknown>): boolean => {
-  return (
-    typeof obj.id === 'string' &&
-    typeof obj.type === 'string' &&
-    typeof obj.x === 'number' &&
-    typeof obj.y === 'number' &&
-    typeof obj.width === 'number' &&
-    typeof obj.height === 'number' &&
-    typeof obj.rotation === 'number' &&
-    typeof obj.opacity === 'number' &&
-    typeof obj.zIndex === 'number'
-  );
-};
-
-const isValidTypeSpecificProps = (obj: Record<string, unknown>): boolean => {
-  switch (obj.type) {
-    case 'rectangle':
-    case 'ellipse':
-      return true;
-    case 'text':
-      return (
-        typeof obj.text === 'string' &&
-        typeof obj.fontSize === 'number' &&
-        typeof obj.fontFamily === 'string' &&
-        (obj.textAlign === 'left' || obj.textAlign === 'center' || obj.textAlign === 'right')
-      );
-    case 'frame':
-      return typeof obj.name === 'string';
-    case 'path':
-      return (
-        Array.isArray(obj.points) &&
-        obj.points.every((p: unknown) => {
-          const point = p as Record<string, unknown>;
-          return typeof point?.x === 'number' && typeof point?.y === 'number';
-        })
-      );
-    case 'image':
-    case 'video':
-      return typeof obj.src === 'string';
-    case 'group':
-      return Array.isArray(obj.children);
-    case 'line':
-    case 'arrow':
-      return (
-        typeof obj.x1 === 'number' &&
-        typeof obj.y1 === 'number' &&
-        typeof obj.x2 === 'number' &&
-        typeof obj.y2 === 'number'
-      );
-    case 'polygon':
-      return typeof obj.sides === 'number';
-    case 'star':
-      return typeof obj.points === 'number' && typeof obj.innerRadius === 'number';
-    default:
-      return false;
-  }
-};
-
-const yjsToObject = (yMap: Y.Map<unknown>): CanvasObject | null => {
-  const obj: Record<string, unknown> = {};
-  yMap.forEach((value, key) => {
-    if (key === 'points' && Array.isArray(value)) {
-      obj[key] = value.map((p: unknown) => {
-        const point = p as { x: number; y: number };
-        return { x: point.x, y: point.y };
-      });
-    } else {
-      obj[key] = value;
-    }
-  });
-
-  if (!isValidBaseObject(obj)) {
-    console.warn('[CanvasStore] Invalid object from Yjs: missing or invalid base properties', obj.id);
-    return null;
-  }
-
-  if (!isValidTypeSpecificProps(obj)) {
-    console.warn('[CanvasStore] Invalid object from Yjs: missing or invalid type-specific properties', obj.id, obj.type);
-    return null;
-  }
-
-  return obj as unknown as CanvasObject;
-};
-
-// Helper to calculate bounding box of objects
-const calculateBoundingBox = (objects: CanvasObject[]): { x: number; y: number; width: number; height: number } => {
-  if (objects.length === 0) {
-    return { x: 0, y: 0, width: 0, height: 0 };
-  }
-
-  let minX = Infinity;
-  let minY = Infinity;
-  let maxX = -Infinity;
-  let maxY = -Infinity;
-
-  objects.forEach(obj => {
-    minX = Math.min(minX, obj.x);
-    minY = Math.min(minY, obj.y);
-    maxX = Math.max(maxX, obj.x + obj.width);
-    maxY = Math.max(maxY, obj.y + obj.height);
-  });
-
-  return { x: minX, y: minY, width: maxX - minX, height: maxY - minY };
-};
-
+/**
+ * Main Zustand store for canvas state management.
+ *
+ * Manages all canvas objects, selection, viewport, and tool state.
+ * Handles bidirectional synchronization with Yjs for real-time collaboration.
+ *
+ * @example
+ * ```tsx
+ * // Access state
+ * const objects = useCanvasStore(state => state.objects);
+ * const activeTool = useCanvasStore(state => state.activeTool);
+ *
+ * // Call actions
+ * const { addObject, setActiveTool } = useCanvasStore.getState();
+ * addObject(newRectangle);
+ * setActiveTool('select');
+ * ```
+ */
 export const useCanvasStore = create<CanvasState>((set, get) => ({
   // Initial state
   objects: new Map(),
@@ -408,24 +288,27 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
   addObject: (object) => {
     if (get().isApplyingRemoteChanges) return;
 
+    // Sanitize coordinates to prevent extreme position issues
+    const sanitizedObject = sanitizeCoordinates(object);
+
     get().pushHistory();
 
     set((state) => {
       const newObjects = new Map(state.objects);
-      newObjects.set(object.id, object);
+      newObjects.set(sanitizedObject.id, sanitizedObject);
       return { objects: newObjects };
     });
 
     getYdoc().transact(() => {
       const yMap = new Y.Map<unknown>();
-      const plainObj = objectToYjs(object);
+      const plainObj = objectToYjs(sanitizedObject);
       for (const [key, value] of Object.entries(plainObj)) {
         yMap.set(key, value);
       }
-      getYObjects().set(object.id, yMap);
+      getYObjects().set(sanitizedObject.id, yMap);
     });
 
-    console.log(`[CanvasStore] Added object: ${object.id}`, { type: object.type });
+    console.log(`[CanvasStore] Added object: ${sanitizedObject.id}`, { type: sanitizedObject.type });
     get().rebuildSpatialIndex();
   },
 
@@ -1120,7 +1003,9 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
     if (editingGroupId) {
       const group = state.objects.get(editingGroupId);
       if (group?.type === 'group') {
-        useSelectionStore.getState().setSelection((group as any).children);
+        // Type narrow to GroupObject to access children property
+        const groupObj = group as GroupObject;
+        useSelectionStore.getState().setSelection(groupObj.children);
       }
     } else {
       const topLevelIds = Array.from(state.objects.values())

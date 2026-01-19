@@ -965,3 +965,30 @@
   - Sanitize numeric values with finite checks - NaN/Infinity can break canvas rendering
   - safeDeepClone wraps JSON.parse in try-catch for graceful handling of circular refs
 
+
+---
+
+## Iteration (Polish) - impl-2: Extreme position coordinate handling
+- What was implemented:
+  - Added coordinate validation/sanitization utilities to geometryUtils.ts:
+    - MAX_COORDINATE = 1,000,000 and MIN_COORDINATE = -1,000,000 constants
+    - MIN_DIMENSION = 0.01 and MAX_DIMENSION = 100,000 constants
+    - isFiniteNumber() - checks for valid finite numbers
+    - clampCoordinate() - clamps x/y values to safe bounds
+    - clampDimension() - clamps width/height to safe bounds
+    - hasValidCoordinates() - validates all geometric properties
+    - sanitizeCoordinates() - sanitizes x, y, width, height on an object
+  - Integrated sanitization in canvasStore.addObject()
+  - Integrated sanitization in yjsUtils.yjsToObject() for Yjs sync
+  - Fixed ESLint errors: removed unused import, changed let to const
+- Files changed:
+  - src/utils/geometryUtils.ts (added coordinate validation functions)
+  - src/utils/yjsUtils.ts (added coordinate sanitization to yjsToObject)
+  - src/stores/canvasStore.ts (added sanitization to addObject)
+  - PRD.md (marked task complete)
+- Learnings:
+  - Canvas 2D works best with coordinates < 1 million pixels
+  - Sanitize at boundaries: object creation and Yjs sync
+  - Use Number.isFinite() to check for NaN/Infinity
+  - Clamping is safer than rejecting - prevents data loss
+

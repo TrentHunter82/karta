@@ -27,7 +27,7 @@ Karta is a near-complete Figma-style design tool with React 18, TypeScript, Zust
 - [ ] Audit SelectTool.ts for edge cases: zero-size selections, rapid clicks, drag threshold
 - [ ] Ensure all canvas operations handle objects with rotation correctly
 - [x] Verify paste operations work when clipboard is empty or contains invalid data
-- [ ] Test and fix any issues with objects at extreme positions (very large x/y coordinates)
+- [x] Test and fix any issues with objects at extreme positions (very large x/y coordinates)
 - [ ] Ensure export works correctly with rotated objects and groups
 
 ### Performance Review (reviewer)

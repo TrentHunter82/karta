@@ -1,30 +1,42 @@
-// src/stores/clipboardStore.ts
+/**
+ * Clipboard store for copy/paste/duplicate operations.
+ *
+ * Stores deep-cloned copies of objects and handles validation
+ * to ensure clipboard contents are always valid.
+ */
 import { create } from 'zustand';
 import type { CanvasObject, ObjectType } from '../types/canvas';
 
 interface ClipboardState {
-  // State
+  /** Objects currently in clipboard */
   items: CanvasObject[];
-  pasteCount: number; // For offset on multiple pastes
+  /** Number of times pasted (for cascading offset) */
+  pasteCount: number;
 
-  // Actions
+  /** Copy objects to clipboard */
   copy: (objects: CanvasObject[]) => void;
+  /** Paste clipboard contents with offset */
   paste: (
     getNextZIndex: () => number,
     addObjects: (objects: CanvasObject[]) => void,
     setSelection: (ids: string[]) => void
   ) => void;
+  /** Duplicate objects in place (no offset) */
   duplicate: (
     objects: CanvasObject[],
     getNextZIndex: () => number,
     addObjects: (objects: CanvasObject[]) => void,
     setSelection: (ids: string[]) => void
   ) => void;
+  /** Clear clipboard contents */
   clear: () => void;
+  /** Check if clipboard has items */
   hasItems: () => boolean;
+  /** Get clipboard items */
   getItems: () => CanvasObject[];
 }
 
+/** Pixel offset applied between successive pastes */
 const PASTE_OFFSET = 10;
 
 // Valid object types for validation
