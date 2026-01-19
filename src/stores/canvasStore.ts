@@ -10,11 +10,30 @@ import { useViewportStore } from './viewportStore';
 import { useSelectionStore, calculateAlignmentUpdates, calculateDistributionUpdates, type AlignmentType, type DistributionDirection } from './selectionStore';
 import { useGroupStore, getAbsolutePosition, calculateGroupData, calculateUngroupData } from './groupStore';
 
+// Grid settings interface
+export interface GridSettings {
+  visible: boolean;
+  size: number; // pixels
+  snapEnabled: boolean;
+  snapToObjects: boolean;
+}
+
+// Snap guide for visual feedback
+export interface SnapGuide {
+  type: 'horizontal' | 'vertical';
+  position: number; // canvas coordinate
+  sourceId?: string;
+}
+
 interface CanvasState {
   // State
   objects: Map<string, CanvasObject>;
   activeTool: ToolType;
   cursorPosition: { x: number; y: number } | null;
+
+  // Grid and snap settings
+  gridSettings: GridSettings;
+  activeSnapGuides: SnapGuide[];
 
   // Yjs sync state
   isInitialized: boolean;
@@ -73,6 +92,24 @@ interface CanvasState {
   zoomToSelection: () => void;
   setZoomPreset: (zoom: number) => void;
   toggleMinimap: () => void;
+
+  // Z-order actions
+  bringToFront: () => void;
+  bringForward: () => void;
+  sendBackward: () => void;
+  sendToBack: () => void;
+
+  // Selection actions
+  selectAll: () => void;
+
+  // Grid and snap actions
+  setGridVisible: (visible: boolean) => void;
+  setGridSize: (size: number) => void;
+  setSnapEnabled: (enabled: boolean) => void;
+  setSnapToObjects: (enabled: boolean) => void;
+  setActiveSnapGuides: (guides: SnapGuide[]) => void;
+  snapToGrid: (value: number) => number;
+  snapPosition: (x: number, y: number, skipSnap?: boolean) => { x: number; y: number; guides: SnapGuide[] };
 
   // Spatial indexing actions
   rebuildSpatialIndex: () => void;
@@ -247,6 +284,15 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
   isSyncing: false,
   isApplyingRemoteChanges: false,
   spatialIndex: null,
+
+  // Grid and snap initial state
+  gridSettings: {
+    visible: false,
+    size: 20,
+    snapEnabled: false,
+    snapToObjects: true,
+  },
+  activeSnapGuides: [],
 
   // Backward compatible accessors
   get selectedIds() { return useSelectionStore.getState().selectedIds; },
@@ -930,6 +976,213 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
   setZoomPreset: (zoom) => useViewportStore.getState().setZoomPreset(zoom),
 
   toggleMinimap: () => useViewportStore.getState().toggleMinimap(),
+
+  // Z-order actions
+  bringToFront: () => {
+    const state = get();
+    const selectedIds = useSelectionStore.getState().selectedIds;
+    if (selectedIds.size === 0) return;
+
+    get().pushHistory();
+
+    let maxZ = -1;
+    for (const obj of state.objects.values()) {
+      if (obj.zIndex > maxZ) maxZ = obj.zIndex;
+    }
+
+    const updates: Array<{ id: string; changes: Partial<CanvasObject> }> = [];
+    selectedIds.forEach(id => {
+      maxZ++;
+      updates.push({ id, changes: { zIndex: maxZ } });
+    });
+
+    get().updateObjects(updates);
+  },
+
+  bringForward: () => {
+    const state = get();
+    const selectedIds = useSelectionStore.getState().selectedIds;
+    if (selectedIds.size === 0) return;
+
+    get().pushHistory();
+
+    const sortedObjects = Array.from(state.objects.values()).sort((a, b) => a.zIndex - b.zIndex);
+
+    let maxSelectedZ = -1;
+    selectedIds.forEach(id => {
+      const obj = state.objects.get(id);
+      if (obj && obj.zIndex > maxSelectedZ) maxSelectedZ = obj.zIndex;
+    });
+
+    const objAbove = sortedObjects.find(obj => obj.zIndex > maxSelectedZ && !selectedIds.has(obj.id));
+    if (!objAbove) return;
+
+    const updates: Array<{ id: string; changes: Partial<CanvasObject> }> = [];
+    selectedIds.forEach(id => {
+      const obj = state.objects.get(id);
+      if (obj) {
+        updates.push({ id, changes: { zIndex: obj.zIndex + 1 } });
+      }
+    });
+    updates.push({ id: objAbove.id, changes: { zIndex: objAbove.zIndex - selectedIds.size } });
+
+    get().updateObjects(updates);
+  },
+
+  sendBackward: () => {
+    const state = get();
+    const selectedIds = useSelectionStore.getState().selectedIds;
+    if (selectedIds.size === 0) return;
+
+    get().pushHistory();
+
+    const sortedObjects = Array.from(state.objects.values()).sort((a, b) => a.zIndex - b.zIndex);
+
+    let minSelectedZ = Infinity;
+    selectedIds.forEach(id => {
+      const obj = state.objects.get(id);
+      if (obj && obj.zIndex < minSelectedZ) minSelectedZ = obj.zIndex;
+    });
+
+    const objBelow = sortedObjects.reverse().find(obj => obj.zIndex < minSelectedZ && !selectedIds.has(obj.id));
+    if (!objBelow) return;
+
+    const updates: Array<{ id: string; changes: Partial<CanvasObject> }> = [];
+    selectedIds.forEach(id => {
+      const obj = state.objects.get(id);
+      if (obj) {
+        updates.push({ id, changes: { zIndex: obj.zIndex - 1 } });
+      }
+    });
+    updates.push({ id: objBelow.id, changes: { zIndex: objBelow.zIndex + selectedIds.size } });
+
+    get().updateObjects(updates);
+  },
+
+  sendToBack: () => {
+    const state = get();
+    const selectedIds = useSelectionStore.getState().selectedIds;
+    if (selectedIds.size === 0) return;
+
+    get().pushHistory();
+
+    let minZ = Infinity;
+    for (const obj of state.objects.values()) {
+      if (obj.zIndex < minZ) minZ = obj.zIndex;
+    }
+
+    const updates: Array<{ id: string; changes: Partial<CanvasObject> }> = [];
+    let newZ = minZ - selectedIds.size;
+    selectedIds.forEach(id => {
+      updates.push({ id, changes: { zIndex: newZ } });
+      newZ++;
+    });
+
+    get().updateObjects(updates);
+  },
+
+  // Selection actions
+  selectAll: () => {
+    const state = get();
+    const editingGroupId = useGroupStore.getState().editingGroupId;
+
+    if (editingGroupId) {
+      const group = state.objects.get(editingGroupId);
+      if (group?.type === 'group') {
+        useSelectionStore.getState().setSelection((group as any).children);
+      }
+    } else {
+      const topLevelIds = Array.from(state.objects.values())
+        .filter(obj => !obj.parentId)
+        .map(obj => obj.id);
+      useSelectionStore.getState().setSelection(topLevelIds);
+    }
+  },
+
+  // Grid and snap actions
+  setGridVisible: (visible) => set(state => ({
+    gridSettings: { ...state.gridSettings, visible }
+  })),
+
+  setGridSize: (size) => set(state => ({
+    gridSettings: { ...state.gridSettings, size: Math.max(5, Math.min(100, size)) }
+  })),
+
+  setSnapEnabled: (enabled) => set(state => ({
+    gridSettings: { ...state.gridSettings, snapEnabled: enabled }
+  })),
+
+  setSnapToObjects: (enabled) => set(state => ({
+    gridSettings: { ...state.gridSettings, snapToObjects: enabled }
+  })),
+
+  setActiveSnapGuides: (guides) => set({ activeSnapGuides: guides }),
+
+  snapToGrid: (value) => {
+    const { gridSettings } = get();
+    if (!gridSettings.snapEnabled) return value;
+    return Math.round(value / gridSettings.size) * gridSettings.size;
+  },
+
+  snapPosition: (x, y, skipSnap = false) => {
+    const state = get();
+    const { gridSettings } = state;
+    const guides: SnapGuide[] = [];
+
+    if (skipSnap || (!gridSettings.snapEnabled && !gridSettings.snapToObjects)) {
+      return { x, y, guides };
+    }
+
+    let snappedX = x;
+    let snappedY = y;
+
+    if (gridSettings.snapEnabled) {
+      snappedX = Math.round(x / gridSettings.size) * gridSettings.size;
+      snappedY = Math.round(y / gridSettings.size) * gridSettings.size;
+    }
+
+    if (gridSettings.snapToObjects) {
+      const selectedIds = useSelectionStore.getState().selectedIds;
+      const snapThreshold = 8;
+
+      const otherObjects = Array.from(state.objects.values())
+        .filter(obj => !selectedIds.has(obj.id) && obj.visible && !obj.parentId);
+
+      for (const obj of otherObjects) {
+        const objLeft = obj.x;
+        const objCenter = obj.x + obj.width / 2;
+        const objRight = obj.x + obj.width;
+
+        if (Math.abs(x - objLeft) < snapThreshold) {
+          snappedX = objLeft;
+          guides.push({ type: 'vertical', position: objLeft, sourceId: obj.id });
+        } else if (Math.abs(x - objCenter) < snapThreshold) {
+          snappedX = objCenter;
+          guides.push({ type: 'vertical', position: objCenter, sourceId: obj.id });
+        } else if (Math.abs(x - objRight) < snapThreshold) {
+          snappedX = objRight;
+          guides.push({ type: 'vertical', position: objRight, sourceId: obj.id });
+        }
+
+        const objTop = obj.y;
+        const objMiddle = obj.y + obj.height / 2;
+        const objBottom = obj.y + obj.height;
+
+        if (Math.abs(y - objTop) < snapThreshold) {
+          snappedY = objTop;
+          guides.push({ type: 'horizontal', position: objTop, sourceId: obj.id });
+        } else if (Math.abs(y - objMiddle) < snapThreshold) {
+          snappedY = objMiddle;
+          guides.push({ type: 'horizontal', position: objMiddle, sourceId: obj.id });
+        } else if (Math.abs(y - objBottom) < snapThreshold) {
+          snappedY = objBottom;
+          guides.push({ type: 'horizontal', position: objBottom, sourceId: obj.id });
+        }
+      }
+    }
+
+    return { x: snappedX, y: snappedY, guides };
+  },
 
   // Spatial indexing
   rebuildSpatialIndex: () => {

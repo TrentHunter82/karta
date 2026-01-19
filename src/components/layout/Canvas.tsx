@@ -62,6 +62,8 @@ export function Canvas() {
   const enterGroupEditMode = useCanvasStore((state) => state.enterGroupEditMode);
   const exitGroupEditMode = useCanvasStore((state) => state.exitGroupEditMode);
   const getAbsolutePosition = useCanvasStore((state) => state.getAbsolutePosition);
+  const gridSettings = useCanvasStore((state) => state.gridSettings);
+  const activeSnapGuides = useCanvasStore((state) => state.activeSnapGuides);
 
   // Local UI state
   const [isPanning, setIsPanning] = useState(false);
@@ -510,6 +512,42 @@ export function Canvas() {
     ctx.fillStyle = gradient;
     ctx.fillRect(0, 0, rect.width, rect.height);
 
+    // Draw grid if visible
+    if (gridSettings.visible) {
+      const { zoom } = viewport;
+
+      // Calculate grid bounds in screen space
+      const startCanvasX = -viewport.x;
+      const startCanvasY = -viewport.y;
+      const endCanvasX = rect.width / zoom - viewport.x;
+      const endCanvasY = rect.height / zoom - viewport.y;
+
+      // Snap to grid lines
+      const startX = Math.floor(startCanvasX / gridSettings.size) * gridSettings.size;
+      const startY = Math.floor(startCanvasY / gridSettings.size) * gridSettings.size;
+
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.08)';
+      ctx.lineWidth = 1;
+
+      // Draw vertical lines
+      for (let x = startX; x <= endCanvasX; x += gridSettings.size) {
+        const screenX = (x + viewport.x) * zoom;
+        ctx.beginPath();
+        ctx.moveTo(screenX, 0);
+        ctx.lineTo(screenX, rect.height);
+        ctx.stroke();
+      }
+
+      // Draw horizontal lines
+      for (let y = startY; y <= endCanvasY; y += gridSettings.size) {
+        const screenY = (y + viewport.y) * zoom;
+        ctx.beginPath();
+        ctx.moveTo(0, screenY);
+        ctx.lineTo(rect.width, screenY);
+        ctx.stroke();
+      }
+    }
+
     // Draw objects sorted by zIndex
     const sortedObjects = Array.from(objects.values())
       .filter((obj) => obj.visible !== false && !obj.parentId)
@@ -542,11 +580,37 @@ export function Canvas() {
       }
     });
 
+    // Draw snap guides
+    if (activeSnapGuides.length > 0) {
+      const { zoom } = viewport;
+      ctx.strokeStyle = '#ff6b6b';
+      ctx.lineWidth = 1;
+      ctx.setLineDash([4, 4]);
+
+      for (const guide of activeSnapGuides) {
+        const screenPos = guide.type === 'vertical'
+          ? (guide.position + viewport.x) * zoom
+          : (guide.position + viewport.y) * zoom;
+
+        ctx.beginPath();
+        if (guide.type === 'vertical') {
+          ctx.moveTo(screenPos, 0);
+          ctx.lineTo(screenPos, rect.height);
+        } else {
+          ctx.moveTo(0, screenPos);
+          ctx.lineTo(rect.width, screenPos);
+        }
+        ctx.stroke();
+      }
+
+      ctx.setLineDash([]);
+    }
+
     // Render tool overlay (marquee, guides, etc.)
     if (toolManagerRef.current) {
       toolManagerRef.current.renderOverlay(ctx);
     }
-  }, [viewport, objects, selectedIds, drawObject, drawSelectionBox, getAbsolutePosition, imageLoadTrigger]);
+  }, [viewport, objects, selectedIds, drawObject, drawSelectionBox, getAbsolutePosition, imageLoadTrigger, gridSettings, activeSnapGuides]);
 
   // Handle window resize
   useEffect(() => {

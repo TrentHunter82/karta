@@ -8,6 +8,15 @@ import { FrameSection } from './sections/FrameSection';
 import { LineSection } from './sections/LineSection';
 import { LayoutSection } from './sections/LayoutSection';
 import { LayerSection } from './sections/LayerSection';
+import {
+  exportToSVG,
+  downloadSVG,
+  exportToJSON,
+  downloadJSON,
+  calculateBoundingBox,
+  downloadBlob,
+  type ExportScale,
+} from '../../utils/exportUtils';
 import type { CanvasObject, TextObject, FrameObject, LineObject, ArrowObject, ImageObject, VideoObject } from '../../types/canvas';
 import './properties.css';
 
@@ -196,108 +205,140 @@ async function drawObjectForExport(
   ctx.restore();
 }
 
+type ExportFormat = 'png' | 'svg' | 'json';
+
 interface ExportSectionProps {
   objects: Map<string, CanvasObject>;
   selectedIds: Set<string>;
 }
 
 function ExportSection({ objects, selectedIds }: ExportSectionProps) {
+  const [format, setFormat] = useState<ExportFormat>('png');
+  const [scale, setScale] = useState<ExportScale>(1);
   const [transparentBackground, setTransparentBackground] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
   const addToast = useToastStore((state) => state.addToast);
+  const viewport = useCanvasStore((state) => state.viewport);
+
+  const getObjectsToExport = useCallback((): CanvasObject[] => {
+    const objectsToExport: CanvasObject[] = [];
+    if (selectedIds.size > 0) {
+      selectedIds.forEach((id) => {
+        const obj = objects.get(id);
+        if (obj) objectsToExport.push(obj);
+      });
+    } else {
+      objects.forEach((obj) => objectsToExport.push(obj));
+    }
+    return objectsToExport;
+  }, [objects, selectedIds]);
+
+  const handleExportPNG = useCallback(async (objectsToExport: CanvasObject[]) => {
+    const bounds = calculateBoundingBox(objectsToExport);
+    const padding = 20;
+    const exportWidth = (bounds.width + padding * 2) * scale;
+    const exportHeight = (bounds.height + padding * 2) * scale;
+
+    const canvas = document.createElement('canvas');
+    canvas.width = exportWidth;
+    canvas.height = exportHeight;
+    const ctx = canvas.getContext('2d');
+
+    if (!ctx) throw new Error('Failed to create export canvas');
+
+    ctx.scale(scale, scale);
+
+    if (!transparentBackground) {
+      ctx.fillStyle = '#1a1a1a';
+      ctx.fillRect(0, 0, bounds.width + padding * 2, bounds.height + padding * 2);
+    }
+
+    const sortedObjects = [...objectsToExport].sort((a, b) => a.zIndex - b.zIndex);
+    for (const obj of sortedObjects) {
+      await drawObjectForExport(ctx, obj, bounds.x - padding, bounds.y - padding);
+    }
+
+    return new Promise<void>((resolve) => {
+      canvas.toBlob((blob) => {
+        if (blob) downloadBlob(blob, `karta-export@${scale}x-${Date.now()}.png`);
+        resolve();
+      }, 'image/png');
+    });
+  }, [scale, transparentBackground]);
+
+  const handleExportSVG = useCallback((objectsToExport: CanvasObject[]) => {
+    const svg = exportToSVG(objectsToExport, {
+      includeBackground: !transparentBackground,
+      backgroundColor: '#1a1a1a',
+    });
+    downloadSVG(svg, `karta-export-${Date.now()}.svg`);
+  }, [transparentBackground]);
+
+  const handleExportJSON = useCallback((objectsToExport: CanvasObject[]) => {
+    const project = exportToJSON(objectsToExport, viewport, `karta-project-${Date.now()}`);
+    downloadJSON(project);
+  }, [viewport]);
 
   const handleExport = useCallback(async () => {
     if (isExporting) return;
     setIsExporting(true);
 
     try {
-      const objectsToExport: CanvasObject[] = [];
-
-      if (selectedIds.size > 0) {
-        selectedIds.forEach((id) => {
-          const obj = objects.get(id);
-          if (obj) objectsToExport.push(obj);
-        });
-      } else {
-        objects.forEach((obj) => objectsToExport.push(obj));
-      }
-
+      const objectsToExport = getObjectsToExport();
       if (objectsToExport.length === 0) {
+        addToast({ message: 'Nothing to export', type: 'warning' });
         setIsExporting(false);
         return;
       }
 
-      const padding = 20;
-      let minX = Infinity;
-      let minY = Infinity;
-      let maxX = -Infinity;
-      let maxY = -Infinity;
-
-      objectsToExport.forEach((obj) => {
-        minX = Math.min(minX, obj.x);
-        minY = Math.min(minY, obj.y);
-        maxX = Math.max(maxX, obj.x + obj.width);
-        maxY = Math.max(maxY, obj.y + obj.height);
-      });
-
-      const exportWidth = maxX - minX + padding * 2;
-      const exportHeight = maxY - minY + padding * 2;
-
-      const canvas = document.createElement('canvas');
-      canvas.width = exportWidth;
-      canvas.height = exportHeight;
-      const ctx = canvas.getContext('2d');
-
-      if (!ctx) {
-        addToast({ message: 'Failed to create export canvas', type: 'error' });
-        setIsExporting(false);
-        return;
+      switch (format) {
+        case 'png': await handleExportPNG(objectsToExport); break;
+        case 'svg': handleExportSVG(objectsToExport); break;
+        case 'json': handleExportJSON(objectsToExport); break;
       }
 
-      if (!transparentBackground) {
-        ctx.fillStyle = '#1a1a1a';
-        ctx.fillRect(0, 0, exportWidth, exportHeight);
-      }
-
-      const sortedObjects = [...objectsToExport].sort((a, b) => a.zIndex - b.zIndex);
-      for (const obj of sortedObjects) {
-        await drawObjectForExport(ctx, obj, minX - padding, minY - padding);
-      }
-
-      const dataUrl = canvas.toDataURL('image/png');
-      const link = document.createElement('a');
-      link.download = `karta-export-${Date.now()}.png`;
-      link.href = dataUrl;
-      link.click();
-
-      addToast({ message: 'Export successful!', type: 'success' });
+      addToast({ message: `${format.toUpperCase()} export successful!`, type: 'success' });
     } catch (error) {
       console.error('Export failed:', error);
       addToast({ message: 'Export failed', type: 'error' });
     } finally {
       setIsExporting(false);
     }
-  }, [objects, selectedIds, transparentBackground, isExporting, addToast]);
+  }, [format, isExporting, getObjectsToExport, handleExportPNG, handleExportSVG, handleExportJSON, addToast]);
 
   return (
     <div className="export-section">
-      <div className="export-option">
-        <label className="export-checkbox-label">
-          <input
-            type="checkbox"
-            className="export-checkbox"
-            checked={transparentBackground}
-            onChange={(e) => setTransparentBackground(e.target.checked)}
-          />
-          <span className="export-option-text">Transparent background</span>
-        </label>
+      <div className="export-format-row">
+        <span className="export-label">Format</span>
+        <div className="export-format-buttons">
+          <button className={`export-format-btn ${format === 'png' ? 'active' : ''}`} onClick={() => setFormat('png')}>PNG</button>
+          <button className={`export-format-btn ${format === 'svg' ? 'active' : ''}`} onClick={() => setFormat('svg')}>SVG</button>
+          <button className={`export-format-btn ${format === 'json' ? 'active' : ''}`} onClick={() => setFormat('json')}>JSON</button>
+        </div>
       </div>
-      <button
-        className={`export-button ${isExporting ? 'exporting' : ''}`}
-        onClick={handleExport}
-        disabled={isExporting || objects.size === 0}
-      >
-        {isExporting ? 'Exporting...' : selectedIds.size > 0 ? 'Export Selection' : 'Export All'}
+
+      {format === 'png' && (
+        <div className="export-scale-row">
+          <span className="export-label">Scale</span>
+          <div className="export-scale-buttons">
+            <button className={`export-scale-btn ${scale === 1 ? 'active' : ''}`} onClick={() => setScale(1)}>1x</button>
+            <button className={`export-scale-btn ${scale === 2 ? 'active' : ''}`} onClick={() => setScale(2)}>2x</button>
+            <button className={`export-scale-btn ${scale === 3 ? 'active' : ''}`} onClick={() => setScale(3)}>3x</button>
+          </div>
+        </div>
+      )}
+
+      {format !== 'json' && (
+        <div className="export-option">
+          <label className="export-checkbox-label">
+            <input type="checkbox" className="export-checkbox" checked={transparentBackground} onChange={(e) => setTransparentBackground(e.target.checked)} />
+            <span className="export-option-text">Transparent background</span>
+          </label>
+        </div>
+      )}
+
+      <button className={`export-button ${isExporting ? 'exporting' : ''}`} onClick={handleExport} disabled={isExporting || objects.size === 0}>
+        {isExporting ? 'Exporting...' : selectedIds.size > 0 ? `Export Selection (${format.toUpperCase()})` : `Export All (${format.toUpperCase()})`}
       </button>
     </div>
   );

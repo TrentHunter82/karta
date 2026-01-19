@@ -17,6 +17,10 @@ export function StatusBar() {
   const zoomToFit = useCanvasStore((state) => state.zoomToFit);
   const zoomToSelection = useCanvasStore((state) => state.zoomToSelection);
   const setZoomPreset = useCanvasStore((state) => state.setZoomPreset);
+  const gridSettings = useCanvasStore((state) => state.gridSettings);
+  const setGridVisible = useCanvasStore((state) => state.setGridVisible);
+  const setSnapEnabled = useCanvasStore((state) => state.setSnapEnabled);
+  const setSnapToObjects = useCanvasStore((state) => state.setSnapToObjects);
 
   const [showZoomMenu, setShowZoomMenu] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -86,6 +90,48 @@ export function StatusBar() {
       </div>
       <div className="statusbar-center">
         <span className="statusbar-item">SEL {selectionText}</span>
+        <div className="statusbar-divider" />
+        <div className="grid-controls">
+          <button
+            className={`grid-toggle ${gridSettings.visible ? 'active' : ''}`}
+            onClick={() => setGridVisible(!gridSettings.visible)}
+            title="Toggle Grid (G)"
+          >
+            <svg width="14" height="14" viewBox="0 0 14 14" fill="currentColor">
+              <rect x="1" y="1" width="4" height="4" rx="0.5" opacity="0.6" />
+              <rect x="5" y="1" width="4" height="4" rx="0.5" opacity="0.6" />
+              <rect x="9" y="1" width="4" height="4" rx="0.5" opacity="0.6" />
+              <rect x="1" y="5" width="4" height="4" rx="0.5" opacity="0.6" />
+              <rect x="5" y="5" width="4" height="4" rx="0.5" opacity="0.6" />
+              <rect x="9" y="5" width="4" height="4" rx="0.5" opacity="0.6" />
+              <rect x="1" y="9" width="4" height="4" rx="0.5" opacity="0.6" />
+              <rect x="5" y="9" width="4" height="4" rx="0.5" opacity="0.6" />
+              <rect x="9" y="9" width="4" height="4" rx="0.5" opacity="0.6" />
+            </svg>
+          </button>
+          <button
+            className={`snap-toggle ${gridSettings.snapEnabled ? 'active' : ''}`}
+            onClick={() => setSnapEnabled(!gridSettings.snapEnabled)}
+            title="Snap to Grid (Shift+G)"
+          >
+            <svg width="14" height="14" viewBox="0 0 14 14" fill="currentColor">
+              <path d="M1 3h2v2H1V3zm10 0h2v2h-2V3zM1 9h2v2H1V9zm10 0h2v2h-2V9z" />
+              <path d="M6 1h2v12H6V1z" opacity="0.6" />
+              <path d="M1 6h12v2H1V6z" opacity="0.6" />
+            </svg>
+          </button>
+          <button
+            className={`snap-toggle ${gridSettings.snapToObjects ? 'active' : ''}`}
+            onClick={() => setSnapToObjects(!gridSettings.snapToObjects)}
+            title="Snap to Objects"
+          >
+            <svg width="14" height="14" viewBox="0 0 14 14" fill="currentColor">
+              <rect x="1" y="1" width="5" height="5" rx="0.5" />
+              <rect x="8" y="8" width="5" height="5" rx="0.5" />
+              <path d="M4 5v4h4" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" opacity="0.6" />
+            </svg>
+          </button>
+        </div>
       </div>
       <div className="statusbar-right">
         <div className="zoom-controls" ref={menuRef}>

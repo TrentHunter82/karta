@@ -161,3 +161,52 @@
   background: var(--color-border-subtle);
   margin: 6px 0;
 }
+
+/* Status bar divider */
+.statusbar-divider {
+  width: 1px;
+  height: 16px;
+  background: var(--color-border-subtle);
+}
+
+/* Grid Controls */
+.grid-controls {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.grid-toggle,
+.snap-toggle {
+  width: 26px;
+  height: 26px;
+  background: var(--color-bg-tertiary);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  color: var(--color-text-muted);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s ease;
+}
+
+.grid-toggle:hover,
+.snap-toggle:hover {
+  background: var(--color-bg-hover);
+  color: var(--color-text-secondary);
+  border-color: var(--color-border);
+}
+
+.grid-toggle.active,
+.snap-toggle.active {
+  background: var(--color-accent-muted);
+  border-color: var(--color-accent);
+  color: var(--color-accent);
+}
+
+.grid-toggle.active:hover,
+.snap-toggle.active:hover {
+  background: var(--color-accent-muted);
+  box-shadow: 0 0 8px var(--color-accent-muted);
+}
