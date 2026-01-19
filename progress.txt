@@ -890,3 +890,78 @@
   - Position toasts above status bar (bottom: 60px) to not overlap
   - slideIn animation creates smooth entrance effect
 ---
+
+## PRD-Polish Iteration 1 - Performance Review (reviewer)
+- What was reviewed:
+  - Canvas render loop profiling
+  - Mouse event handler analysis
+  - Event listener cleanup audit
+  - QuadTree spatial index usage
+  - Large object count performance
+
+### Canvas Render Loop Findings:
+- The draw() function is called via useEffect whenever state changes (objects, selectedIds, viewport, etc.)
+- Array.from(objects.values()).filter().sort() runs on every draw call (Canvas.tsx:567-569) - should be memoized
+- Radial gradient for background is recreated on every draw (minor)
+- Grid drawing creates separate path operations for each line (could batch)
+
+### Mouse Event Handler Findings:
+- handleMouseMove updates cursor position on every move via store (setCursorPosition) - triggers re-renders
+- No throttling on position updates during drag operations
+- Tool event processing could benefit from throttling during intensive operations
+
+### Event Listener Cleanup - All Good:
+- Window resize listener: properly cleaned up ✓
+- Space key listeners (keydown/keyup): properly cleaned up ✓
+- Panning window listeners: properly cleaned up ✓
+- No memory leaks detected in event listener patterns
+
+### QuadTree Usage - CRITICAL ISSUES:
+- QuadTree exists and is properly implemented in src/utils/quadtree.ts
+- Spatial index is rebuilt on add/delete operations (canvasStore.ts)
+- **CRITICAL**: hitTest() in Canvas.tsx (line 719-772) does NOT use the spatial index - iterates through all objects O(n)
+- **CRITICAL**: getObjectsInRect() (line 907-914) in tool context doesn't use spatial index either
+- querySpatialIndex() exists in canvasStore but is not being used by Canvas component
+
+### Large Object Count Performance Issues:
+1. hitTest() performs O(n) iteration through all objects instead of O(log n) quadtree lookup
+2. Object sorting (by zIndex) happens on every draw frame instead of being cached
+3. Selection rendering iterates through all selectedIds on each draw
+
+### Recommendations (for impl agents to pick up):
+1. Use querySpatialIndex() for hit testing instead of iterating all objects
+2. Memoize sorted objects array using useMemo with objects dependency
+3. Consider throttling cursor position updates (e.g., 60fps max)
+4. Batch grid line drawing into fewer path operations
+5. Cache the viewport-visible objects using quadtree query for culling
+
+- Tasks marked complete in PRD.md: None (review only, findings documented)
+- Learnings for future iterations:
+  - QuadTree is implemented but underutilized - integration opportunities exist
+  - React useEffect dependency arrays trigger redraws - be careful what state is included
+  - Event listener patterns in the codebase follow proper cleanup conventions
+  - Performance bottlenecks are primarily in rendering/hit testing, not memory leaks
+---
+
+---
+
+## Iteration (Polish) - impl-2: Clipboard edge case handling
+- What was implemented:
+  - Added validation for clipboard operations (copy, paste, duplicate)
+  - Added isValidCanvasObject() function to validate required BaseObject properties
+  - Added sanitizeNumber() function to handle NaN/Infinity values
+  - Added sanitizeObjectNumbers() to clamp values (opacity 0-1) and replace invalid numbers
+  - Added safeDeepClone() with try-catch for JSON.parse failures
+  - Copy now validates and sanitizes objects before storing
+  - Paste validates clipboard items before creating new objects, skips invalid ones
+  - Duplicate validates source objects before creating copies
+  - Early return with console warning when no valid objects to paste/duplicate
+- Files changed:
+  - src/stores/clipboardStore.ts (added validation functions, updated copy/paste/duplicate)
+  - PRD.md (marked task complete)
+- Learnings:
+  - Validate objects at clipboard boundaries to prevent corrupted data propagation
+  - Use type guards (isValidCanvasObject) for runtime validation of object structure
+  - Sanitize numeric values with finite checks - NaN/Infinity can break canvas rendering
+  - safeDeepClone wraps JSON.parse in try-catch for graceful handling of circular refs
+
