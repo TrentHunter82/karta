@@ -5,12 +5,16 @@
   border-left: 1px solid var(--color-border-subtle);
   display: flex;
   flex-direction: column;
-  position: relative;
-  transition: width 0.2s ease;
+  position: fixed;
+  right: 0;
+  top: var(--topbar-height);
+  bottom: var(--statusbar-height);
+  z-index: 100;
+  transition: width 0.2s ease, transform 0.2s ease;
 }
 
 .properties-panel.collapsed {
-  width: 24px;
+  transform: translateX(calc(100% - 24px));
 }
 
 .properties-panel-toggle {
