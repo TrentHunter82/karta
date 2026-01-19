@@ -1044,3 +1044,111 @@
   - MIN_OBJECT_SIZE constant used consistently (10px)
   - State properly reset after operation completion/cancellation
   - Pattern already consistent - no changes needed
+
+---
+
+## PRD-Polish Iteration 1 - reviewer: Keyboard Shortcuts Audit
+- What was reviewed:
+  - Complete audit of useKeyboardShortcuts.ts against ShortcutsModal.tsx
+  - Checked for conflicts between shortcuts
+  - Verified all documented shortcuts are implemented
+
+### Findings:
+
+#### CRITICAL BUG: Missing Keyboard Shortcuts
+The ShortcutsModal.tsx advertises these shortcuts that are NOT implemented in useKeyboardShortcuts.ts:
+- `]` → Bring forward (NOT IMPLEMENTED)
+- `[` → Send backward (NOT IMPLEMENTED)
+- `Ctrl+]` → Bring to front (NOT IMPLEMENTED)
+- `Ctrl+[` → Send to back (NOT IMPLEMENTED)
+
+The store actions (bringToFront, bringForward, sendBackward, sendToBack) exist in canvasStore.ts but are not wired to keyboard shortcuts.
+
+#### ESLint Errors Found (for impl agents to fix):
+1. **ContextMenu.tsx:32** - `_targetObjectId` is defined but never used
+2. **ContextMenu.tsx:109** - setState in useEffect (anti-pattern)
+3. **NumberInput.tsx:35** - setState in useEffect (anti-pattern)
+4. **ColorInput.tsx:122** - `updateColorFromHsv` is assigned but never used
+5. **ArrowTool.ts:127** - `_e` is defined but never used
+6. **Canvas.tsx:646** - unnecessary dependency 'imageLoadTrigger'
+
+#### No Conflicts Found:
+- All tool shortcuts (V, H, R, O, L, T, F, P) are unique
+- Ctrl+B (Bold) vs Ctrl+Shift+B (Align Bottom) don't conflict
+- Alignment and distribution shortcuts are properly namespaced
+
+### Recommended Fix for Missing Shortcuts:
+Add to useKeyboardShortcuts.ts:
+```typescript
+// ] key (bring forward)
+if (event.key === ']') {
+  if (event.ctrlKey) {
+    bringToFront();
+  } else {
+    bringForward();
+  }
+  return;
+}
+
+// [ key (send backward)
+if (event.key === '[') {
+  if (event.ctrlKey) {
+    sendToBack();
+  } else {
+    sendBackward();
+  }
+  return;
+}
+```
+
+- Tasks marked complete in PRD.md: None (audit only)
+- Learnings:
+  - Always verify documented shortcuts match implementation
+  - ShortcutsModal should be generated from actual shortcut config, not hardcoded
+
+
+---
+
+## PRD-Polish Iteration 2 - impl-1: Performance Optimization (from reviewer findings)
+- What was implemented:
+  - Optimized hitTest() in Canvas.tsx to use QuadTree spatial index
+    - Changed from O(n) iteration through all objects to O(log n) spatial query
+    - Uses querySpatialIndex() with a 200px query radius around click point
+    - Maintains rotation-aware precise hit testing on candidate objects only
+  - Memoized sorted objects array for rendering in Canvas.tsx
+    - Created sortedTopLevelObjects using useMemo with objects dependency
+    - Removed inline Array.from().filter().sort() from draw() function
+    - Prevents re-sorting on every draw frame
+- Files changed:
+  - src/components/layout/Canvas.tsx (added useMemo import, querySpatialIndex subscription, memoized sortedTopLevelObjects, optimized hitTest)
+- Learnings for future iterations:
+  - Use spatial index for coarse candidate selection, then precise testing on candidates
+  - Query radius of 100px accounts for rotated objects whose AABB may be offset
+  - useMemo should be used for expensive computed values that depend on store state
+  - Dependency arrays must include memoized values when used in useCallback
+---
+
+## PRD-Polish Iteration 2 - impl-2: SelectTool edge case handling
+- What was implemented:
+  - Added DRAG_THRESHOLD constant (3px) - prevents micro-drags during click attempts
+  - Added MIN_MARQUEE_SIZE constant (2px) - prevents zero-size marquee selections
+  - Added 'pending_drag' mode to SelectionMode type for drag threshold handling
+  - Updated startDragging() to start in 'pending_drag' mode instead of immediate 'dragging'
+  - Added handlePendingDragMove() method that checks if movement exceeds threshold
+  - Updated finalizeMarquee() to check marquee size before selecting
+  - Fixed division by zero in aspect ratio calculation (startState.height > 0 guard)
+  - onMouseUp handles pending_drag mode gracefully (just a click if threshold not exceeded)
+- Files changed:
+  - src/tools/types.ts (added 'pending_drag' to SelectionMode)
+  - src/tools/SelectTool.ts (added constants, pending drag handling, marquee size check)
+  - PRD.md (marked task complete)
+- Edge cases addressed:
+  - Zero-size marquee: Now requires MIN_MARQUEE_SIZE (2px) minimum before selecting
+  - Rapid clicks: Double-click detection already has threshold; click vs drag now differentiated
+  - Drag threshold: DRAG_THRESHOLD (3px) must be exceeded before objects actually move
+  - Division by zero: Aspect ratio calc now guards against zero height
+- Learnings:
+  - Use state machine with intermediate states (pending_drag) for threshold-based behaviors
+  - Small pixel thresholds (3px) prevent accidental micro-movements without feeling laggy
+  - Guard against edge case math (division by zero) at calculation sites
+  - Marquee selection should have minimum size to avoid accidental empty-space clicks

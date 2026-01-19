@@ -1,4 +1,4 @@
-import { useRef, useEffect, useState, useCallback } from 'react';
+import { useRef, useEffect, useState, useCallback, useMemo } from 'react';
 import { useCanvasStore } from '../../stores/canvasStore';
 import { useSelectionStore } from '../../stores/selectionStore';
 import { useViewportStore } from '../../stores/viewportStore';
@@ -86,6 +86,7 @@ export function Canvas() {
   const getAbsolutePosition = useCanvasStore((state) => state.getAbsolutePosition);
   const gridSettings = useCanvasStore((state) => state.gridSettings);
   const activeSnapGuides = useCanvasStore((state) => state.activeSnapGuides);
+  const querySpatialIndex = useCanvasStore((state) => state.querySpatialIndex);
 
   // Local UI state
   const [isPanning, setIsPanning] = useState(false);
@@ -523,6 +524,13 @@ export function Canvas() {
     [viewport, canvasToScreen]
   );
 
+  // Memoize sorted objects for rendering - avoids sorting on every draw frame
+  const sortedTopLevelObjects = useMemo(() => {
+    return Array.from(objects.values())
+      .filter((obj) => obj.visible !== false && !obj.parentId)
+      .sort((a, b) => a.zIndex - b.zIndex);
+  }, [objects]);
+
   // Draw the canvas content
   const draw = useCallback(() => {
     const canvas = canvasRef.current;
@@ -581,12 +589,8 @@ export function Canvas() {
       }
     }
 
-    // Draw objects sorted by zIndex
-    const sortedObjects = Array.from(objects.values())
-      .filter((obj) => obj.visible !== false && !obj.parentId)
-      .sort((a, b) => a.zIndex - b.zIndex);
-
-    sortedObjects.forEach((obj) => {
+    // Draw objects sorted by zIndex (uses memoized sortedTopLevelObjects)
+    sortedTopLevelObjects.forEach((obj) => {
       drawObject(ctx, obj);
       if (obj.type === 'group') {
         const group = obj as GroupObject;
@@ -643,7 +647,7 @@ export function Canvas() {
     if (toolManagerRef.current) {
       toolManagerRef.current.renderOverlay(ctx);
     }
-  }, [viewport, objects, selectedIds, drawObject, drawSelectionBox, getAbsolutePosition, imageLoadTrigger, gridSettings, activeSnapGuides]);
+  }, [viewport, sortedTopLevelObjects, objects, selectedIds, drawObject, drawSelectionBox, getAbsolutePosition, imageLoadTrigger, gridSettings, activeSnapGuides]);
 
   // Handle window resize
   useEffect(() => {
@@ -734,14 +738,12 @@ export function Canvas() {
   );
 
   // Hit test to find object at screen position
+  // Uses spatial index for O(log n) candidate lookup, then precise rotation-aware testing
   const hitTest = useCallback(
     (screenX: number, screenY: number): CanvasObject | null => {
       const canvasPos = screenToCanvas(screenX, screenY);
 
-      const topLevelObjects = Array.from(objects.values())
-        .filter((obj) => obj.visible !== false && !obj.parentId)
-        .sort((a, b) => b.zIndex - a.zIndex);
-
+      // Handle editing group mode - check children first
       if (editingGroupId) {
         const editingGroup = objects.get(editingGroupId) as GroupObject | undefined;
         if (editingGroup) {
@@ -759,7 +761,22 @@ export function Canvas() {
         }
       }
 
-      for (const obj of topLevelObjects) {
+      // Use spatial index to get candidate objects near click point
+      // Query a small region around the click to account for rotated objects
+      const SPATIAL_QUERY_RADIUS = 100; // Pixels to search around click point
+      const candidates = querySpatialIndex({
+        x: canvasPos.x - SPATIAL_QUERY_RADIUS,
+        y: canvasPos.y - SPATIAL_QUERY_RADIUS,
+        width: SPATIAL_QUERY_RADIUS * 2,
+        height: SPATIAL_QUERY_RADIUS * 2,
+      });
+
+      // Filter to visible top-level objects and sort by zIndex (highest first for hit testing)
+      const topLevelCandidates = candidates
+        .filter((obj) => obj.visible !== false && !obj.parentId)
+        .sort((a, b) => b.zIndex - a.zIndex);
+
+      for (const obj of topLevelCandidates) {
         if (obj.type === 'group') {
           const group = obj as GroupObject;
           const groupPos = getAbsolutePosition(group);
@@ -788,7 +805,7 @@ export function Canvas() {
 
       return null;
     },
-    [objects, screenToCanvas, editingGroupId, getAbsolutePosition, isPointInObject]
+    [objects, screenToCanvas, editingGroupId, getAbsolutePosition, isPointInObject, querySpatialIndex]
   );
 
   // Hit test for resize handles
