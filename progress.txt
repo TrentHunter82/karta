@@ -1175,3 +1175,25 @@ if (event.key === '[') {
   - ShortcutsModal.tsx was advertising shortcuts that weren't implemented
   - Consider generating ShortcutsModal from actual shortcut config to keep in sync
   - Test failures in SelectTool.test.ts are pre-existing and unrelated to this change
+
+
+---
+
+## PRD-Polish Iteration 2 - impl-1: Error Boundary Coverage
+- What was implemented:
+  - Added ErrorBoundary wrapping to TopBar, Toolbar, and StatusBar components in App.tsx
+  - Now all major UI sections are wrapped with error boundaries
+- Files changed:
+  - src/App.tsx (added ErrorBoundary wrapping to TopBar, Toolbar, StatusBar)
+- Previous coverage:
+  - Canvas ✓
+  - TemplatePanel ✓
+  - PropertiesPanel ✓
+- Added coverage:
+  - TopBar ✓
+  - Toolbar ✓
+  - StatusBar ✓
+- Learnings:
+  - Error boundaries should wrap all major UI sections to prevent cascading failures
+  - ToastContainer and ShortcutsModal are intentionally not wrapped as they are lightweight
+---

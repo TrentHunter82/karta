@@ -47,9 +47,13 @@ function App() {
 
   return (
     <div className="app">
-      <TopBar />
+      <ErrorBoundary>
+        <TopBar />
+      </ErrorBoundary>
       <div className="app-main">
-        <Toolbar />
+        <ErrorBoundary>
+          <Toolbar />
+        </ErrorBoundary>
         <ErrorBoundary>
           <Canvas />
         </ErrorBoundary>
@@ -60,7 +64,9 @@ function App() {
           <PropertiesPanel />
         </ErrorBoundary>
       </div>
-      <StatusBar />
+      <ErrorBoundary>
+        <StatusBar />
+      </ErrorBoundary>
       <ToastContainer />
       <ShortcutsModal
         isOpen={showShortcutsModal}
