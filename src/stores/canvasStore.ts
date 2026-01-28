@@ -321,6 +321,7 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
     });
 
     queueYjsUpdate(id, updates);
+    get().rebuildSpatialIndex();
   },
 
   updateObjects: (updates) => {
@@ -340,6 +341,7 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
     for (const { id, changes } of updates) {
       queueYjsUpdate(id, changes);
     }
+    get().rebuildSpatialIndex();
   },
 
   deleteObject: (id) => {
@@ -1052,7 +1054,7 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
       const snapThreshold = 8;
 
       const otherObjects = Array.from(state.objects.values())
-        .filter(obj => !selectedIds.has(obj.id) && obj.visible && !obj.parentId);
+        .filter(obj => !selectedIds.has(obj.id) && obj.visible !== false && !obj.parentId);
 
       for (const obj of otherObjects) {
         const objLeft = obj.x;
