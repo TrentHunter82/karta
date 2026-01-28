@@ -25,32 +25,12 @@ const SHIFT_TOOL_SHORTCUTS: Record<string, ToolType> = {
 /**
  * Hook that sets up global keyboard shortcuts for tool switching, zoom control, and undo/redo.
  * Shortcuts are disabled when typing in input fields.
+ *
+ * Uses getState() inside the handler to avoid a large dependency array
+ * that would cause frequent event listener re-registration.
  */
 export function useKeyboardShortcuts(options: KeyboardShortcutsOptions = {}) {
   const { onOpenShortcuts } = options;
-  const setActiveTool = useCanvasStore((state) => state.setActiveTool);
-  const setViewport = useCanvasStore((state) => state.setViewport);
-  const setSelection = useCanvasStore((state) => state.setSelection);
-  const undo = useCanvasStore((state) => state.undo);
-  const redo = useCanvasStore((state) => state.redo);
-  const deleteSelectedObjects = useCanvasStore((state) => state.deleteSelectedObjects);
-  const copySelection = useCanvasStore((state) => state.copySelection);
-  const paste = useCanvasStore((state) => state.paste);
-  const duplicate = useCanvasStore((state) => state.duplicate);
-  const alignObjects = useCanvasStore((state) => state.alignObjects);
-  const distributeObjects = useCanvasStore((state) => state.distributeObjects);
-  const zoomToFit = useCanvasStore((state) => state.zoomToFit);
-  const zoomToSelection = useCanvasStore((state) => state.zoomToSelection);
-  const setZoomPreset = useCanvasStore((state) => state.setZoomPreset);
-  const toggleMinimap = useCanvasStore((state) => state.toggleMinimap);
-  const groupSelection = useCanvasStore((state) => state.groupSelection);
-  const ungroupSelection = useCanvasStore((state) => state.ungroupSelection);
-  const updateObjects = useCanvasStore((state) => state.updateObjects);
-  const pushHistory = useCanvasStore((state) => state.pushHistory);
-  const bringToFront = useCanvasStore((state) => state.bringToFront);
-  const bringForward = useCanvasStore((state) => state.bringForward);
-  const sendBackward = useCanvasStore((state) => state.sendBackward);
-  const sendToBack = useCanvasStore((state) => state.sendToBack);
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -64,18 +44,21 @@ export function useKeyboardShortcuts(options: KeyboardShortcutsOptions = {}) {
         return;
       }
 
+      // Pull all actions from store at call time — avoids stale closures
+      const store = useCanvasStore.getState();
+
       // Handle Ctrl/Cmd shortcuts
       if (event.ctrlKey || event.metaKey) {
-        const viewport = useCanvasStore.getState().viewport;
-        const cursorPosition = useCanvasStore.getState().cursorPosition;
+        const viewport = store.viewport;
+        const cursorPosition = store.cursorPosition;
 
         // Ctrl+Z (undo) or Ctrl+Shift+Z (redo)
         if (event.key === 'z' || event.key === 'Z') {
           event.preventDefault();
           if (event.shiftKey) {
-            redo();
+            store.redo();
           } else {
-            undo();
+            store.undo();
           }
           return;
         }
@@ -83,52 +66,50 @@ export function useKeyboardShortcuts(options: KeyboardShortcutsOptions = {}) {
         // Ctrl+Y (redo)
         if (event.key === 'y' || event.key === 'Y') {
           event.preventDefault();
-          redo();
+          store.redo();
           return;
         }
 
         // Ctrl+C (copy)
         if (event.key === 'c' || event.key === 'C') {
           event.preventDefault();
-          copySelection();
+          store.copySelection();
           return;
         }
 
         // Ctrl+V (paste)
         if (event.key === 'v' || event.key === 'V') {
           event.preventDefault();
-          paste();
+          store.paste();
           return;
         }
 
         // Ctrl+D (duplicate)
         if (event.key === 'd' || event.key === 'D') {
           event.preventDefault();
-          duplicate();
+          store.duplicate();
           return;
         }
 
         // Ctrl+A (select all)
         if (event.key === 'a' || event.key === 'A') {
           event.preventDefault();
-          const objects = useCanvasStore.getState().objects;
-          const allIds = Array.from(objects.keys());
-          setSelection(allIds);
+          const allIds = Array.from(store.objects.keys());
+          store.setSelection(allIds);
           return;
         }
 
         // Ctrl+B (toggle bold for selected text objects)
         if (event.key === 'b' || event.key === 'B') {
-          const { objects, selectedIds } = useCanvasStore.getState();
-          const textObjs = Array.from(selectedIds)
-            .map(id => objects.get(id))
+          const textObjs = Array.from(store.selectedIds)
+            .map(id => store.objects.get(id))
             .filter((obj): obj is TextObject => obj?.type === 'text');
 
           if (textObjs.length > 0) {
             event.preventDefault();
-            pushHistory();
+            store.pushHistory();
             const allBold = textObjs.every(obj => (obj.fontWeight || 400) >= 700);
-            updateObjects(textObjs.map(obj => ({
+            store.updateObjects(textObjs.map(obj => ({
               id: obj.id,
               changes: { fontWeight: allBold ? 400 : 700 }
             })));
@@ -138,16 +119,15 @@ export function useKeyboardShortcuts(options: KeyboardShortcutsOptions = {}) {
 
         // Ctrl+I (toggle italic for selected text objects)
         if (event.key === 'i' || event.key === 'I') {
-          const { objects, selectedIds } = useCanvasStore.getState();
-          const textObjs = Array.from(selectedIds)
-            .map(id => objects.get(id))
+          const textObjs = Array.from(store.selectedIds)
+            .map(id => store.objects.get(id))
             .filter((obj): obj is TextObject => obj?.type === 'text');
 
           if (textObjs.length > 0) {
             event.preventDefault();
-            pushHistory();
+            store.pushHistory();
             const allItalic = textObjs.every(obj => obj.fontStyle === 'italic');
-            updateObjects(textObjs.map(obj => ({
+            store.updateObjects(textObjs.map(obj => ({
               id: obj.id,
               changes: { fontStyle: allItalic ? 'normal' : 'italic' }
             })));
@@ -157,16 +137,15 @@ export function useKeyboardShortcuts(options: KeyboardShortcutsOptions = {}) {
 
         // Ctrl+U (toggle underline for selected text objects)
         if (event.key === 'u' || event.key === 'U') {
-          const { objects, selectedIds } = useCanvasStore.getState();
-          const textObjs = Array.from(selectedIds)
-            .map(id => objects.get(id))
+          const textObjs = Array.from(store.selectedIds)
+            .map(id => store.objects.get(id))
             .filter((obj): obj is TextObject => obj?.type === 'text');
 
           if (textObjs.length > 0) {
             event.preventDefault();
-            pushHistory();
+            store.pushHistory();
             const allUnderline = textObjs.every(obj => obj.textDecoration === 'underline');
-            updateObjects(textObjs.map(obj => ({
+            store.updateObjects(textObjs.map(obj => ({
               id: obj.id,
               changes: { textDecoration: allUnderline ? 'none' : 'underline' }
             })));
@@ -177,7 +156,7 @@ export function useKeyboardShortcuts(options: KeyboardShortcutsOptions = {}) {
         // Ctrl+G (group selection)
         if ((event.key === 'g' || event.key === 'G') && !event.shiftKey) {
           event.preventDefault();
-          groupSelection();
+          store.groupSelection();
           return;
         }
 
@@ -186,35 +165,35 @@ export function useKeyboardShortcuts(options: KeyboardShortcutsOptions = {}) {
           switch (event.key.toLowerCase()) {
             case 'g': // Ctrl+Shift+G (ungroup selection)
               event.preventDefault();
-              ungroupSelection();
+              store.ungroupSelection();
               return;
             case 'l':
               event.preventDefault();
-              alignObjects('left');
+              store.alignObjects('left');
               return;
             case 'r':
               event.preventDefault();
-              alignObjects('right');
+              store.alignObjects('right');
               return;
             case 't':
               event.preventDefault();
-              alignObjects('top');
+              store.alignObjects('top');
               return;
             case 'b':
               event.preventDefault();
-              alignObjects('bottom');
+              store.alignObjects('bottom');
               return;
             case 'h':
               event.preventDefault();
-              alignObjects('centerH');
+              store.alignObjects('centerH');
               return;
             case 'e': // Using E instead of V to avoid conflict with paste
               event.preventDefault();
-              alignObjects('centerV');
+              store.alignObjects('centerV');
               return;
             case '2': // Ctrl+Shift+2 for zoom to selection
               event.preventDefault();
-              zoomToSelection();
+              store.zoomToSelection();
               return;
           }
         }
@@ -224,11 +203,11 @@ export function useKeyboardShortcuts(options: KeyboardShortcutsOptions = {}) {
           switch (event.key.toLowerCase()) {
             case 'h':
               event.preventDefault();
-              distributeObjects('horizontal');
+              store.distributeObjects('horizontal');
               return;
             case 'v':
               event.preventDefault();
-              distributeObjects('vertical');
+              store.distributeObjects('vertical');
               return;
           }
         }
@@ -252,7 +231,7 @@ export function useKeyboardShortcuts(options: KeyboardShortcutsOptions = {}) {
           const newX = viewport.x - zoomCenter.x * (1 / viewport.zoom - 1 / newZoom);
           const newY = viewport.y - zoomCenter.y * (1 / viewport.zoom - 1 / newZoom);
 
-          setViewport({
+          store.setViewport({
             x: newX,
             y: newY,
             zoom: newZoom
@@ -276,42 +255,42 @@ export function useKeyboardShortcuts(options: KeyboardShortcutsOptions = {}) {
         // Ctrl+0 (fit all objects)
         if (event.key === '0') {
           event.preventDefault();
-          zoomToFit();
+          store.zoomToFit();
           return;
         }
 
         // Ctrl+1 (zoom to 100%)
         if (event.key === '1') {
           event.preventDefault();
-          setZoomPreset(1);
+          store.setZoomPreset(1);
           return;
         }
 
         // Ctrl+2 (zoom to 200%) - Note: Ctrl+Shift+2 is zoom to selection
         if (event.key === '2' && !event.shiftKey) {
           event.preventDefault();
-          setZoomPreset(2);
+          store.setZoomPreset(2);
           return;
         }
 
         // Ctrl+3 (zoom to 50%)
         if (event.key === '3') {
           event.preventDefault();
-          setZoomPreset(0.5);
+          store.setZoomPreset(0.5);
           return;
         }
 
         // Ctrl+] (bring to front)
         if (event.key === ']') {
           event.preventDefault();
-          bringToFront();
+          store.bringToFront();
           return;
         }
 
         // Ctrl+[ (send to back)
         if (event.key === '[') {
           event.preventDefault();
-          sendToBack();
+          store.sendToBack();
           return;
         }
 
@@ -327,15 +306,15 @@ export function useKeyboardShortcuts(options: KeyboardShortcutsOptions = {}) {
       // Delete or Backspace deletes selected objects
       if (event.key === 'Delete' || event.key === 'Backspace') {
         event.preventDefault();
-        deleteSelectedObjects();
+        store.deleteSelectedObjects();
         return;
       }
 
       // Escape deselects all objects and switches to select tool
       if (event.key === 'Escape') {
         event.preventDefault();
-        setSelection([]);
-        setActiveTool('select');
+        store.setSelection([]);
+        store.setActiveTool('select');
         return;
       }
 
@@ -349,28 +328,27 @@ export function useKeyboardShortcuts(options: KeyboardShortcutsOptions = {}) {
       // M key toggles minimap
       if (event.key === 'm' || event.key === 'M') {
         event.preventDefault();
-        toggleMinimap();
+        store.toggleMinimap();
         return;
       }
 
       // ] key (bring forward / bring to front with Ctrl)
       if (event.key === ']') {
         event.preventDefault();
-        bringForward();
+        store.bringForward();
         return;
       }
 
       // [ key (send backward / send to back with Ctrl)
       if (event.key === '[') {
         event.preventDefault();
-        sendBackward();
+        store.sendBackward();
         return;
       }
 
       // Arrow key nudging
       if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(event.key)) {
-        const { selectedIds } = useCanvasStore.getState();
-        if (selectedIds.size === 0) return;
+        if (store.selectedIds.size === 0) return;
 
         event.preventDefault();
         const amount = event.shiftKey ? 10 : 1;
@@ -381,15 +359,14 @@ export function useKeyboardShortcuts(options: KeyboardShortcutsOptions = {}) {
         if (event.key === 'ArrowLeft') dx = -amount;
         if (event.key === 'ArrowRight') dx = amount;
 
-        pushHistory();
-        const objects = useCanvasStore.getState().objects;
-        const updates = Array.from(selectedIds)
-          .map(id => objects.get(id))
+        store.pushHistory();
+        const updates = Array.from(store.selectedIds)
+          .map(id => store.objects.get(id))
           .filter((obj): obj is NonNullable<typeof obj> => obj != null && !obj.locked)
           .map(obj => ({ id: obj.id, changes: { x: obj.x + dx, y: obj.y + dy } }));
 
         if (updates.length > 0) {
-          updateObjects(updates);
+          store.updateObjects(updates);
         }
         return;
       }
@@ -398,14 +375,13 @@ export function useKeyboardShortcuts(options: KeyboardShortcutsOptions = {}) {
       if (event.key === 'Tab') {
         event.preventDefault();
 
-        const objects = Array.from(useCanvasStore.getState().objects.values())
+        const objects = Array.from(store.objects.values())
           .filter(obj => !obj.parentId && obj.visible !== false)
           .sort((a, b) => a.zIndex - b.zIndex);
 
         if (objects.length === 0) return;
 
-        const { selectedIds } = useCanvasStore.getState();
-        const currentId = selectedIds.size === 1 ? Array.from(selectedIds)[0] : null;
+        const currentId = store.selectedIds.size === 1 ? Array.from(store.selectedIds)[0] : null;
         const currentIndex = currentId ? objects.findIndex(o => o.id === currentId) : -1;
 
         let nextIndex: number;
@@ -417,7 +393,7 @@ export function useKeyboardShortcuts(options: KeyboardShortcutsOptions = {}) {
           nextIndex = currentIndex >= objects.length - 1 ? 0 : currentIndex + 1;
         }
 
-        setSelection([objects[nextIndex].id]);
+        store.setSelection([objects[nextIndex].id]);
         return;
       }
 
@@ -428,7 +404,7 @@ export function useKeyboardShortcuts(options: KeyboardShortcutsOptions = {}) {
         const shiftTool = SHIFT_TOOL_SHORTCUTS[key];
         if (shiftTool) {
           event.preventDefault();
-          setActiveTool(shiftTool);
+          store.setActiveTool(shiftTool);
           return;
         }
       }
@@ -437,7 +413,7 @@ export function useKeyboardShortcuts(options: KeyboardShortcutsOptions = {}) {
       const tool = TOOL_SHORTCUTS[key];
       if (tool) {
         event.preventDefault();
-        setActiveTool(tool);
+        store.setActiveTool(tool);
       }
     };
 
@@ -446,5 +422,5 @@ export function useKeyboardShortcuts(options: KeyboardShortcutsOptions = {}) {
     return () => {
       window.removeEventListener('keydown', handleKeyDown);
     };
-  }, [setActiveTool, setViewport, setSelection, undo, redo, deleteSelectedObjects, copySelection, paste, duplicate, alignObjects, distributeObjects, zoomToFit, zoomToSelection, setZoomPreset, toggleMinimap, groupSelection, ungroupSelection, updateObjects, pushHistory, bringToFront, bringForward, sendBackward, sendToBack, onOpenShortcuts]);
+  }, [onOpenShortcuts]);
 }

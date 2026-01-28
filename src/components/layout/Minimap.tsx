@@ -1,4 +1,4 @@
-import { useRef, useEffect, useCallback, useState } from 'react';
+import { useRef, useEffect, useCallback, useMemo, useState } from 'react';
 import { useCanvasStore } from '../../stores/canvasStore';
 import type { CanvasObject } from '../../types/canvas';
 import './Minimap.css';
@@ -73,25 +73,25 @@ export function Minimap() {
   const setViewport = useCanvasStore((state) => state.setViewport);
   const showMinimap = useCanvasStore((state) => state.showMinimap);
 
-  // Calculate bounds and scale
-  const allObjects = Array.from(objects.values());
-  const contentBounds = calculateBounds(allObjects);
-  const viewportBounds = getViewportBounds(viewport);
+  // Calculate bounds and scale (memoized to avoid recalc every render)
+  const allObjects = useMemo(() => Array.from(objects.values()), [objects]);
+  const contentBounds = useMemo(() => calculateBounds(allObjects), [allObjects]);
+  const viewportBounds = useMemo(() => getViewportBounds(viewport), [viewport]);
 
-  // Expand bounds to include both content and viewport with padding
-  const paddedContentBounds = {
-    x: contentBounds.x - PADDING * 10,
-    y: contentBounds.y - PADDING * 10,
-    width: contentBounds.width + PADDING * 20,
-    height: contentBounds.height + PADDING * 20
-  };
-  const totalBounds = unionBounds(paddedContentBounds, viewportBounds);
-
-  // Calculate scale to fit in minimap
-  const scale = Math.min(
-    (MINIMAP_WIDTH - PADDING * 2) / totalBounds.width,
-    (MINIMAP_HEIGHT - PADDING * 2) / totalBounds.height
-  ) * 0.9;
+  const { totalBounds, scale } = useMemo(() => {
+    const paddedContentBounds = {
+      x: contentBounds.x - PADDING * 10,
+      y: contentBounds.y - PADDING * 10,
+      width: contentBounds.width + PADDING * 20,
+      height: contentBounds.height + PADDING * 20
+    };
+    const total = unionBounds(paddedContentBounds, viewportBounds);
+    const s = Math.min(
+      (MINIMAP_WIDTH - PADDING * 2) / total.width,
+      (MINIMAP_HEIGHT - PADDING * 2) / total.height
+    ) * 0.9;
+    return { totalBounds: total, scale: s };
+  }, [contentBounds, viewportBounds]);
 
   // Draw minimap
   const draw = useCallback(() => {

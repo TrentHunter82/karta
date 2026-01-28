@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { memo, useEffect, useRef, useState } from 'react';
 import { useCanvasStore } from '../stores/canvasStore';
 import { useClipboardStore } from '../stores/clipboardStore';
 import { useSelectionStore } from '../stores/selectionStore';
@@ -8,7 +8,6 @@ interface ContextMenuProps {
   x: number;
   y: number;
   onClose: () => void;
-  targetObjectId: string | null;
 }
 
 type MenuItem = {
@@ -29,7 +28,7 @@ type MenuItem = {
 
 type MenuItemOrDivider = MenuItem;
 
-export function ContextMenu({ x, y, onClose, targetObjectId: _targetObjectId }: ContextMenuProps) {
+export const ContextMenu = memo(function ContextMenu({ x, y, onClose }: ContextMenuProps) {
   const menuRef = useRef<HTMLDivElement>(null);
   const [position, setPosition] = useState({ x, y });
 
@@ -265,7 +264,7 @@ export function ContextMenu({ x, y, onClose, targetObjectId: _targetObjectId }: 
       })}
     </div>
   );
-}
+});
 
 type NonDividerMenuItem = {
   label: string;

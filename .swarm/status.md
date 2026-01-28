@@ -6,6 +6,17 @@ Polish and harden the Karta codebase - improve code quality, fix edge cases, no 
 ## Phase
 in-progress
 
+## Session 5 — Completed Work
+
+### Performance
+- **useKeyboardShortcuts.ts**: Refactored 23-item useEffect dependency array to use `useCanvasStore.getState()` inside handler. Dependency array now only contains `[onOpenShortcuts]`, eliminating frequent event listener re-registration.
+- **React.memo**: Wrapped `ContextMenu` and `PropertiesPanel` components with `React.memo` to prevent unnecessary re-renders.
+- **Minimap bounds memoization**: Wrapped `allObjects`, `contentBounds`, `viewportBounds`, `totalBounds`, and `scale` calculations in `useMemo` to avoid recalculating every render.
+
+### Bug Fixes
+- **Room ID validation**: Added alphanumeric + length check (`/^[a-zA-Z0-9]{1,32}$/`) in App.tsx. Invalid or missing room IDs now generate a fresh random ID instead of passing unsanitized hash to collaboration server.
+- **isSpacePressed stuck state**: Added `window.blur` handler in Canvas.tsx to reset `isSpacePressed` and `isPanning` when the window loses focus, preventing stuck panning state after alt-tab.
+
 ## Session 4 — Completed Work
 
 ### Bug Fixes
@@ -39,14 +50,8 @@ Full codebase analysis covering quality, security, performance, and architecture
 
 ## Remaining Work (prioritized)
 
-### High Priority
-1. **useKeyboardShortcuts.ts** — 20+ dependency array in useEffect (line 449) causes frequent event listener re-registration. Refactor to use `getState()` pattern.
-2. **Room ID validation** — App.tsx:31 reads room ID from `window.location.hash` without validation. Add alphanumeric + length check.
-
 ### Medium Priority
-3. **Add React.memo** to ContextMenu and PropertiesPanel components
-4. **Memoize Minimap bounds** calculations (lines 77-94, runs every render)
-5. **106 type assertions** (`as` casts) — consider type guard functions for canvas object types
+1. **106 type assertions** (`as` casts) — consider type guard functions for canvas object types
 
 ### Low Priority / Long-term
 6. **Decompose large files**: Canvas.tsx (1,803 lines), canvasStore.ts (1,155 lines), SelectTool.ts (823 lines)

@@ -29,7 +29,8 @@ function App() {
   useEffect(() => {
     // Get room ID from URL hash, or generate a random one
     let roomId = window.location.hash.slice(1);
-    if (!roomId) {
+    const isValidRoomId = /^[a-zA-Z0-9]{1,32}$/.test(roomId);
+    if (!roomId || !isValidRoomId) {
       roomId = Math.random().toString(36).substring(2, 10);
       window.location.hash = roomId;
     }
