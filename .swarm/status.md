@@ -6,6 +6,24 @@ Polish and harden the Karta codebase - improve code quality, fix edge cases, no 
 ## Phase
 in-progress
 
+## Session 4 — Completed Work
+
+### Bug Fixes
+- **Stale spatial index on object updates**: `updateObject` and `updateObjects` in canvasStore were not calling `rebuildSpatialIndex()`. After moving an object, the QuadTree still held old positions, making objects impossible to select/drag after first move. Added rebuild calls to both functions.
+- **Snap-to-objects `visible` filter**: The filter `obj.visible` treated `undefined` as falsy, filtering out ALL objects (since `visible` is optional, default true). Changed to `obj.visible !== false`.
+
+### Snap-to-Grid & Snap-to-Objects Wiring (Session 3→4)
+- Wired `snapPosition`, `snapToGrid`, `setActiveSnapGuides`, `getGridSettings` into `ToolContext` interface and Canvas.tsx `createToolContext`
+- SelectTool: Snap during drag (reference object snap) and resize (edge snap to grid)
+- RectangleTool, FrameTool, LineTool, ArrowTool: Snap on mouseDown start position and mouseMove preview
+- All tools clear snap guides on mouseUp/cancel
+
+### CSS Polish
+- Fixed `border-radius` inconsistencies in ContextMenu.css (hardcoded `6px` → `var(--radius-md)`)
+
+### Documentation
+- Replaced Vite boilerplate README with comprehensive project documentation
+
 ## Session 3 — Completed Work
 
 ### Bug Fixes
