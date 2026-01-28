@@ -1,73 +1,97 @@
-# React + TypeScript + Vite
+# Karta
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+A lightweight visual ideation canvas for creating mood boards, sharing media, and making simple diagrams — with real-time multiplayer collaboration.
 
-Currently, two official plugins are available:
+Built with React, TypeScript, and HTML Canvas 2D.
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) (or [oxc](https://oxc.rs) when used in [rolldown-vite](https://vite.dev/guide/rolldown)) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+## Features
 
-## React Compiler
+- **Infinite canvas** with pan (scroll/space+drag) and zoom (scroll wheel, pinch)
+- **Drawing tools** — Rectangle, Ellipse, Line, Arrow, Frame, Pen (freehand), Text
+- **Selection tool** — Click, marquee select, drag-to-move, resize handles, rotation
+- **Properties panel** — Transform (position, size, rotation), fill/stroke color, opacity, hierarchy list
+- **Media support** — Drag-and-drop images and videos onto the canvas
+- **Real-time collaboration** — Yjs + WebSocket sync with live cursor presence
+- **Snap-to-grid and snap-to-objects** — Alignment guides and grid snapping
+- **Undo/Redo** — Ctrl+Z / Ctrl+Shift+Z with 50-state history
+- **Copy/Paste/Duplicate** — Ctrl+C, Ctrl+V, Ctrl+D
+- **Export** — PNG export of selection or entire canvas
+- **Templates** — Starter templates for quick setup
+- **Keyboard shortcuts** — Full shortcut support (V, R, T, F, P, L, etc.)
+- **Context menu** — Right-click for common actions
+- **Minimap** — Overview navigation
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+## Tech Stack
 
-## Expanding the ESLint configuration
+| Layer | Technology |
+|-------|------------|
+| Framework | React 19 + TypeScript |
+| Build | Vite 7 |
+| Canvas | HTML Canvas 2D API (custom renderer) |
+| State | Zustand 5 |
+| Collaboration | Yjs + y-websocket |
+| Testing | Vitest + Testing Library |
 
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
+## Getting Started
 
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
-
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+```bash
+npm install
+npm run dev
 ```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+Open [http://localhost:5173](http://localhost:5173).
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
+## Scripts
 
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+| Command | Description |
+|---------|-------------|
+| `npm run dev` | Start dev server |
+| `npm run build` | Type-check and build for production |
+| `npm run typecheck` | Run TypeScript type checking |
+| `npm run lint` | Run ESLint |
+| `npm run format` | Format with Prettier |
+| `npm run test` | Run tests with Vitest |
+| `npm run preview` | Preview production build |
+
+## Project Structure
+
 ```
+src/
+├── components/       # React UI components
+│   ├── layout/       # Canvas, Toolbar, TopBar, StatusBar, Minimap
+│   └── properties/   # PropertiesPanel, inputs, sections
+├── stores/           # Zustand state (canvas, selection, viewport, history, clipboard, etc.)
+├── tools/            # Tool system (Select, Rectangle, Text, Pen, Line, Arrow, Frame, etc.)
+├── types/            # TypeScript type definitions
+├── utils/            # Geometry, spatial indexing (QuadTree), Yjs utilities
+└── hooks/            # Custom React hooks
+```
+
+## Keyboard Shortcuts
+
+| Key | Action |
+|-----|--------|
+| V | Select tool |
+| H | Hand (pan) tool |
+| R | Rectangle tool |
+| T | Text tool |
+| F | Frame tool |
+| P | Pen tool |
+| L | Line tool |
+| Shift+L | Arrow tool |
+| Delete/Backspace | Delete selected |
+| Ctrl+Z | Undo |
+| Ctrl+Shift+Z | Redo |
+| Ctrl+C / Ctrl+V | Copy / Paste |
+| Ctrl+D | Duplicate |
+| Ctrl+A | Select all |
+| Ctrl+0 | Reset zoom to 100% |
+| Ctrl+= / Ctrl+- | Zoom in / out |
+
+## Design
+
+Dark theme inspired by Teenage Engineering's industrial design language. JetBrains Mono monospace font, orange accent (#FF5500), dark backgrounds.
+
+## License
+
+Private
