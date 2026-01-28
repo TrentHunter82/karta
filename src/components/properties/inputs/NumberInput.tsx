@@ -25,16 +25,9 @@ export function NumberInput({
 }: NumberInputProps) {
   const [isDragging, setIsDragging] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
-  const [localValue, setLocalValue] = useState(value === 'mixed' ? '' : String(value));
+  const [editValue, setEditValue] = useState(''); // Only used while editing
   const inputRef = useRef<HTMLInputElement>(null);
   const dragStartRef = useRef({ x: 0, value: 0 });
-
-  // Update local value when prop value changes (and not editing)
-  useEffect(() => {
-    if (!isEditing) {
-      setLocalValue(value === 'mixed' ? '' : String(value));
-    }
-  }, [value, isEditing]);
 
   // Focus input when entering edit mode
   useEffect(() => {
@@ -72,7 +65,7 @@ export function NumberInput({
   }, [value, onChange, onChangeEnd, min, max, step, disabled]);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setLocalValue(e.target.value);
+    setEditValue(e.target.value);
     const num = parseFloat(e.target.value);
     if (!isNaN(num)) {
       const clamped = Math.max(min, Math.min(max, num));
@@ -82,13 +75,14 @@ export function NumberInput({
 
   const handleClick = () => {
     if (disabled) return;
+    setEditValue(value === 'mixed' ? '' : String(value));
     setIsEditing(true);
   };
 
   const handleBlur = () => {
     setIsEditing(false);
     if (value !== 'mixed') {
-      setLocalValue(String(value));
+      setEditValue(String(value));
     }
     onChangeEnd?.();
   };
@@ -99,7 +93,7 @@ export function NumberInput({
       (e.target as HTMLInputElement).blur();
     }
     if (e.key === 'Escape') {
-      setLocalValue(value === 'mixed' ? '' : String(value));
+      setEditValue(value === 'mixed' ? '' : String(value));
       setIsEditing(false);
     }
     if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
@@ -126,7 +120,7 @@ export function NumberInput({
           ref={inputRef}
           type="text"
           className="number-input-field"
-          value={localValue}
+          value={editValue}
           placeholder={value === 'mixed' ? 'Mixed' : undefined}
           onChange={handleInputChange}
           onBlur={handleBlur}

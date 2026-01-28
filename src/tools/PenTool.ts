@@ -24,7 +24,7 @@ interface PenToolState extends ToolState {
  * - Click and drag to draw a path
  * - Points are added as you move
  * - Escape cancels the current drawing
- * - Switches to select tool after creation
+ * - Stays in pen tool after each stroke for continuous drawing
  */
 export class PenTool extends BaseTool {
   protected declare state: PenToolState;
@@ -107,9 +107,8 @@ export class PenTool extends BaseTool {
     if (this.state.points.length < MIN_PATH_POINTS) {
       this.ctx.deleteObject(previewId);
     } else {
-      // Select the new object and switch to select tool
-      this.ctx.setSelection([previewId]);
-      this.ctx.setActiveTool('select');
+      // Finalize the path and clear selection so drawing continues uninterrupted
+      this.ctx.setSelection([]);
     }
 
     // Reset state
