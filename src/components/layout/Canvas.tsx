@@ -4,7 +4,9 @@ import { useSelectionStore } from '../../stores/selectionStore';
 import { useViewportStore } from '../../stores/viewportStore';
 import { useGroupStore } from '../../stores/groupStore';
 import { useToastStore } from '../../stores/toastStore';
-import type { CanvasObject, RectangleObject, TextObject, ImageObject, VideoObject, GroupObject, LineObject, ArrowObject } from '../../types/canvas';
+import type { CanvasObject } from '../../types/canvas';
+import { isTextObject, isGroupObject } from '../../types/canvas';
+import { MIN_ZOOM, MAX_ZOOM } from '../../constants/layout';
 import { CursorPresence } from './CursorPresence';
 import { Minimap } from './Minimap';
 import { ContextMenu } from '../ContextMenu';
@@ -21,8 +23,6 @@ const videoThumbnailCache = new Map<string, HTMLCanvasElement>();
 const videoElementCache = new Map<string, HTMLVideoElement>();
 
 // Zoom limits and sensitivity
-const MIN_ZOOM = 0.1; // 10%
-const MAX_ZOOM = 5.0; // 500%
 const ZOOM_SENSITIVITY = 0.001;
 const CTRL_ZOOM_SENSITIVITY = 0.01;
 
@@ -157,7 +157,7 @@ export function Canvas() {
 
       switch (obj.type) {
         case 'rectangle': {
-          const rectObj = obj as RectangleObject;
+          const rectObj = obj;
           const cornerRadius = (rectObj.cornerRadius || 0) * zoom;
           const r = Math.min(cornerRadius, width / 2, height / 2);
 
@@ -210,7 +210,7 @@ export function Canvas() {
           }
           break;
         case 'text': {
-          const textObj = obj as TextObject;
+          const textObj = obj;
           ctx.fillStyle = textObj.fill || '#ffffff';
           const fontStyle = textObj.fontStyle || 'normal';
           const fontWeight = textObj.fontWeight || DEFAULT_FONT_WEIGHT;
@@ -293,7 +293,7 @@ export function Canvas() {
           }
           break;
         case 'image': {
-          const imgObj = obj as ImageObject;
+          const imgObj = obj;
           const cachedImg = imageCache.get(imgObj.src);
           if (!cachedImg) {
             if (!imageCache.has(imgObj.src)) {
@@ -332,7 +332,7 @@ export function Canvas() {
           break;
         }
         case 'video': {
-          const vidObj = obj as VideoObject;
+          const vidObj = obj;
           const thumbnailCanvas = videoThumbnailCache.get(vidObj.src);
 
           if (!thumbnailCanvas) {
@@ -410,7 +410,7 @@ export function Canvas() {
           break;
         }
         case 'line': {
-          const lineObj = obj as LineObject;
+          const lineObj = obj;
           ctx.beginPath();
           ctx.moveTo(lineObj.x1 * zoom, lineObj.y1 * zoom);
           ctx.lineTo(lineObj.x2 * zoom, lineObj.y2 * zoom);
@@ -421,7 +421,7 @@ export function Canvas() {
           break;
         }
         case 'arrow': {
-          const arrowObj = obj as ArrowObject;
+          const arrowObj = obj;
           const arrowSize = (arrowObj.arrowSize || 1) * 10 * zoom;
           const strokeW = (obj.strokeWidth || 2) * zoom;
 
@@ -592,10 +592,9 @@ export function Canvas() {
     // Draw objects sorted by zIndex (uses memoized sortedTopLevelObjects)
     sortedTopLevelObjects.forEach((obj) => {
       drawObject(ctx, obj);
-      if (obj.type === 'group') {
-        const group = obj as GroupObject;
-        const groupPos = getAbsolutePosition(group);
-        group.children.forEach((childId) => {
+      if (isGroupObject(obj)) {
+        const groupPos = getAbsolutePosition(obj);
+        obj.children.forEach((childId) => {
           const child = objects.get(childId);
           if (child && child.visible !== false) {
             const absChild = {
@@ -752,8 +751,8 @@ export function Canvas() {
 
       // Handle editing group mode - check children first
       if (editingGroupId) {
-        const editingGroup = objects.get(editingGroupId) as GroupObject | undefined;
-        if (editingGroup) {
+        const editingGroup = objects.get(editingGroupId);
+        if (editingGroup && isGroupObject(editingGroup)) {
           const groupPos = getAbsolutePosition(editingGroup);
           for (const childId of editingGroup.children) {
             const child = objects.get(childId);
@@ -784,12 +783,11 @@ export function Canvas() {
         .sort((a, b) => b.zIndex - a.zIndex);
 
       for (const obj of topLevelCandidates) {
-        if (obj.type === 'group') {
-          const group = obj as GroupObject;
-          const groupPos = getAbsolutePosition(group);
+        if (isGroupObject(obj)) {
+          const groupPos = getAbsolutePosition(obj);
 
-          if (editingGroupId !== group.id) {
-            for (const childId of group.children) {
+          if (editingGroupId !== obj.id) {
+            for (const childId of obj.children) {
               const child = objects.get(childId);
               if (child && child.visible !== false) {
                 const absX = groupPos.x + child.x;
@@ -1150,8 +1148,8 @@ export function Canvas() {
             lastClickObjectId.current = hitObject.id;
 
             if (isDoubleClick) {
-              if (hitObject.type === 'text') {
-                const textObj = hitObject as TextObject;
+              if (isTextObject(hitObject)) {
+                const textObj = hitObject;
                 const dimensions = measureTextDimensions({
                   text: textObj.text,
                   fontSize: textObj.fontSize,
@@ -1517,8 +1515,8 @@ export function Canvas() {
     if (!editingTextId) return;
 
     const currentObjects = useCanvasStore.getState().objects;
-    const textObj = currentObjects.get(editingTextId) as TextObject | undefined;
-    if (!textObj || textObj.type !== 'text') return;
+    const textObj = currentObjects.get(editingTextId);
+    if (!textObj || !isTextObject(textObj)) return;
 
     const newText = e.target.value;
     const dimensions = measureTextDimensions({
@@ -1540,8 +1538,8 @@ export function Canvas() {
   const exitTextEditMode = useCallback(() => {
     if (editingTextId) {
       const currentObjects = useCanvasStore.getState().objects;
-      const textObj = currentObjects.get(editingTextId) as TextObject | undefined;
-      if (textObj && textObj.type === 'text') {
+      const textObj = currentObjects.get(editingTextId);
+      if (textObj && isTextObject(textObj)) {
         const dimensions = measureTextDimensions({
           text: textObj.text,
           fontSize: textObj.fontSize,
@@ -1589,8 +1587,8 @@ export function Canvas() {
 
   const getEditingTextStyle = useCallback((): React.CSSProperties | null => {
     if (!editingTextId) return null;
-    const textObj = objects.get(editingTextId) as TextObject | undefined;
-    if (!textObj || textObj.type !== 'text') return null;
+    const textObj = objects.get(editingTextId);
+    if (!textObj || !isTextObject(textObj)) return null;
 
     const screenPos = canvasToScreen(textObj.x, textObj.y);
     const fontSize = textObj.fontSize * viewport.zoom;

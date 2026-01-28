@@ -18,7 +18,8 @@ import {
   downloadBlob,
   type ExportScale,
 } from '../../utils/exportUtils';
-import type { CanvasObject, TextObject, FrameObject, LineObject, ArrowObject, ImageObject, VideoObject } from '../../types/canvas';
+import type { CanvasObject } from '../../types/canvas';
+import { isTextObject, isFrameObject, isLineOrArrow } from '../../types/canvas';
 import './properties.css';
 
 // Image cache for export
@@ -118,7 +119,7 @@ async function drawObjectForExport(
       }
       break;
     case 'text': {
-      const textObj = obj as TextObject;
+      const textObj = obj;
       ctx.fillStyle = textObj.fill || '#ffffff';
       const fontStyle = textObj.fontStyle || 'normal';
       const fontWeight = textObj.fontWeight || 400;
@@ -158,7 +159,7 @@ async function drawObjectForExport(
       }
       break;
     case 'image': {
-      const imgObj = obj as ImageObject;
+      const imgObj = obj;
       try {
         const img = await loadImage(imgObj.src);
         ctx.drawImage(img, 0, 0, obj.width, obj.height);
@@ -169,7 +170,7 @@ async function drawObjectForExport(
       break;
     }
     case 'video': {
-      const vidObj = obj as VideoObject;
+      const vidObj = obj;
       try {
         const thumbnail = await loadVideoThumbnail(vidObj.src);
         ctx.drawImage(thumbnail, 0, 0, obj.width, obj.height);
@@ -182,8 +183,8 @@ async function drawObjectForExport(
     case 'line':
     case 'arrow':
       ctx.beginPath();
-      ctx.moveTo((obj as LineObject | ArrowObject).x1, (obj as LineObject | ArrowObject).y1);
-      ctx.lineTo((obj as LineObject | ArrowObject).x2, (obj as LineObject | ArrowObject).y2);
+      ctx.moveTo(obj.x1, obj.y1);
+      ctx.lineTo(obj.x2, obj.y2);
       ctx.strokeStyle = obj.stroke || '#ffffff';
       ctx.lineWidth = obj.strokeWidth || 2;
       ctx.lineCap = 'round';
@@ -382,13 +383,13 @@ export const PropertiesPanel = memo(function PropertiesPanel() {
               <TransformSection objects={selectedObjects} />
               <AppearanceSection objects={selectedObjects} />
               {hasText && (
-                <TextSection objects={selectedObjects.filter((o) => o.type === 'text') as TextObject[]} />
+                <TextSection objects={selectedObjects.filter(isTextObject)} />
               )}
               {hasFrame && (
-                <FrameSection objects={selectedObjects.filter((o) => o.type === 'frame') as FrameObject[]} />
+                <FrameSection objects={selectedObjects.filter(isFrameObject)} />
               )}
               {hasLine && (
-                <LineSection objects={selectedObjects.filter((o) => o.type === 'line' || o.type === 'arrow') as (LineObject | ArrowObject)[]} />
+                <LineSection objects={selectedObjects.filter(isLineOrArrow)} />
               )}
               {selectedObjects.length > 1 && <LayoutSection />}
             </>

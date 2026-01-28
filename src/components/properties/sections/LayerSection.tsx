@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useCanvasStore } from '../../../stores/canvasStore';
-import type { CanvasObject, GroupObject } from '../../../types/canvas';
+import type { CanvasObject } from '../../../types/canvas';
+import { isTextObject, isFrameObject, isGroupObject } from '../../../types/canvas';
 
 export function LayerSection() {
   const objects = useCanvasStore((state) => state.objects);
@@ -137,15 +138,14 @@ export function LayerSection() {
   };
 
   const getObjectName = (obj: CanvasObject) => {
-    if (obj.type === 'text' && 'text' in obj) {
-      return (obj as { text: string }).text.slice(0, 20) || 'Text';
+    if (isTextObject(obj)) {
+      return obj.text.slice(0, 20) || 'Text';
     }
-    if (obj.type === 'frame' && 'name' in obj) {
-      return (obj as { name: string }).name;
+    if (isFrameObject(obj)) {
+      return obj.name;
     }
-    if (obj.type === 'group') {
-      const group = obj as GroupObject;
-      return `Group (${group.children.length})`;
+    if (isGroupObject(obj)) {
+      return `Group (${obj.children.length})`;
     }
     return obj.type.charAt(0).toUpperCase() + obj.type.slice(1);
   };
@@ -234,9 +234,9 @@ export function LayerSection() {
             </button>
           </div>
         </div>
-        {isGroup && isExpanded && (
+        {isGroup && isExpanded && isGroupObject(obj) && (
           <div className="hierarchy-group-children">
-            {(obj as GroupObject).children.map((childId) => {
+            {obj.children.map((childId) => {
               const childObj = objects.get(childId);
               if (childObj) {
                 return renderHierarchyItem(childObj, depth + 1);

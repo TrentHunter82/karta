@@ -1,14 +1,9 @@
 import type {
   CanvasObject,
-  TextObject,
-  RectangleObject,
-  PathObject,
-  LineObject,
-  ArrowObject,
-  PolygonObject,
-  StarObject,
   Viewport,
-  GroupObject,
+} from '../types/canvas';
+import {
+  isGroupObject,
 } from '../types/canvas';
 import { calculateBoundingBox, type BoundingBox } from './geometryUtils';
 
@@ -117,7 +112,7 @@ function objectToSVG(obj: CanvasObject, x: number, y: number): string {
 
   switch (obj.type) {
     case 'rectangle': {
-      const rect = obj as RectangleObject;
+      const rect = obj;
       const rx = rect.cornerRadius ? ` rx="${rect.cornerRadius}"` : '';
       return `  <rect x="${x}" y="${y}" width="${obj.width}" height="${obj.height}"${rx}${getFillStroke(rect)}${opacity}${transform}/>\n`;
     }
@@ -131,7 +126,7 @@ function objectToSVG(obj: CanvasObject, x: number, y: number): string {
     }
 
     case 'text': {
-      const text = obj as TextObject;
+      const text = obj;
       const fontStyle = text.fontStyle === 'italic' ? ' font-style="italic"' : '';
       const fontWeight = text.fontWeight !== 400 ? ` font-weight="${text.fontWeight}"` : '';
       const textAnchor = text.textAlign === 'center' ? 'middle' : text.textAlign === 'right' ? 'end' : 'start';
@@ -155,12 +150,12 @@ function objectToSVG(obj: CanvasObject, x: number, y: number): string {
     }
 
     case 'line': {
-      const line = obj as LineObject;
+      const line = obj;
       return `  <line x1="${x + line.x1}" y1="${y + line.y1}" x2="${x + line.x2}" y2="${y + line.y2}" stroke="${line.stroke || '#ffffff'}" stroke-width="${line.strokeWidth || 2}"${opacity}${transform}/>\n`;
     }
 
     case 'arrow': {
-      const arrow = obj as ArrowObject;
+      const arrow = obj;
       let result = '';
       const markerId = `arrow-${obj.id}`;
 
@@ -188,20 +183,20 @@ function objectToSVG(obj: CanvasObject, x: number, y: number): string {
     }
 
     case 'path': {
-      const path = obj as PathObject;
+      const path = obj;
       if (path.points.length === 0) return '';
       const d = pathPointsToSVG(path.points, x, y);
       return `  <path d="${d}" stroke="${path.stroke || '#ffffff'}" stroke-width="${path.strokeWidth || 2}" fill="none" stroke-linecap="round" stroke-linejoin="round"${opacity}${transform}/>\n`;
     }
 
     case 'polygon': {
-      const poly = obj as PolygonObject;
+      const poly = obj;
       const points = generatePolygonPoints(x, y, obj.width, obj.height, poly.sides || 6);
       return `  <polygon points="${points}"${getFillStroke(poly)}${opacity}${transform}/>\n`;
     }
 
     case 'star': {
-      const star = obj as StarObject;
+      const star = obj;
       const points = generateStarPoints(x, y, obj.width, obj.height, star.points || 5, star.innerRadius || 0.5);
       return `  <polygon points="${points}"${getFillStroke(star)}${opacity}${transform}/>\n`;
     }
@@ -211,7 +206,7 @@ function objectToSVG(obj: CanvasObject, x: number, y: number): string {
     }
 
     case 'image': {
-      const img = obj as { src: string } & CanvasObject;
+      const img = obj;
       return `  <image x="${x}" y="${y}" width="${obj.width}" height="${obj.height}" href="${img.src}"${opacity}${transform}/>\n`;
     }
 
@@ -222,7 +217,7 @@ function objectToSVG(obj: CanvasObject, x: number, y: number): string {
 
     case 'group': {
       // Groups should be rendered as SVG groups with transform for proper rotation handling
-      const group = obj as GroupObject;
+      const group = obj;
       const transform = obj.rotation
         ? ` transform="rotate(${obj.rotation} ${x + obj.width / 2} ${y + obj.height / 2})"`
         : '';
@@ -250,12 +245,11 @@ function renderObjectToSVG(
   const x = obj.x + offsetX;
   const y = obj.y + offsetY;
 
-  if (obj.type === 'group') {
-    const group = obj as GroupObject;
+  if (isGroupObject(obj)) {
     let result = objectToSVG(obj, x, y); // Opens <g> tag
 
     // Render children with offset relative to group position
-    for (const childId of group.children) {
+    for (const childId of obj.children) {
       const child = objectsMap.get(childId);
       if (child) {
         result += renderObjectToSVG(child, x, y, objectsMap);

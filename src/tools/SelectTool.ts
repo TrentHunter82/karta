@@ -8,7 +8,9 @@ import type {
   HandleType,
   Position,
 } from './types';
-import type { TextObject, CanvasObject } from '../types/canvas';
+import type { CanvasObject } from '../types/canvas';
+import { isTextObject } from '../types/canvas';
+import { ROTATION_SNAP_DEG } from '../constants/layout';
 
 // Constants
 const MIN_OBJECT_SIZE = 10;
@@ -257,7 +259,7 @@ export class SelectTool extends BaseTool {
       y: obj.y,
       width: obj.width,
       height: obj.height,
-      fontSize: obj.type === 'text' ? (obj as TextObject).fontSize : undefined,
+      fontSize: isTextObject(obj) ? obj.fontSize : undefined,
     };
 
     if (handle) {
@@ -716,7 +718,7 @@ export class SelectTool extends BaseTool {
 
     // Shift+drag snaps to 15 degree increments
     if (shiftKey) {
-      newRotation = Math.round(newRotation / 15) * 15;
+      newRotation = Math.round(newRotation / ROTATION_SNAP_DEG) * ROTATION_SNAP_DEG;
     }
 
     this.ctx.updateObjects([{

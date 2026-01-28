@@ -1,6 +1,7 @@
 import { useRef, useEffect, useCallback, useMemo, useState } from 'react';
 import { useCanvasStore } from '../../stores/canvasStore';
 import type { CanvasObject } from '../../types/canvas';
+import { CANVAS_WIDTH_OFFSET, CANVAS_HEIGHT_OFFSET } from '../../constants/layout';
 import './Minimap.css';
 
 const MINIMAP_WIDTH = 150;
@@ -35,8 +36,8 @@ const calculateBounds = (objects: CanvasObject[]): { x: number; y: number; width
 
 // Get viewport bounds in canvas coordinates
 const getViewportBounds = (viewport: { x: number; y: number; zoom: number }): { x: number; y: number; width: number; height: number } => {
-  const canvasWidth = window.innerWidth - 260;
-  const canvasHeight = window.innerHeight - 80;
+  const canvasWidth = window.innerWidth - CANVAS_WIDTH_OFFSET;
+  const canvasHeight = window.innerHeight - CANVAS_HEIGHT_OFFSET;
 
   return {
     x: -viewport.x,
@@ -198,8 +199,8 @@ export function Minimap() {
     const canvasPos = minimapToCanvas(e);
 
     // Get canvas dimensions
-    const canvasWidth = window.innerWidth - 260;
-    const canvasHeight = window.innerHeight - 80;
+    const canvasWidth = window.innerWidth - CANVAS_WIDTH_OFFSET;
+    const canvasHeight = window.innerHeight - CANVAS_HEIGHT_OFFSET;
 
     // Center viewport on clicked position
     setViewport({
@@ -228,8 +229,8 @@ export function Minimap() {
     const canvasPos = minimapToCanvas(e);
 
     // Get canvas dimensions
-    const canvasWidth = window.innerWidth - 260;
-    const canvasHeight = window.innerHeight - 80;
+    const canvasWidth = window.innerWidth - CANVAS_WIDTH_OFFSET;
+    const canvasHeight = window.innerHeight - CANVAS_HEIGHT_OFFSET;
 
     // Center viewport on dragged position
     setViewport({

@@ -62,7 +62,8 @@ src/
 │   └── properties/   # PropertiesPanel, inputs, sections
 ├── stores/           # Zustand state (canvas, selection, viewport, history, clipboard, etc.)
 ├── tools/            # Tool system (Select, Rectangle, Text, Pen, Line, Arrow, Frame, etc.)
-├── types/            # TypeScript type definitions
+├── constants/        # Shared constants (layout offsets, zoom limits, snap values)
+├── types/            # TypeScript type definitions (includes type guards)
 ├── utils/            # Geometry, spatial indexing (QuadTree), Yjs utilities
 └── hooks/            # Custom React hooks
 ```

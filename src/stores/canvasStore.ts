@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import * as Y from 'yjs';
-import type { CanvasObject, Viewport, ToolType, GroupObject } from '../types/canvas';
+import type { CanvasObject, Viewport, ToolType } from '../types/canvas';
+import { isGroupObject } from '../types/canvas';
 import { getYdoc } from './collaborationStore';
 import { useToastStore } from './toastStore';
 import { QuadTree, type Bounds } from '../utils/quadtree';
@@ -994,10 +995,8 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
 
     if (editingGroupId) {
       const group = state.objects.get(editingGroupId);
-      if (group?.type === 'group') {
-        // Type narrow to GroupObject to access children property
-        const groupObj = group as GroupObject;
-        useSelectionStore.getState().setSelection(groupObj.children);
+      if (group && isGroupObject(group)) {
+        useSelectionStore.getState().setSelection(group.children);
       }
     } else {
       const topLevelIds = Array.from(state.objects.values())

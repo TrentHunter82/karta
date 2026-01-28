@@ -6,6 +6,24 @@ Polish and harden the Karta codebase - improve code quality, fix edge cases, no 
 ## Phase
 in-progress
 
+## Session 6 — Completed Work
+
+### Type Safety
+- **Added 13 type guard functions** in `src/types/canvas.ts` (`isRectangleObject`, `isTextObject`, `isGroupObject`, `isLineOrArrow`, etc.) for discriminated union narrowing
+- **Replaced ~35 `as` type casts** across 8 files with type guards and discriminated union auto-narrowing:
+  - `exportUtils.ts`: Removed 12 casts (switch cases auto-narrow `CanvasObject`)
+  - `Canvas.tsx`: Removed 11 casts (switch cases + type guard replacements)
+  - `PropertiesPanel.tsx`: Removed 9 casts (switch cases + `.filter(isTextObject)` pattern)
+  - `canvasStore.ts`, `groupStore.ts`, `LayerSection.tsx`, `SelectTool.ts`: Replaced `as GroupObject`/`as TextObject` with `isGroupObject()`/`isTextObject()` type guards
+- Removed unnecessary type-only imports (`TextObject`, `GroupObject`, etc.) from files that no longer need them
+
+### Magic Numbers Extraction
+- **Created `src/constants/layout.ts`** with shared constants: `CANVAS_WIDTH_OFFSET`, `CANVAS_HEIGHT_OFFSET`, `TEMPLATE_PANEL_WIDTH`, `MIN_ZOOM`, `MAX_ZOOM`, `DEFAULT_VIEWPORT_PADDING`, `ANGLE_SNAP_45_RAD`, `ROTATION_SNAP_DEG`
+- **Replaced hardcoded `260`/`80` layout offsets** in 4 files (Minimap.tsx, useKeyboardShortcuts.ts, TemplatePanel.tsx, viewportStore.ts) with shared constants
+- **Replaced `Math.PI / 4` angle snaps** in LineTool.ts and ArrowTool.ts with `ANGLE_SNAP_45_RAD`
+- **Replaced `15` rotation snap** in SelectTool.ts with `ROTATION_SNAP_DEG`
+- **Deduplicated `MIN_ZOOM`/`MAX_ZOOM`** — removed duplicate definitions from Canvas.tsx and viewportStore.ts, now imported from shared constants
+
 ## Session 5 — Completed Work
 
 ### Performance
@@ -51,11 +69,11 @@ Full codebase analysis covering quality, security, performance, and architecture
 ## Remaining Work (prioritized)
 
 ### Medium Priority
-1. **106 type assertions** (`as` casts) — consider type guard functions for canvas object types
+1. ~~**106 type assertions** (`as` casts)~~ — **Reduced by ~35**: Added type guards and leveraged discriminated union narrowing. Remaining casts are mostly DOM casts (`as Node`, `as HTMLElement`), generic casts (`as unknown`, `as const`), and a few structural casts that can't be eliminated without larger refactors.
 
 ### Low Priority / Long-term
 6. **Decompose large files**: Canvas.tsx (1,803 lines), canvasStore.ts (1,155 lines), SelectTool.ts (823 lines)
-7. **Extract magic numbers** to named constants (snap thresholds, padding values, retry counts)
+7. ~~**Extract magic numbers**~~ — **Partially done**: Layout offsets, zoom limits, angle snaps extracted to `src/constants/layout.ts`. Remaining: some local padding values and threshold constants that are only used once.
 8. **22 empty test files** — all test suites are stubs with no test cases
 
 ### Not Issues

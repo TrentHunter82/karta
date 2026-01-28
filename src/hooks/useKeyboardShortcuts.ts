@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import { useCanvasStore } from '../stores/canvasStore';
 import type { ToolType, TextObject } from '../types/canvas';
+import { CANVAS_WIDTH_OFFSET, CANVAS_HEIGHT_OFFSET } from '../constants/layout';
 
 interface KeyboardShortcutsOptions {
   onOpenShortcuts?: () => void;
@@ -215,8 +216,8 @@ export function useKeyboardShortcuts(options: KeyboardShortcutsOptions = {}) {
         // Helper function for zoom toward cursor
         const zoomTowardCursor = (zoomIn: boolean) => {
           // Get canvas dimensions
-          const canvasWidth = window.innerWidth - 260;
-          const canvasHeight = window.innerHeight - 80;
+          const canvasWidth = window.innerWidth - CANVAS_WIDTH_OFFSET;
+          const canvasHeight = window.innerHeight - CANVAS_HEIGHT_OFFSET;
 
           // Calculate zoom center (cursor position if on canvas, otherwise center)
           const zoomCenter = cursorPosition || {

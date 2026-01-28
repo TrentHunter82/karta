@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { useTemplateStore, PRESET_TEMPLATES, type Template, type TemplateObject } from '../stores/templateStore';
 import { useCanvasStore } from '../stores/canvasStore';
+import { CANVAS_WIDTH_OFFSET, CANVAS_HEIGHT_OFFSET, TEMPLATE_PANEL_WIDTH } from '../constants/layout';
 import './TemplatePanel.css';
 
 // Calculate bounding box from template objects
@@ -199,8 +200,8 @@ export function TemplatePanel() {
 
   const handleUseTemplate = (template: Template) => {
     // Calculate center of viewport
-    const canvasWidth = window.innerWidth - 260 - 240; // Subtract right panel + template panel
-    const canvasHeight = window.innerHeight - 80;
+    const canvasWidth = window.innerWidth - CANVAS_WIDTH_OFFSET - TEMPLATE_PANEL_WIDTH;
+    const canvasHeight = window.innerHeight - CANVAS_HEIGHT_OFFSET;
     const centerX = -viewport.x + canvasWidth / 2 / viewport.zoom;
     const centerY = -viewport.y + canvasHeight / 2 / viewport.zoom;
 

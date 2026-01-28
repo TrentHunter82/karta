@@ -119,6 +119,59 @@ export type CanvasObject =
   | PolygonObject
   | StarObject;
 
+// Type guards for canvas object types
+export function isRectangleObject(obj: CanvasObject): obj is RectangleObject {
+  return obj.type === 'rectangle';
+}
+
+export function isEllipseObject(obj: CanvasObject): obj is EllipseObject {
+  return obj.type === 'ellipse';
+}
+
+export function isTextObject(obj: CanvasObject): obj is TextObject {
+  return obj.type === 'text';
+}
+
+export function isFrameObject(obj: CanvasObject): obj is FrameObject {
+  return obj.type === 'frame';
+}
+
+export function isPathObject(obj: CanvasObject): obj is PathObject {
+  return obj.type === 'path';
+}
+
+export function isImageObject(obj: CanvasObject): obj is ImageObject {
+  return obj.type === 'image';
+}
+
+export function isVideoObject(obj: CanvasObject): obj is VideoObject {
+  return obj.type === 'video';
+}
+
+export function isGroupObject(obj: CanvasObject): obj is GroupObject {
+  return obj.type === 'group';
+}
+
+export function isLineObject(obj: CanvasObject): obj is LineObject {
+  return obj.type === 'line';
+}
+
+export function isArrowObject(obj: CanvasObject): obj is ArrowObject {
+  return obj.type === 'arrow';
+}
+
+export function isPolygonObject(obj: CanvasObject): obj is PolygonObject {
+  return obj.type === 'polygon';
+}
+
+export function isStarObject(obj: CanvasObject): obj is StarObject {
+  return obj.type === 'star';
+}
+
+export function isLineOrArrow(obj: CanvasObject): obj is LineObject | ArrowObject {
+  return obj.type === 'line' || obj.type === 'arrow';
+}
+
 export interface Viewport {
   x: number;
   y: number;

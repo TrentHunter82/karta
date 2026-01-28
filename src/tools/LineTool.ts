@@ -1,5 +1,6 @@
 // LineTool - handles line drawing
 import { BaseTool } from './BaseTool';
+import { ANGLE_SNAP_45_RAD } from '../constants/layout';
 import type {
   ToolState,
   ToolMouseEvent,
@@ -109,7 +110,7 @@ export class LineTool extends BaseTool {
       const angle = Math.atan2(dy, dx);
       const length = Math.sqrt(dx * dx + dy * dy);
       // Snap to 45° increments
-      const snappedAngle = Math.round(angle / (Math.PI / 4)) * (Math.PI / 4);
+      const snappedAngle = Math.round(angle / ANGLE_SNAP_45_RAD) * ANGLE_SNAP_45_RAD;
       endX = this.state.startPos.x + length * Math.cos(snappedAngle);
       endY = this.state.startPos.y + length * Math.sin(snappedAngle);
     }

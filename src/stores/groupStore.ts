@@ -3,6 +3,7 @@
 
 import { create } from 'zustand';
 import type { CanvasObject, GroupObject } from '../types/canvas';
+import { isGroupObject } from '../types/canvas';
 
 /**
  * Get absolute position of an object, traversing up the parent chain
@@ -122,15 +123,14 @@ export const calculateUngroupData = (
 
   groupIds.forEach(groupId => {
     const obj = objects.get(groupId);
-    if (obj?.type === 'group') {
-      const group = obj as GroupObject;
+    if (obj && isGroupObject(obj)) {
       groupsToDelete.push(groupId);
 
       // Get group's absolute position
-      const groupAbsPos = getAbsolutePosition(group, objects);
+      const groupAbsPos = getAbsolutePosition(obj, objects);
 
       // Convert children back to absolute positions
-      group.children.forEach(childId => {
+      obj.children.forEach(childId => {
         const child = objects.get(childId);
         if (child) {
           childUpdates.push({

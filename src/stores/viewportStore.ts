@@ -3,15 +3,9 @@
 
 import { create } from 'zustand';
 import type { Viewport, CanvasObject } from '../types/canvas';
+import { MIN_ZOOM, MAX_ZOOM, DEFAULT_VIEWPORT_PADDING, CANVAS_WIDTH_OFFSET, CANVAS_HEIGHT_OFFSET } from '../constants/layout';
 
-// Constants
-const MIN_ZOOM = 0.1; // 10%
-const MAX_ZOOM = 5.0; // 500%
-const DEFAULT_PADDING = 50;
-
-// Canvas layout constants (toolbar + properties panel width, topbar + statusbar height)
-const CANVAS_WIDTH_OFFSET = 260;
-const CANVAS_HEIGHT_OFFSET = 80;
+const DEFAULT_PADDING = DEFAULT_VIEWPORT_PADDING;
 
 /**
  * Calculate bounding box from an array of objects
