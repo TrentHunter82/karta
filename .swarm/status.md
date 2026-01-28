@@ -4,49 +4,38 @@
 Polish and harden the Karta codebase - improve code quality, fix edge cases, no new features
 
 ## Phase
-implementing
+in-progress
 
-## Active Agents
-- impl-1: Completed Code Quality + Performance + Polish + Test fixes (iteration 2)
-- impl-2: Edge Case Handling - ALL TASKS COMPLETE
-- reviewer: All review tasks complete
+## Session 3 — Completed Work
 
-## Completed Tasks (this iteration)
-- [x] Review canvasStore.ts for utility extraction (impl-1)
-- [x] Add JSDoc comments to store functions (impl-1)
-- [x] Review TypeScript types - eliminate any types (impl-1)
-- [x] Extract magic numbers into constants (impl-1)
-- [x] Verify paste operations work when clipboard is empty or contains invalid data (impl-2)
-- [x] Test and fix any issues with objects at extreme positions (impl-2)
-- [x] Optimize hitTest() to use QuadTree spatial index (impl-1, from reviewer findings)
-- [x] Memoize sorted objects array in Canvas.tsx (impl-1, from reviewer findings)
-- [x] Audit SelectTool.ts for edge cases: drag threshold, zero-size marquee (impl-2)
-- [x] Verify keyboard shortcuts work consistently and don't conflict (reviewer)
-- [x] Review error boundary coverage - wrap all major sections (impl-1)
-- [x] Ensure all canvas operations handle objects with rotation correctly (impl-2)
-- [x] Ensure export works correctly with rotated objects and groups (impl-2)
-- [x] Review cursor changes - all tools implement correctly (impl-1)
-- [x] Fix SelectTool test failures for pending_drag state (impl-1)
-- [x] Verify existing tests pass: 392/392 pass (impl-1)
+### Bug Fixes
+- **NumberInput.tsx crash fixed**: `localValue`/`setLocalValue` were undefined (renamed from `editValue` but references were missed). Replaced all 3 occurrences + added proper initialization on edit click.
+- **PenTool continuous drawing**: Removed auto-switch to select tool on mouse up. Pen tool now stays active for continuous drawing. Cleared selection after stroke so no bounding box appears.
 
-## Remaining Tasks
-### Polish & UX (2 remaining)
-- [ ] Check all hover states and visual feedback on interactive elements
-- [ ] Ensure smooth animations/transitions where appropriate
+### Code Cleanup
+- **Removed 26 console.log statements** across 8 files (canvasStore, collaborationStore, clipboardStore, viewportStore, groupStore, yjsUtils, textMeasurement, Canvas). Preserved all console.warn (validation) and console.error (real errors).
+- **Removed dead code**: unused `displayValue` variable in NumberInput, commented-out `DISCONNECTION_TOAST_GRACE_PERIOD` constant in collaborationStore.
 
-### Testing Gaps (4 remaining)
-- [ ] Add unit tests for coordinate transformation functions
-- [ ] Add tests for selection logic (single, multi, marquee, shift-click)
-- [ ] Add tests for clipboard operations (copy, paste, duplicate)
-- [ ] Add tests for history operations (undo, redo boundaries)
+### Analysis Completed
+Full codebase analysis covering quality, security, performance, and architecture. Key remaining items below.
 
-## Artifacts
-- src/utils/yjsUtils.ts - Yjs serialization utilities
-- src/utils/geometryUtils.ts - Geometry and coordinate utilities + getRotatedBoundingBox()
-- src/stores/clipboardStore.ts - Added validation functions
-- src/tools/SelectTool.ts - Added drag threshold, marquee size checks
-- src/components/layout/Canvas.tsx - Rotation-aware marquee selection, spatial index hit testing
-- src/utils/exportUtils.ts - Group export support, unified bounding box calculation
+## Remaining Work (prioritized)
 
-## Last Updated
-2026-01-19T19:15:00.000Z
+### High Priority
+1. **useKeyboardShortcuts.ts** — 20+ dependency array in useEffect (line 449) causes frequent event listener re-registration. Refactor to use `getState()` pattern.
+2. **Room ID validation** — App.tsx:31 reads room ID from `window.location.hash` without validation. Add alphanumeric + length check.
+
+### Medium Priority
+3. **Add React.memo** to ContextMenu and PropertiesPanel components
+4. **Memoize Minimap bounds** calculations (lines 77-94, runs every render)
+5. **106 type assertions** (`as` casts) — consider type guard functions for canvas object types
+
+### Low Priority / Long-term
+6. **Decompose large files**: Canvas.tsx (1,803 lines), canvasStore.ts (1,155 lines), SelectTool.ts (823 lines)
+7. **Extract magic numbers** to named constants (snap thresholds, padding values, retry counts)
+8. **22 empty test files** — all test suites are stubs with no test cases
+
+### Not Issues
+- Security: No XSS, eval, innerHTML, or hardcoded secrets found
+- Event listener cleanup: All properly handled across all components
+- Canvas rendering: Well-optimized with image/video caching, QuadTree spatial indexing
