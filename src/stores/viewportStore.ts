@@ -102,7 +102,6 @@ export const useViewportStore = create<ViewportState>((set, get) => ({
       }
     });
 
-    console.log(`[ViewportStore] Zoom to fit: ${Math.round(zoom * 100)}%`);
   },
 
   zoomToSelection: (objects, selectedIds) => {
@@ -138,7 +137,6 @@ export const useViewportStore = create<ViewportState>((set, get) => ({
       }
     });
 
-    console.log(`[ViewportStore] Zoom to selection: ${Math.round(zoom * 100)}%`);
   },
 
   setZoomPreset: (zoom) => {
@@ -165,7 +163,6 @@ export const useViewportStore = create<ViewportState>((set, get) => ({
       }
     });
 
-    console.log(`[ViewportStore] Set zoom preset: ${Math.round(zoom * 100)}%`);
   },
 
   toggleMinimap: () => {

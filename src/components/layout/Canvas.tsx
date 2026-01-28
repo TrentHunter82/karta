@@ -1027,7 +1027,6 @@ export function Canvas() {
 
     if (!toolManagerRef.current) {
       toolManagerRef.current = new ToolManager(ctx);
-      console.log('[Canvas] ToolManager initialized with all tools');
     } else {
       toolManagerRef.current.updateContext(ctx);
     }
@@ -1794,7 +1793,6 @@ export function Canvas() {
           x={contextMenu.x}
           y={contextMenu.y}
           onClose={() => setContextMenu(null)}
-          targetObjectId={null}
         />
       )}
       <CursorPresence />

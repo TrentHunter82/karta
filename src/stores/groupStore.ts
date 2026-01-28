@@ -165,14 +165,10 @@ export const useGroupStore = create<GroupState>((set, get) => ({
 
   enterGroupEditMode: (groupId) => {
     set({ editingGroupId: groupId });
-    console.log(`[GroupStore] Entered group edit mode for ${groupId}`);
   },
 
   exitGroupEditMode: () => {
     const state = get();
-    if (state.editingGroupId) {
-      console.log(`[GroupStore] Exited group edit mode`);
-    }
     set({ editingGroupId: null });
   },
 }));

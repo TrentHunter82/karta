@@ -133,7 +133,6 @@ export const useClipboardStore = create<ClipboardState>((set, get) => ({
       pasteCount: 0,
     });
 
-    console.log(`[Clipboard] Copied ${clonedItems.length} objects`);
   },
 
   paste: (getNextZIndex, addObjects, setSelection) => {
@@ -179,7 +178,6 @@ export const useClipboardStore = create<ClipboardState>((set, get) => ({
       items: updatedItems,
     });
 
-    console.log(`[Clipboard] Pasted ${newObjects.length} objects`);
   },
 
   duplicate: (objects, getNextZIndex, addObjects, setSelection) => {
@@ -210,7 +208,6 @@ export const useClipboardStore = create<ClipboardState>((set, get) => ({
     addObjects(newObjects);
     setSelection(newObjects.map((obj) => obj.id));
 
-    console.log(`[Clipboard] Duplicated ${newObjects.length} objects`);
   },
 
   clear: () => set({ items: [], pasteCount: 0 }),

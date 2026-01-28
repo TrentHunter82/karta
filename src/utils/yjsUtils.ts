@@ -202,7 +202,6 @@ export const createYjsUpdateQueue = (
       });
     });
 
-    console.log(`[yjsUtils] Flushed ${updates.size} debounced Yjs updates`);
   };
 
   return { queueUpdate, flushUpdates };

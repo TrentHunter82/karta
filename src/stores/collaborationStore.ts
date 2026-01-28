@@ -53,9 +53,6 @@ interface CollaborationState {
 // In production, this should be your own y-websocket server
 const DEFAULT_SERVER_URL = 'wss://demos.yjs.dev/ws';
 
-// Grace period before showing disconnection toast (ms) - preserved for future use
-// const DISCONNECTION_TOAST_GRACE_PERIOD = 5000;
-
 // Track pending disconnection toast timeout
 let disconnectionToastTimeout: ReturnType<typeof setTimeout> | null = null;
 
@@ -135,7 +132,7 @@ export const useCollaborationStore = create<CollaborationState>((set, get) => ({
           if (disconnectionToastTimeout) {
             clearTimeout(disconnectionToastTimeout);
             disconnectionToastTimeout = null;
-            console.log('[Collaboration] Reconnected within grace period, suppressed disconnection toast');
+
           }
 
           set({
@@ -154,7 +151,6 @@ export const useCollaborationStore = create<CollaborationState>((set, get) => ({
       // Handle sync status
       provider.on('sync', (isSynced: boolean) => {
         if (isSynced) {
-          console.log('[Collaboration] Document synced with server');
         }
       });
 
@@ -167,7 +163,6 @@ export const useCollaborationStore = create<CollaborationState>((set, get) => ({
             connectionStatus: 'connecting'
           });
           // Start grace period timer on first disconnect (only show toast if reconnection fails within 5s)
-          console.log(`[Collaboration] Connection lost. Reconnecting... (attempt ${currentState.reconnectAttempts + 1}/${currentState.maxReconnectAttempts})`);
         } else {
           // Clear any pending toast timeout
           if (disconnectionToastTimeout) {
@@ -175,7 +170,6 @@ export const useCollaborationStore = create<CollaborationState>((set, get) => ({
             disconnectionToastTimeout = null;
           }
           set({ connectionStatus: 'disconnected' });
-          console.log('[Collaboration] Max reconnection attempts reached. Please try again manually.');
         }
       });
 
@@ -265,7 +259,6 @@ export const useCollaborationStore = create<CollaborationState>((set, get) => ({
       remoteUsers: new Map()
     });
 
-    console.log('[Collaboration] Disconnected from room');
   },
 
   setConnectionStatus: (status: ConnectionStatus) => {

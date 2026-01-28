@@ -185,8 +185,6 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
     const state = get();
     if (state.isInitialized) return;
 
-    console.log('[CanvasStore] Initializing Yjs sync...');
-
     const initialObjects = new Map<string, CanvasObject>();
     getYObjects().forEach((yMap, id) => {
       const obj = yjsToObject(yMap);
@@ -196,14 +194,12 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
     });
 
     set({ objects: initialObjects, isInitialized: true });
-    console.log(`[CanvasStore] Loaded ${initialObjects.size} objects from Yjs`);
     get().rebuildSpatialIndex();
 
     // Observe changes from Yjs (remote changes)
     getYObjects().observe((event) => {
       if (event.transaction.local) return;
 
-      console.log('[CanvasStore] Received remote Yjs changes');
       set({ isApplyingRemoteChanges: true });
 
       try {
@@ -235,7 +231,6 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
     getYObjects().observeDeep((events) => {
       if (events[0]?.transaction.local || get().isApplyingRemoteChanges) return;
 
-      console.log('[CanvasStore] Received deep remote Yjs changes');
       set({ isApplyingRemoteChanges: true });
 
       try {
@@ -279,7 +274,6 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
   },
 
   resetYjsSync: () => {
-    console.log('[CanvasStore] Resetting Yjs sync state...');
     useHistoryStore.getState().clear();
     useSelectionStore.getState().clearSelection();
     set({ isInitialized: false, objects: new Map() });
@@ -308,7 +302,6 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
       getYObjects().set(sanitizedObject.id, yMap);
     });
 
-    console.log(`[CanvasStore] Added object: ${sanitizedObject.id}`, { type: sanitizedObject.type });
     get().rebuildSpatialIndex();
   },
 
@@ -366,7 +359,6 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
       getYObjects().delete(id);
     });
 
-    console.log(`[CanvasStore] Deleted object: ${id}`);
     get().rebuildSpatialIndex();
   },
 
@@ -712,7 +704,6 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
       }
     });
 
-    console.log(`[CanvasStore] Aligned ${updates.length} objects: ${alignment}`);
   },
 
   distributeObjects: (direction) => {
@@ -741,7 +732,6 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
       }
     });
 
-    console.log(`[CanvasStore] Distributed ${updates.length} objects: ${direction}`);
   },
 
   // Grouping actions (using calculation functions from groupStore)

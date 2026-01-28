@@ -48,7 +48,5 @@ export function measureTextDimensions(params: TextMeasurementParams): TextDimens
     height: Math.max(totalHeight, lineHeightPx),
   };
 
-  console.log('[measureTextDimensions]', { text, fontSize, fontFamily, result });
-
   return result;
 }
