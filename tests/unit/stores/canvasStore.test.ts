@@ -1,4 +1,3 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { useCanvasStore } from '../../../src/stores/canvasStore';
 import { useHistoryStore } from '../../../src/stores/historyStore';
 import { useClipboardStore } from '../../../src/stores/clipboardStore';

@@ -12,6 +12,8 @@ import { useSelectionStore, calculateAlignmentUpdates, calculateDistributionUpda
 import { useGroupStore, getAbsolutePosition, calculateGroupData, calculateUngroupData } from './groupStore';
 import { objectToYjs, yjsToObject, createYjsUpdateQueue } from '../utils/yjsUtils';
 import { calculateBoundingBox, sanitizeCoordinates, getRotatedBoundingBox } from '../utils/geometryUtils';
+import { calculateBringToFront, calculateBringForward, calculateSendBackward, calculateSendToBack } from '../utils/zOrderUtils';
+import { computeSnappedPosition, snapValueToGrid } from '../utils/snapUtils';
 
 /**
  * Configuration for the canvas grid overlay and snapping behavior.
@@ -884,108 +886,35 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
 
   toggleMinimap: () => useViewportStore.getState().toggleMinimap(),
 
-  // Z-order actions
+  // Z-order actions (logic extracted to zOrderUtils.ts)
   bringToFront: () => {
-    const state = get();
     const selectedIds = useSelectionStore.getState().selectedIds;
     if (selectedIds.size === 0) return;
-
     get().pushHistory();
-
-    let maxZ = -1;
-    for (const obj of state.objects.values()) {
-      if (obj.zIndex > maxZ) maxZ = obj.zIndex;
-    }
-
-    const updates: Array<{ id: string; changes: Partial<CanvasObject> }> = [];
-    selectedIds.forEach(id => {
-      maxZ++;
-      updates.push({ id, changes: { zIndex: maxZ } });
-    });
-
-    get().updateObjects(updates);
+    get().updateObjects(calculateBringToFront(get().objects, selectedIds));
   },
 
   bringForward: () => {
-    const state = get();
     const selectedIds = useSelectionStore.getState().selectedIds;
     if (selectedIds.size === 0) return;
-
     get().pushHistory();
-
-    const sortedObjects = Array.from(state.objects.values()).sort((a, b) => a.zIndex - b.zIndex);
-
-    let maxSelectedZ = -1;
-    selectedIds.forEach(id => {
-      const obj = state.objects.get(id);
-      if (obj && obj.zIndex > maxSelectedZ) maxSelectedZ = obj.zIndex;
-    });
-
-    const objAbove = sortedObjects.find(obj => obj.zIndex > maxSelectedZ && !selectedIds.has(obj.id));
-    if (!objAbove) return;
-
-    const updates: Array<{ id: string; changes: Partial<CanvasObject> }> = [];
-    selectedIds.forEach(id => {
-      const obj = state.objects.get(id);
-      if (obj) {
-        updates.push({ id, changes: { zIndex: obj.zIndex + 1 } });
-      }
-    });
-    updates.push({ id: objAbove.id, changes: { zIndex: objAbove.zIndex - selectedIds.size } });
-
-    get().updateObjects(updates);
+    const updates = calculateBringForward(get().objects, selectedIds);
+    if (updates.length > 0) get().updateObjects(updates);
   },
 
   sendBackward: () => {
-    const state = get();
     const selectedIds = useSelectionStore.getState().selectedIds;
     if (selectedIds.size === 0) return;
-
     get().pushHistory();
-
-    const sortedObjects = Array.from(state.objects.values()).sort((a, b) => a.zIndex - b.zIndex);
-
-    let minSelectedZ = Infinity;
-    selectedIds.forEach(id => {
-      const obj = state.objects.get(id);
-      if (obj && obj.zIndex < minSelectedZ) minSelectedZ = obj.zIndex;
-    });
-
-    const objBelow = sortedObjects.reverse().find(obj => obj.zIndex < minSelectedZ && !selectedIds.has(obj.id));
-    if (!objBelow) return;
-
-    const updates: Array<{ id: string; changes: Partial<CanvasObject> }> = [];
-    selectedIds.forEach(id => {
-      const obj = state.objects.get(id);
-      if (obj) {
-        updates.push({ id, changes: { zIndex: obj.zIndex - 1 } });
-      }
-    });
-    updates.push({ id: objBelow.id, changes: { zIndex: objBelow.zIndex + selectedIds.size } });
-
-    get().updateObjects(updates);
+    const updates = calculateSendBackward(get().objects, selectedIds);
+    if (updates.length > 0) get().updateObjects(updates);
   },
 
   sendToBack: () => {
-    const state = get();
     const selectedIds = useSelectionStore.getState().selectedIds;
     if (selectedIds.size === 0) return;
-
     get().pushHistory();
-
-    let minZ = Infinity;
-    for (const obj of state.objects.values()) {
-      if (obj.zIndex < minZ) minZ = obj.zIndex;
-    }
-
-    const updates: Array<{ id: string; changes: Partial<CanvasObject> }> = [];
-    let newZ = minZ - selectedIds.size;
-    selectedIds.forEach(id => {
-      updates.push({ id, changes: { zIndex: newZ } });
-      newZ++;
-    });
-
-    get().updateObjects(updates);
+    get().updateObjects(calculateSendToBack(get().objects, selectedIds));
   },
 
   // Selection actions
@@ -1025,70 +954,17 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
 
   setActiveSnapGuides: (guides) => set({ activeSnapGuides: guides }),
 
+  // Snap logic (extracted to snapUtils.ts)
   snapToGrid: (value) => {
     const { gridSettings } = get();
     if (!gridSettings.snapEnabled) return value;
-    return Math.round(value / gridSettings.size) * gridSettings.size;
+    return snapValueToGrid(value, gridSettings.size);
   },
 
   snapPosition: (x, y, skipSnap = false) => {
     const state = get();
-    const { gridSettings } = state;
-    const guides: SnapGuide[] = [];
-
-    if (skipSnap || (!gridSettings.snapEnabled && !gridSettings.snapToObjects)) {
-      return { x, y, guides };
-    }
-
-    let snappedX = x;
-    let snappedY = y;
-
-    if (gridSettings.snapEnabled) {
-      snappedX = Math.round(x / gridSettings.size) * gridSettings.size;
-      snappedY = Math.round(y / gridSettings.size) * gridSettings.size;
-    }
-
-    if (gridSettings.snapToObjects) {
-      const selectedIds = useSelectionStore.getState().selectedIds;
-      const snapThreshold = 8;
-
-      const otherObjects = Array.from(state.objects.values())
-        .filter(obj => !selectedIds.has(obj.id) && obj.visible !== false && !obj.parentId);
-
-      for (const obj of otherObjects) {
-        const objLeft = obj.x;
-        const objCenter = obj.x + obj.width / 2;
-        const objRight = obj.x + obj.width;
-
-        if (Math.abs(x - objLeft) < snapThreshold) {
-          snappedX = objLeft;
-          guides.push({ type: 'vertical', position: objLeft, sourceId: obj.id });
-        } else if (Math.abs(x - objCenter) < snapThreshold) {
-          snappedX = objCenter;
-          guides.push({ type: 'vertical', position: objCenter, sourceId: obj.id });
-        } else if (Math.abs(x - objRight) < snapThreshold) {
-          snappedX = objRight;
-          guides.push({ type: 'vertical', position: objRight, sourceId: obj.id });
-        }
-
-        const objTop = obj.y;
-        const objMiddle = obj.y + obj.height / 2;
-        const objBottom = obj.y + obj.height;
-
-        if (Math.abs(y - objTop) < snapThreshold) {
-          snappedY = objTop;
-          guides.push({ type: 'horizontal', position: objTop, sourceId: obj.id });
-        } else if (Math.abs(y - objMiddle) < snapThreshold) {
-          snappedY = objMiddle;
-          guides.push({ type: 'horizontal', position: objMiddle, sourceId: obj.id });
-        } else if (Math.abs(y - objBottom) < snapThreshold) {
-          snappedY = objBottom;
-          guides.push({ type: 'horizontal', position: objBottom, sourceId: obj.id });
-        }
-      }
-    }
-
-    return { x: snappedX, y: snappedY, guides };
+    const selectedIds = useSelectionStore.getState().selectedIds;
+    return computeSnappedPosition(x, y, state.gridSettings, state.objects, selectedIds, skipSnap);
   },
 
   // Spatial indexing

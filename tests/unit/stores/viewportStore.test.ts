@@ -1,4 +1,3 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { useViewportStore } from '../../../src/stores/viewportStore';
 
 // Mock window dimensions for zoom calculations

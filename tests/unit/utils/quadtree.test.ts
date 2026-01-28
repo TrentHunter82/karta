@@ -1,4 +1,3 @@
-import { describe, it, expect, beforeEach } from 'vitest';
 import { QuadTree, calculateBoundingBox, type Bounds } from '../../../src/utils/quadtree';
 
 interface TestItem extends Bounds {

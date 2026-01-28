@@ -1,4 +1,3 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { useHistoryStore } from '../../../src/stores/historyStore';
 import type { RectangleObject, CanvasObject } from '../../../src/types/canvas';
 

@@ -1,4 +1,3 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { SelectTool } from '../../../src/tools/SelectTool';
 import type { ToolContext, ToolMouseEvent } from '../../../src/tools/types';
 import type { RectangleObject, TextObject, GroupObject, CanvasObject } from '../../../src/types/canvas';
@@ -79,6 +78,13 @@ const createMockContext = (objects: Map<string, CanvasObject> = new Map(), selec
   getObjectsInRect: vi.fn(() => []),
   isPointInObject: vi.fn(() => false),
   setCursor: vi.fn(),
+  snapPosition: vi.fn((x: number, y: number) => ({ x, y, guides: [] })),
+  snapToGrid: vi.fn((value: number) => value),
+  setActiveSnapGuides: vi.fn(),
+  getGridSettings: vi.fn(() => ({ snapEnabled: false, snapToObjects: false, gridSize: 10, showGrid: false })),
+  duplicateObjects: vi.fn(() => []),
+  setViewport: vi.fn(),
+  getObjectsInsideFrame: vi.fn(() => []),
 });
 
 // Create a mock mouse event

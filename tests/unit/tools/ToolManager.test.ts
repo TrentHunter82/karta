@@ -1,4 +1,3 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { ToolManager } from '../../../src/tools/ToolManager';
 import { BaseTool } from '../../../src/tools/BaseTool';
 import type {

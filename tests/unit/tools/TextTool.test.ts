@@ -1,4 +1,3 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { TextTool } from '../../../src/tools/TextTool';
 import type { ToolContext } from '../../../src/tools/types';
 import { createMockContext, createMockMouseEvent } from './testUtils';

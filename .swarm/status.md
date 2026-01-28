@@ -6,6 +6,30 @@ Polish and harden the Karta codebase - improve code quality, fix edge cases, no 
 ## Phase
 in-progress
 
+## Session 7 — Completed Work
+
+### Test Infrastructure Fix
+- **Fixed vitest 4.x compatibility**: Removed explicit `import { describe, it, expect, vi } from 'vitest'` from all 24 test/setup files. Vitest 4 with `globals: true` requires globals — explicit imports cause "No test suite found" errors. All 22 existing test suites now pass (392 tests).
+- **Fixed tool test mock contexts**: Added missing `snapPosition`, `snapToGrid`, `setActiveSnapGuides`, `getGridSettings`, `duplicateObjects`, `getObjectsInsideFrame` methods to `ToolContext` mocks in `testUtils.ts` and `SelectTool.test.ts`.
+- **Fixed PenTool test**: Updated `finalizes path creation` test to match session 3 behavior (pen tool stays active, no longer switches to select).
+
+### New Test Suites (5 files, 95 new tests)
+- **`tests/unit/utils/geometryUtils.test.ts`** — 41 tests covering `getRotatedBoundingBox`, `calculateBoundingBox`, `getBoundingBoxCenter`, `boundingBoxesIntersect`, `isPointInBounds`, `expandBounds`, `normalizeRect`, `isFiniteNumber`, `clampCoordinate`, `clampDimension`, `hasValidCoordinates`, `sanitizeCoordinates`
+- **`tests/unit/utils/typeGuards.test.ts`** — 13 tests for all type guard functions (`isRectangleObject` through `isLineOrArrow`)
+- **`tests/unit/utils/exportUtils.test.ts`** — 15 tests for SVG export (`exportToSVG`), JSON export (`exportToJSON`), and `validateProjectFile`
+- **`tests/unit/utils/zOrderUtils.test.ts`** — 8 tests for extracted z-order calculations
+- **`tests/unit/utils/snapUtils.test.ts`** — 12 tests for extracted snap/grid calculations
+
+### canvasStore Decomposition (1,147 → 1,022 lines)
+- **Extracted `src/utils/zOrderUtils.ts`** — Pure functions for z-order calculations: `calculateBringToFront`, `calculateBringForward`, `calculateSendBackward`, `calculateSendToBack`. Removes ~100 lines of algorithm code from canvasStore.
+- **Extracted `src/utils/snapUtils.ts`** — Pure functions for snap calculations: `snapValueToGrid`, `computeSnappedPosition`. Removes ~60 lines of snap logic from canvasStore. Includes `SNAP_THRESHOLD` constant (was hardcoded `8` in canvasStore).
+- Both modules are now independently testable with full coverage.
+
+### Final State
+- **27 test files, 487 tests, all passing**
+- **Typecheck clean** (`tsc --noEmit` passes)
+- canvasStore.ts reduced to 1,022 lines (from 1,147)
+
 ## Session 6 — Completed Work
 
 ### Type Safety
@@ -72,9 +96,9 @@ Full codebase analysis covering quality, security, performance, and architecture
 1. ~~**106 type assertions** (`as` casts)~~ — **Reduced by ~35**: Added type guards and leveraged discriminated union narrowing. Remaining casts are mostly DOM casts (`as Node`, `as HTMLElement`), generic casts (`as unknown`, `as const`), and a few structural casts that can't be eliminated without larger refactors.
 
 ### Low Priority / Long-term
-6. **Decompose large files**: Canvas.tsx (1,803 lines), canvasStore.ts (1,155 lines), SelectTool.ts (823 lines)
-7. ~~**Extract magic numbers**~~ — **Partially done**: Layout offsets, zoom limits, angle snaps extracted to `src/constants/layout.ts`. Remaining: some local padding values and threshold constants that are only used once.
-8. **22 empty test files** — all test suites are stubs with no test cases
+6. **Decompose large files**: Canvas.tsx (1,803 lines), ~~canvasStore.ts (1,155 lines)~~ → 1,022 lines (z-order + snap extracted), SelectTool.ts (823 lines). Further decomposition of canvasStore (Yjs sync, clipboard, grouping) is possible but risky due to tight coupling.
+7. ~~**Extract magic numbers**~~ — **Partially done**: Layout offsets, zoom limits, angle snaps extracted to `src/constants/layout.ts`. Snap threshold extracted to `snapUtils.ts`. Remaining: some local padding values and threshold constants that are only used once.
+8. ~~**22 empty test files**~~ — **Fixed**: All 27 test suites now run (vitest 4 import fix). 487 tests pass. Added 5 new test files for geometry utils, type guards, export utils, z-order utils, and snap utils.
 
 ### Not Issues
 - Security: No XSS, eval, innerHTML, or hardcoded secrets found

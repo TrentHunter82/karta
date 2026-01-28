@@ -1,4 +1,3 @@
-import { describe, it, expect, vi } from 'vitest';
 import { getSharedValue, getSharedNumber, applyToAll } from '../../../../src/components/properties/utils';
 import type { CanvasObject, RectangleObject } from '../../../../src/types/canvas';
 

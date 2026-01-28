@@ -1,4 +1,3 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import { TransformSection } from '../../../../src/components/properties/sections/TransformSection';
 import type { RectangleObject } from '../../../../src/types/canvas';

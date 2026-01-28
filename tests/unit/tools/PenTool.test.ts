@@ -1,4 +1,3 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { PenTool } from '../../../src/tools/PenTool';
 import type { ToolContext } from '../../../src/tools/types';
 import { createMockContext, createMockMouseEvent, createMockKeyboardEvent } from './testUtils';
@@ -134,7 +133,7 @@ describe('PenTool', () => {
   });
 
   describe('onMouseUp', () => {
-    it('finalizes path creation and switches to select tool', () => {
+    it('finalizes path creation and stays in pen tool', () => {
       const downEvent = createMockMouseEvent({ canvasX: 50, canvasY: 50 });
       tool.onMouseDown(downEvent);
 
@@ -145,8 +144,8 @@ describe('PenTool', () => {
       const result = tool.onMouseUp(upEvent);
 
       expect(result.handled).toBe(true);
-      expect(mockContext.setSelection).toHaveBeenCalled();
-      expect(mockContext.setActiveTool).toHaveBeenCalledWith('select');
+      // PenTool stays active for continuous drawing (fixed in session 3)
+      expect(mockContext.setActiveTool).not.toHaveBeenCalled();
     });
 
     it('deletes path if too few points', () => {

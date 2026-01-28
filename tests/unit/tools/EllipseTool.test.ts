@@ -1,4 +1,3 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { EllipseTool } from '../../../src/tools/EllipseTool';
 import type { ToolContext } from '../../../src/tools/types';
 import { createMockContext, createMockMouseEvent, createMockKeyboardEvent } from './testUtils';

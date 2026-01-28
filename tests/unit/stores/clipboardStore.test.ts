@@ -1,4 +1,3 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { useClipboardStore } from '../../../src/stores/clipboardStore';
 import type { RectangleObject, CanvasObject } from '../../../src/types/canvas';
 

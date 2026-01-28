@@ -1,4 +1,3 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { RectangleTool } from '../../../src/tools/RectangleTool';
 import type { ToolContext } from '../../../src/tools/types';
 import { createMockContext, createMockMouseEvent, createMockKeyboardEvent, createRectangle } from './testUtils';

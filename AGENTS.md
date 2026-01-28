@@ -10,6 +10,7 @@ Karta is a Figma/Canva-style visual ideation canvas built with React 19, TypeScr
 - **Canvas rendering**: Custom HTML Canvas 2D renderer in `Canvas.tsx` (1,800+ lines). Uses `requestAnimationFrame` loop. `QuadTree` spatial index for O(log n) hit testing.
 - **Object types**: Discriminated union on `type` field (`rectangle`, `ellipse`, `line`, `arrow`, `frame`, `pen`, `text`, `image`, `video`, `group`). Defined in `src/types/canvas.ts`. Use type guard functions (`isTextObject`, `isGroupObject`, `isLineOrArrow`, etc.) instead of `as` casts — they narrow the type safely.
 - **Shared constants**: Layout offsets, zoom limits, and angle snap values live in `src/constants/layout.ts`. Import from there instead of hardcoding values like `260`, `80`, `Math.PI / 4`.
+- **Extracted utilities**: Z-order calculations in `src/utils/zOrderUtils.ts`, snap logic in `src/utils/snapUtils.ts`. These are pure functions extracted from canvasStore — test them directly rather than through the store.
 - **Yjs integration**: Objects stored in Y.Map, synced via y-websocket. `queueYjsUpdate` batches changes. `isApplyingRemoteChanges` flag prevents echo loops.
 
 ## Conventions
@@ -29,4 +30,4 @@ Karta is a Figma/Canva-style visual ideation canvas built with React 19, TypeScr
 - **`isSpacePressed` stuck state (FIXED)**: Window blur handler added in session 5 resets `isSpacePressed` and `isPanning` on focus loss.
 - **Canvas.tsx `toolContext` memoization**: The `useMemo` for `createToolContext` has many dependencies. If callbacks inside it use stale closures, tools will get outdated state.
 - **canvasStore circular dependency**: `collaborationStore` imports from `canvasStore` and vice versa. Use lazy `getState()` calls to avoid import cycles.
-- **22 empty test files**: All test suites in `tests/` are stubs with no actual test cases.
+- **Test infrastructure**: Vitest 4 with `globals: true` — do NOT import `describe`/`it`/`expect`/`vi` from `'vitest'` in test files (causes "No test suite found" error). 27 test files, 487 tests passing.
