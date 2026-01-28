@@ -1012,6 +1012,13 @@ export function Canvas() {
       return intersectingIds;
     },
     isPointInObject: (pos, obj, absX, absY) => isPointInObject(pos, obj, absX, absY),
+
+    // Snap
+    snapPosition: (x: number, y: number, skipSnap?: boolean) => useCanvasStore.getState().snapPosition(x, y, skipSnap),
+    snapToGrid: (value: number) => useCanvasStore.getState().snapToGrid(value),
+    setActiveSnapGuides: (guides) => useCanvasStore.getState().setActiveSnapGuides(guides),
+    getGridSettings: () => useCanvasStore.getState().gridSettings,
+
     setCursor: (cursor: string) => setToolCursor(cursor),
   }), [
     objects, selectedIds, viewport, editingGroupId,

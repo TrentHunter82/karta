@@ -199,6 +199,9 @@ export class SelectTool extends BaseTool {
         break;
     }
 
+    // Clear snap guides
+    this.ctx.setActiveSnapGuides([]);
+
     // Reset state
     this.state.mode = 'idle';
     this.state.startPos = null;
@@ -452,6 +455,23 @@ export class SelectTool extends BaseTool {
       return { handled: true };
     }
 
+    // Snap: use the first selected object as the snap reference
+    let snapDx = dx;
+    let snapDy = dy;
+    const gridSettings = this.ctx.getGridSettings();
+    if (gridSettings.snapEnabled || gridSettings.snapToObjects) {
+      const refId = Array.from(selectedIds)[0];
+      const refObj = objects.get(refId);
+      if (refObj) {
+        const rawX = refObj.x + dx;
+        const rawY = refObj.y + dy;
+        const snapped = this.ctx.snapPosition(rawX, rawY);
+        snapDx = dx + (snapped.x - rawX);
+        snapDy = dy + (snapped.y - rawY);
+        this.ctx.setActiveSnapGuides(snapped.guides);
+      }
+    }
+
     // Update all selected objects
     const updates = Array.from(selectedIds)
       .map((id) => {
@@ -460,8 +480,8 @@ export class SelectTool extends BaseTool {
         return {
           id,
           changes: {
-            x: obj.x + dx,
-            y: obj.y + dy,
+            x: obj.x + snapDx,
+            y: obj.y + snapDy,
           },
         };
       })
@@ -592,6 +612,31 @@ export class SelectTool extends BaseTool {
         newWidth = startState.width - deltaX;
         newX = startState.x + startState.width - newWidth;
         break;
+    }
+
+    // Snap resize edges to grid
+    const gridSettings = this.ctx.getGridSettings();
+    if (gridSettings.snapEnabled) {
+      const snapGrid = this.ctx.snapToGrid;
+      // Snap the moving edges based on handle
+      if (handle === 'nw' || handle === 'w' || handle === 'sw') {
+        const snappedLeft = snapGrid(newX);
+        newWidth += newX - snappedLeft;
+        newX = snappedLeft;
+      }
+      if (handle === 'ne' || handle === 'e' || handle === 'se') {
+        const snappedRight = snapGrid(newX + newWidth);
+        newWidth = snappedRight - newX;
+      }
+      if (handle === 'nw' || handle === 'n' || handle === 'ne') {
+        const snappedTop = snapGrid(newY);
+        newHeight += newY - snappedTop;
+        newY = snappedTop;
+      }
+      if (handle === 'sw' || handle === 's' || handle === 'se') {
+        const snappedBottom = snapGrid(newY + newHeight);
+        newHeight = snappedBottom - newY;
+      }
     }
 
     // Enforce minimum size

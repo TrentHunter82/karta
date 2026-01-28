@@ -62,8 +62,9 @@ export class ArrowTool extends BaseTool {
     }
 
     this.state.isDrawing = true;
-    this.state.startPos = { x: e.canvasX, y: e.canvasY };
-    this.state.endPos = { x: e.canvasX, y: e.canvasY };
+    const snapped = this.ctx.snapPosition(e.canvasX, e.canvasY);
+    this.state.startPos = { x: snapped.x, y: snapped.y };
+    this.state.endPos = { x: snapped.x, y: snapped.y };
     this.state.shiftKey = e.shiftKey;
 
     // Create preview arrow
@@ -73,8 +74,8 @@ export class ArrowTool extends BaseTool {
     const arrow: ArrowObject = {
       id,
       type: 'arrow',
-      x: e.canvasX,
-      y: e.canvasY,
+      x: snapped.x,
+      y: snapped.y,
       width: 1,
       height: 1,
       rotation: 0,
@@ -116,8 +117,10 @@ export class ArrowTool extends BaseTool {
       endY = this.state.startPos.y + length * Math.sin(snappedAngle);
     }
 
-    this.state.endPos = { x: endX, y: endY };
+    const snapped = this.ctx.snapPosition(endX, endY);
+    this.state.endPos = { x: snapped.x, y: snapped.y };
     this.state.shiftKey = e.shiftKey;
+    this.ctx.setActiveSnapGuides(snapped.guides);
 
     this.updatePreview();
 
@@ -144,6 +147,7 @@ export class ArrowTool extends BaseTool {
     }
 
     // Reset state
+    this.ctx.setActiveSnapGuides([]);
     this.state.isDrawing = false;
     this.state.startPos = null;
     this.state.endPos = null;

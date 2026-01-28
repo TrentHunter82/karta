@@ -1,5 +1,6 @@
 // Tool system types for Karta
 import type { CanvasObject, Viewport, ToolType } from '../types/canvas';
+import type { GridSettings, SnapGuide } from '../stores/canvasStore';
 
 /**
  * Bounds interface for rectangle regions
@@ -69,6 +70,12 @@ export interface ToolContext {
   hitTestRotationHandle: (screenX: number, screenY: number, obj: CanvasObject) => RotationHandle;
   getObjectsInRect: (x1: number, y1: number, x2: number, y2: number) => string[];
   isPointInObject: (pos: Position, obj: CanvasObject, absX?: number, absY?: number) => boolean;
+
+  // Snap
+  snapPosition: (x: number, y: number, skipSnap?: boolean) => { x: number; y: number; guides: SnapGuide[] };
+  snapToGrid: (value: number) => number;
+  setActiveSnapGuides: (guides: SnapGuide[]) => void;
+  getGridSettings: () => GridSettings;
 
   // Canvas element reference for cursor updates
   setCursor: (cursor: string) => void;

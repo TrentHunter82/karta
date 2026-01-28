@@ -60,8 +60,9 @@ export class FrameTool extends BaseTool {
     }
 
     this.state.isDrawing = true;
-    this.state.startPos = { x: e.canvasX, y: e.canvasY };
-    this.state.endPos = { x: e.canvasX, y: e.canvasY };
+    const snapped = this.ctx.snapPosition(e.canvasX, e.canvasY);
+    this.state.startPos = { x: snapped.x, y: snapped.y };
+    this.state.endPos = { x: snapped.x, y: snapped.y };
 
     // Create preview frame
     const id = crypto.randomUUID();
@@ -70,8 +71,8 @@ export class FrameTool extends BaseTool {
     const frame: FrameObject = {
       id,
       type: 'frame',
-      x: e.canvasX,
-      y: e.canvasY,
+      x: snapped.x,
+      y: snapped.y,
       width: 0,
       height: 0,
       rotation: 0,
@@ -93,7 +94,9 @@ export class FrameTool extends BaseTool {
       return { handled: false };
     }
 
-    this.state.endPos = { x: e.canvasX, y: e.canvasY };
+    const snapped = this.ctx.snapPosition(e.canvasX, e.canvasY);
+    this.state.endPos = { x: snapped.x, y: snapped.y };
+    this.ctx.setActiveSnapGuides(snapped.guides);
 
     this.updatePreview();
 
@@ -118,6 +121,7 @@ export class FrameTool extends BaseTool {
     }
 
     // Reset state
+    this.ctx.setActiveSnapGuides([]);
     this.state.isDrawing = false;
     this.state.startPos = null;
     this.state.endPos = null;
