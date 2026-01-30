@@ -67,7 +67,7 @@
   padding: 6px 12px;
   border-radius: var(--radius-md);
   cursor: pointer;
-  transition: all 0.15s ease;
+  transition: all 150ms ease-out;
 }
 
 .session-name:hover {
@@ -99,7 +99,7 @@
   height: 28px;
   border-radius: var(--radius-md);
   cursor: default;
-  transition: all 0.15s ease;
+  transition: all 150ms ease-out;
 }
 
 .connection-status.connected {
@@ -157,7 +157,7 @@
   border: 2px solid var(--color-bg-secondary);
   margin-left: -8px;
   position: relative;
-  transition: transform 0.15s ease, z-index 0s;
+  transition: transform 150ms ease-out, z-index 0s;
 }
 
 .user-avatar:first-child {

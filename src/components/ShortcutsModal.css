@@ -50,7 +50,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: background 0.15s ease, color 0.15s ease;
+  transition: background 150ms ease-out, color 150ms ease-out;
 }
 
 .close-btn:hover {

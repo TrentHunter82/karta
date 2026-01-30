@@ -47,6 +47,7 @@ interface CanvasState {
   objects: Map<string, CanvasObject>;
   activeTool: ToolType;
   cursorPosition: { x: number; y: number } | null;
+  hoveredObjectId: string | null;
 
   // Grid and snap settings
   gridSettings: GridSettings;
@@ -79,6 +80,7 @@ interface CanvasState {
   getNextZIndex: () => number;
   getObjectsInsideFrame: (frameId: string) => string[];
   setCursorPosition: (position: { x: number; y: number } | null) => void;
+  setHoveredObjectId: (id: string | null) => void;
   initializeYjsSync: () => void;
   resetYjsSync: () => void;
 
@@ -164,6 +166,7 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
   objects: new Map(),
   activeTool: 'select',
   cursorPosition: null,
+  hoveredObjectId: null,
   isInitialized: false,
   isSyncing: false,
   isApplyingRemoteChanges: false,
@@ -496,6 +499,8 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
   },
 
   setCursorPosition: (position) => set({ cursorPosition: position }),
+
+  setHoveredObjectId: (id) => set({ hoveredObjectId: id }),
 
   // History actions
   pushHistory: () => {

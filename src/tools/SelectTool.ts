@@ -73,6 +73,9 @@ export class SelectTool extends BaseTool {
       // Double-click tracking
       lastClickTime: 0,
       lastClickObjectId: null,
+
+      // Drag ghost
+      dragGhosts: null,
     };
   }
 
@@ -213,6 +216,7 @@ export class SelectTool extends BaseTool {
     this.state.resizeStartState = null;
     this.state.marqueeStart = null;
     this.state.marqueeEnd = null;
+    this.state.dragGhosts = null;
 
     this.setCursor('default');
     return { handled: true };
@@ -430,6 +434,23 @@ export class SelectTool extends BaseTool {
     if (distance >= DRAG_THRESHOLD) {
       // Threshold crossed - commit to dragging
       this.state.mode = 'dragging';
+
+      // Capture ghost positions for drag visualization
+      this.state.dragGhosts = Array.from(selectedIds)
+        .map(id => {
+          const obj = objects.get(id);
+          if (!obj) return null;
+          return {
+            id: obj.id,
+            x: obj.x,
+            y: obj.y,
+            width: obj.width,
+            height: obj.height,
+            rotation: obj.rotation || 0
+          };
+        })
+        .filter((g): g is NonNullable<typeof g> => g !== null);
+
       return this.handleDragMove(canvasX, canvasY, objects, selectedIds, viewport);
     }
 
@@ -787,6 +808,7 @@ export class SelectTool extends BaseTool {
         const rotHandle = this.ctx.hitTestRotationHandle(screenX, screenY, selectedObj);
         if (rotHandle) {
           this.setCursor('grab');
+          this.ctx.setHoveredObjectId(null);
           return { handled: true, cursor: 'grab' };
         }
 
@@ -794,19 +816,29 @@ export class SelectTool extends BaseTool {
         const handle = this.ctx.hitTestHandle(screenX, screenY, selectedObj);
         if (handle) {
           this.setCursor(HANDLE_CURSORS[handle]);
+          this.ctx.setHoveredObjectId(null);
           return { handled: true, cursor: HANDLE_CURSORS[handle] };
         }
       }
     }
 
-    // Check for object hover (for move cursor)
+    // Check for object hover (for move cursor and hover highlight)
     const hitObject = this.ctx.hitTest(screenX, screenY);
-    if (hitObject && selectedIds.has(hitObject.id)) {
-      this.setCursor('move');
-      return { handled: true, cursor: 'move' };
+    if (hitObject) {
+      // Set hover state for non-selected objects (to show hover highlight)
+      if (!selectedIds.has(hitObject.id)) {
+        this.ctx.setHoveredObjectId(hitObject.id);
+        this.setCursor('pointer');
+        return { handled: true, cursor: 'pointer', requestRedraw: true };
+      } else {
+        this.ctx.setHoveredObjectId(null);
+        this.setCursor('move');
+        return { handled: true, cursor: 'move' };
+      }
     }
 
-    // Default cursor
+    // Clear hover state and use default cursor
+    this.ctx.setHoveredObjectId(null);
     this.setCursor('default');
     return { handled: true, cursor: 'default' };
   }
@@ -814,10 +846,44 @@ export class SelectTool extends BaseTool {
   // ============ Overlay rendering ============
 
   renderOverlay(ctx: CanvasRenderingContext2D): void {
+    // Render drag ghosts (original positions)
+    if (this.state.mode === 'dragging' && this.state.dragGhosts) {
+      this.renderDragGhosts(ctx);
+    }
     // Render marquee selection rectangle
     if (this.state.mode === 'marquee' && this.state.marqueeStart && this.state.marqueeEnd) {
       this.renderMarqueeRect(ctx);
     }
+  }
+
+  private renderDragGhosts(ctx: CanvasRenderingContext2D): void {
+    if (!this.state.dragGhosts) return;
+
+    ctx.save();
+
+    for (const ghost of this.state.dragGhosts) {
+      const screenPos = this.ctx.canvasToScreen(ghost.x, ghost.y);
+      const viewport = this.ctx.getViewport();
+      const screenWidth = ghost.width * viewport.zoom;
+      const screenHeight = ghost.height * viewport.zoom;
+
+      ctx.save();
+      ctx.translate(screenPos.x + screenWidth / 2, screenPos.y + screenHeight / 2);
+      ctx.rotate((ghost.rotation * Math.PI) / 180);
+      ctx.translate(-screenWidth / 2, -screenHeight / 2);
+
+      // Draw ghost outline with dashed line
+      ctx.strokeStyle = 'rgba(255, 85, 0, 0.4)';
+      ctx.fillStyle = 'rgba(255, 85, 0, 0.05)';
+      ctx.lineWidth = 1;
+      ctx.setLineDash([4, 4]);
+      ctx.fillRect(0, 0, screenWidth, screenHeight);
+      ctx.strokeRect(0, 0, screenWidth, screenHeight);
+
+      ctx.restore();
+    }
+
+    ctx.restore();
   }
 
   private renderMarqueeRect(ctx: CanvasRenderingContext2D): void {

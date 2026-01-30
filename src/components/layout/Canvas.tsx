@@ -1,5 +1,5 @@
 import { useRef, useEffect, useState, useCallback, useMemo } from 'react';
-import { useCanvasStore } from '../../stores/canvasStore';
+import { useCanvasStore, type SnapGuide } from '../../stores/canvasStore';
 import { useSelectionStore } from '../../stores/selectionStore';
 import { useViewportStore } from '../../stores/viewportStore';
 import { useGroupStore } from '../../stores/groupStore';
@@ -13,10 +13,44 @@ import { ContextMenu } from '../ContextMenu';
 import { measureTextDimensions } from '../../utils/textMeasurement';
 import { ToolManager } from '../../tools';
 import type { ToolContext, ToolMouseEvent, HandleType as ToolHandleType, RotationHandle as ToolRotationHandle } from '../../tools/types';
+import { renderProfiler, type RenderTrigger } from '../../utils/renderStats';
+import { RenderStatsOverlay } from './RenderStatsOverlay';
 import './Canvas.css';
 
-// Image cache for loaded images
+// Image cache for loaded images with LRU eviction
+const MAX_IMAGE_CACHE_SIZE = 50;
 const imageCache = new Map<string, HTMLImageElement>();
+const imageCacheOrder: string[] = []; // Track access order for LRU
+
+function getOrLoadImage(src: string, onLoad: () => void): HTMLImageElement | null {
+  const cached = imageCache.get(src);
+  if (cached) {
+    // Move to end of LRU order (most recently used)
+    const idx = imageCacheOrder.indexOf(src);
+    if (idx !== -1) {
+      imageCacheOrder.splice(idx, 1);
+      imageCacheOrder.push(src);
+    }
+    return cached.complete && cached.naturalWidth > 0 ? cached : null;
+  }
+
+  // Evict oldest if cache is full
+  while (imageCacheOrder.length >= MAX_IMAGE_CACHE_SIZE) {
+    const oldest = imageCacheOrder.shift();
+    if (oldest) {
+      imageCache.delete(oldest);
+    }
+  }
+
+  // Create new image
+  const newImg = new Image();
+  newImg.crossOrigin = 'anonymous';
+  imageCache.set(src, newImg);
+  imageCacheOrder.push(src);
+  newImg.onload = onLoad;
+  newImg.src = src;
+  return null;
+}
 
 // Video cache for loaded video thumbnails
 const videoThumbnailCache = new Map<string, HTMLCanvasElement>();
@@ -66,11 +100,30 @@ export function Canvas() {
   const lastClickObjectId = useRef<string | null>(null);
   const justStartedEditingRef = useRef(false);
 
+  // Selection animation state
+  const selectionAnimRef = useRef<{
+    animatingIds: Map<string, number>; // id -> start timestamp
+    prevSelectedIds: Set<string>;
+  }>({
+    animatingIds: new Map(),
+    prevSelectedIds: new Set()
+  });
+
+  // Snap flash animation state
+  const snapFlashRef = useRef<{
+    flashStartTime: number | null;
+    flashGuides: SnapGuide[];
+  }>({
+    flashStartTime: null,
+    flashGuides: []
+  });
+
   // Store state
   const objects = useCanvasStore((state) => state.objects);
   const selectedIds = useSelectionStore((state) => state.selectedIds);
   const viewport = useViewportStore((state) => state.viewport);
   const activeTool = useCanvasStore((state) => state.activeTool);
+  const hoveredObjectId = useCanvasStore((state) => state.hoveredObjectId);
   const setViewport = useCanvasStore((state) => state.setViewport);
   const setSelection = useCanvasStore((state) => state.setSelection);
   const updateObjects = useCanvasStore((state) => state.updateObjects);
@@ -102,6 +155,10 @@ export function Canvas() {
   // Tool system
   const toolManagerRef = useRef<ToolManager | null>(null);
   const [toolCursor, setToolCursor] = useState<string>('default');
+
+  // RAF throttling for mousemove
+  const mouseMoveRafRef = useRef<number | null>(null);
+  const pendingMouseMoveRef = useRef<React.MouseEvent<HTMLCanvasElement> | null>(null);
 
   // Resize canvas to fill container
   const resizeCanvas = useCallback(() => {
@@ -294,30 +351,13 @@ export function Canvas() {
           break;
         case 'image': {
           const imgObj = obj;
-          const cachedImg = imageCache.get(imgObj.src);
-          if (!cachedImg) {
-            if (!imageCache.has(imgObj.src)) {
-              const newImg = new Image();
-              newImg.crossOrigin = 'anonymous';
-              imageCache.set(imgObj.src, newImg);
-              newImg.onload = () => {
-                setImageLoadTrigger((prev) => prev + 1);
-              };
-              newImg.src = imgObj.src;
-            }
-            ctx.fillStyle = '#3a3a3a';
-            ctx.fillRect(0, 0, width, height);
-            ctx.strokeStyle = '#4a4a4a';
-            ctx.lineWidth = 2;
-            ctx.strokeRect(0, 0, width, height);
-            ctx.fillStyle = '#666666';
-            ctx.font = '12px sans-serif';
-            ctx.textAlign = 'center';
-            ctx.textBaseline = 'middle';
-            ctx.fillText('Loading...', width / 2, height / 2);
-          } else if (cachedImg.complete && cachedImg.naturalWidth > 0) {
-            ctx.drawImage(cachedImg, 0, 0, width, height);
+          const loadedImg = getOrLoadImage(imgObj.src, () => {
+            setImageLoadTrigger((prev) => prev + 1);
+          });
+          if (loadedImg) {
+            ctx.drawImage(loadedImg, 0, 0, width, height);
           } else {
+            // Show loading placeholder
             ctx.fillStyle = '#3a3a3a';
             ctx.fillRect(0, 0, width, height);
             ctx.strokeStyle = '#4a4a4a';
@@ -473,8 +513,8 @@ export function Canvas() {
     [viewport, canvasToScreen]
   );
 
-  // Draw selection box with handles
-  const drawSelectionBox = useCallback(
+  // Draw hover highlight for non-selected objects
+  const drawHoverHighlight = useCallback(
     (ctx: CanvasRenderingContext2D, obj: CanvasObject) => {
       const { zoom } = viewport;
       const screenPos = canvasToScreen(obj.x, obj.y);
@@ -485,22 +525,89 @@ export function Canvas() {
       ctx.translate(screenPos.x, screenPos.y);
       ctx.rotate((obj.rotation * Math.PI) / 180);
 
-      // Draw bounding box
+      // Draw subtle glow effect with accent color
+      ctx.shadowBlur = 12;
+      ctx.shadowColor = 'rgba(255, 85, 0, 0.3)';
+      ctx.strokeStyle = 'rgba(255, 85, 0, 0.4)';
+      ctx.lineWidth = 2;
+      ctx.setLineDash([]);
+      ctx.strokeRect(-1, -1, width + 2, height + 2);
+
+      ctx.restore();
+    },
+    [viewport, canvasToScreen]
+  );
+
+  // Draw selection box with handles
+  const drawSelectionBox = useCallback(
+    (ctx: CanvasRenderingContext2D, obj: CanvasObject) => {
+      const { zoom } = viewport;
+      const screenPos = canvasToScreen(obj.x, obj.y);
+      const width = obj.width * zoom;
+      const height = obj.height * zoom;
+
+      // Check for animation state
+      const animState = selectionAnimRef.current;
+      const animStartTime = animState.animatingIds.get(obj.id);
+      let animProgress = 1;
+
+      if (animStartTime !== undefined) {
+        const elapsed = performance.now() - animStartTime;
+        const duration = 150; // ms
+        animProgress = Math.min(1, elapsed / duration);
+
+        // Clean up completed animations
+        if (animProgress >= 1) {
+          animState.animatingIds.delete(obj.id);
+        }
+      }
+
+      // Apply animation: scale from 0.95 and fade in
+      const scale = 0.95 + 0.05 * animProgress;
+      const opacity = animProgress;
+
+      ctx.save();
+      ctx.translate(screenPos.x, screenPos.y);
+      ctx.rotate((obj.rotation * Math.PI) / 180);
+
+      // Apply scale animation from center
+      if (animProgress < 1) {
+        ctx.translate(width / 2, height / 2);
+        ctx.scale(scale, scale);
+        ctx.translate(-width / 2, -height / 2);
+        ctx.globalAlpha = opacity;
+      }
+
+      // Draw bounding box with soft glow effect
+      ctx.shadowBlur = 8;
+      ctx.shadowColor = 'rgba(0, 102, 255, 0.5)';
       ctx.strokeStyle = SELECTION_COLOR;
-      ctx.lineWidth = 1;
+      ctx.lineWidth = 1.5;
       ctx.setLineDash([]);
       ctx.strokeRect(-0.5, -0.5, width + 1, height + 1);
 
-      // Draw resize handles
-      ctx.fillStyle = '#ffffff';
+      // Reset shadow for handles
+      ctx.shadowBlur = 0;
+      ctx.shadowColor = 'transparent';
+
+      // Draw resize handles with gradient fill
       ctx.strokeStyle = SELECTION_COLOR;
       ctx.lineWidth = 1;
 
       HANDLE_POSITIONS.forEach((pos) => {
         const hx = pos.x * width;
         const hy = pos.y * height;
-        ctx.fillRect(hx - HANDLE_SIZE / 2, hy - HANDLE_SIZE / 2, HANDLE_SIZE, HANDLE_SIZE);
-        ctx.strokeRect(hx - HANDLE_SIZE / 2, hy - HANDLE_SIZE / 2, HANDLE_SIZE, HANDLE_SIZE);
+        const handleX = hx - HANDLE_SIZE / 2;
+        const handleY = hy - HANDLE_SIZE / 2;
+
+        // Create gradient for each handle (top to bottom)
+        const handleGradient = ctx.createLinearGradient(handleX, handleY, handleX, handleY + HANDLE_SIZE);
+        handleGradient.addColorStop(0, '#ffffff');
+        handleGradient.addColorStop(1, '#d0d0d0');
+        ctx.fillStyle = handleGradient;
+
+        ctx.fillRect(handleX, handleY, HANDLE_SIZE, HANDLE_SIZE);
+        ctx.strokeRect(handleX, handleY, HANDLE_SIZE, HANDLE_SIZE);
       });
 
       // Draw rotation handle
@@ -514,7 +621,14 @@ export function Canvas() {
 
       ctx.beginPath();
       ctx.arc(width / 2, rotationHandleY, HANDLE_SIZE / 2, 0, Math.PI * 2);
-      ctx.fillStyle = '#ffffff';
+      // Radial gradient for sphere-like rotation handle
+      const rotGradient = ctx.createRadialGradient(
+        width / 2 - 1, rotationHandleY - 1, 0,
+        width / 2, rotationHandleY, HANDLE_SIZE / 2
+      );
+      rotGradient.addColorStop(0, '#ffffff');
+      rotGradient.addColorStop(1, '#d0d0d0');
+      ctx.fillStyle = rotGradient;
       ctx.fill();
       ctx.strokeStyle = SELECTION_COLOR;
       ctx.stroke();
@@ -531,6 +645,9 @@ export function Canvas() {
       .sort((a, b) => a.zIndex - b.zIndex);
   }, [objects]);
 
+  // Track render trigger for profiling
+  const renderTriggerRef = useRef<RenderTrigger>('initial');
+
   // Draw the canvas content
   const draw = useCallback(() => {
     const canvas = canvasRef.current;
@@ -539,6 +656,14 @@ export function Canvas() {
 
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
+
+    // Start profiling frame
+    const { endFrame } = renderProfiler.startFrame(
+      renderTriggerRef.current,
+      viewport,
+      objects.size,
+      selectedIds.size
+    );
 
     const rect = container.getBoundingClientRect();
 
@@ -587,6 +712,37 @@ export function Canvas() {
         ctx.lineTo(rect.width, screenY);
         ctx.stroke();
       }
+
+      // Apply subtle gradient fade at canvas edges for grid
+      const fadeSize = 80;
+
+      // Left edge fade
+      const leftFade = ctx.createLinearGradient(0, 0, fadeSize, 0);
+      leftFade.addColorStop(0, 'rgba(10, 10, 10, 1)');
+      leftFade.addColorStop(1, 'rgba(10, 10, 10, 0)');
+      ctx.fillStyle = leftFade;
+      ctx.fillRect(0, 0, fadeSize, rect.height);
+
+      // Right edge fade
+      const rightFade = ctx.createLinearGradient(rect.width - fadeSize, 0, rect.width, 0);
+      rightFade.addColorStop(0, 'rgba(10, 10, 10, 0)');
+      rightFade.addColorStop(1, 'rgba(10, 10, 10, 1)');
+      ctx.fillStyle = rightFade;
+      ctx.fillRect(rect.width - fadeSize, 0, fadeSize, rect.height);
+
+      // Top edge fade
+      const topFade = ctx.createLinearGradient(0, 0, 0, fadeSize);
+      topFade.addColorStop(0, 'rgba(10, 10, 10, 1)');
+      topFade.addColorStop(1, 'rgba(10, 10, 10, 0)');
+      ctx.fillStyle = topFade;
+      ctx.fillRect(0, 0, rect.width, fadeSize);
+
+      // Bottom edge fade
+      const bottomFade = ctx.createLinearGradient(0, rect.height - fadeSize, 0, rect.height);
+      bottomFade.addColorStop(0, 'rgba(10, 10, 10, 0)');
+      bottomFade.addColorStop(1, 'rgba(10, 10, 10, 1)');
+      ctx.fillStyle = bottomFade;
+      ctx.fillRect(0, rect.height - fadeSize, rect.width, fadeSize);
     }
 
     // Draw objects sorted by zIndex (uses memoized sortedTopLevelObjects)
@@ -608,6 +764,14 @@ export function Canvas() {
       }
     });
 
+    // Draw hover highlight for non-selected objects
+    if (hoveredObjectId && !selectedIds.has(hoveredObjectId)) {
+      const hoveredObj = objects.get(hoveredObjectId);
+      if (hoveredObj && hoveredObj.visible !== false) {
+        drawHoverHighlight(ctx, hoveredObj);
+      }
+    }
+
     // Draw selection boxes
     selectedIds.forEach((id) => {
       const obj = objects.get(id);
@@ -616,17 +780,66 @@ export function Canvas() {
       }
     });
 
-    // Draw snap guides
+    // Draw snap guides with flash animation
     if (activeSnapGuides.length > 0) {
       const { zoom } = viewport;
-      ctx.strokeStyle = '#ff6b6b';
-      ctx.lineWidth = 1;
-      ctx.setLineDash([4, 4]);
+      const flashState = snapFlashRef.current;
+      const now = performance.now();
 
+      // Detect new snap - trigger flash
+      const hasNewGuide = activeSnapGuides.some(
+        g => !flashState.flashGuides.some(
+          fg => fg.type === g.type && fg.position === g.position
+        )
+      );
+      if (hasNewGuide) {
+        flashState.flashStartTime = now;
+      }
+      flashState.flashGuides = activeSnapGuides;
+
+      // Calculate flash animation progress
+      let flashIntensity = 0;
+      if (flashState.flashStartTime !== null) {
+        const elapsed = now - flashState.flashStartTime;
+        const duration = 200; // ms
+        if (elapsed < duration) {
+          // Flash pulse: quick bright to normal
+          flashIntensity = 1 - (elapsed / duration);
+        } else {
+          flashState.flashStartTime = null;
+        }
+      }
+
+      // Draw guides with flash effect
       for (const guide of activeSnapGuides) {
         const screenPos = guide.type === 'vertical'
           ? (guide.position + viewport.x) * zoom
           : (guide.position + viewport.y) * zoom;
+
+        // Flash glow effect
+        if (flashIntensity > 0) {
+          ctx.strokeStyle = `rgba(255, 85, 0, ${0.4 + flashIntensity * 0.6})`;
+          ctx.lineWidth = 2 + flashIntensity * 4;
+          ctx.shadowBlur = 8 + flashIntensity * 12;
+          ctx.shadowColor = `rgba(255, 85, 0, ${flashIntensity})`;
+          ctx.setLineDash([]);
+
+          ctx.beginPath();
+          if (guide.type === 'vertical') {
+            ctx.moveTo(screenPos, 0);
+            ctx.lineTo(screenPos, rect.height);
+          } else {
+            ctx.moveTo(0, screenPos);
+            ctx.lineTo(rect.width, screenPos);
+          }
+          ctx.stroke();
+          ctx.shadowBlur = 0;
+        }
+
+        // Normal guide line
+        ctx.strokeStyle = '#FF5500';
+        ctx.lineWidth = 1;
+        ctx.setLineDash([4, 4]);
 
         ctx.beginPath();
         if (guide.type === 'vertical') {
@@ -640,25 +853,126 @@ export function Canvas() {
       }
 
       ctx.setLineDash([]);
+    } else {
+      // Clear flash state when no guides
+      snapFlashRef.current.flashGuides = [];
     }
 
     // Render tool overlay (marquee, guides, etc.)
     if (toolManagerRef.current) {
       toolManagerRef.current.renderOverlay(ctx);
     }
-  }, [viewport, sortedTopLevelObjects, objects, selectedIds, drawObject, drawSelectionBox, getAbsolutePosition, imageLoadTrigger, gridSettings, activeSnapGuides]);
 
-  // Handle window resize
+    // Draw subtle vignette at canvas edges (5% opacity)
+    const vignette = ctx.createRadialGradient(
+      rect.width / 2, rect.height / 2, Math.min(rect.width, rect.height) * 0.3,
+      rect.width / 2, rect.height / 2, Math.max(rect.width, rect.height) * 0.7
+    );
+    vignette.addColorStop(0, 'transparent');
+    vignette.addColorStop(1, 'rgba(0, 0, 0, 0.05)');
+    ctx.fillStyle = vignette;
+    ctx.fillRect(0, 0, rect.width, rect.height);
+
+    // End profiling frame
+    endFrame();
+  }, [viewport, sortedTopLevelObjects, objects, selectedIds, hoveredObjectId, drawObject, drawHoverHighlight, drawSelectionBox, getAbsolutePosition, imageLoadTrigger, gridSettings, activeSnapGuides]);
+
+  // Handle window resize (passive since no preventDefault)
   useEffect(() => {
     resizeCanvas();
-    window.addEventListener('resize', resizeCanvas);
+    window.addEventListener('resize', resizeCanvas, { passive: true });
     return () => window.removeEventListener('resize', resizeCanvas);
   }, [resizeCanvas]);
 
-  // Draw on viewport change
+  // Cleanup RAF on unmount
   useEffect(() => {
+    return () => {
+      if (mouseMoveRafRef.current !== null) {
+        cancelAnimationFrame(mouseMoveRafRef.current);
+      }
+    };
+  }, []);
+
+  // Track selection changes for animation
+  const selectionAnimRafRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    const animState = selectionAnimRef.current;
+    const now = performance.now();
+
+    // Find newly selected IDs
+    selectedIds.forEach(id => {
+      if (!animState.prevSelectedIds.has(id)) {
+        animState.animatingIds.set(id, now);
+      }
+    });
+
+    // Clean up deselected IDs from animation
+    animState.animatingIds.forEach((_, id) => {
+      if (!selectedIds.has(id)) {
+        animState.animatingIds.delete(id);
+      }
+    });
+
+    animState.prevSelectedIds = new Set(selectedIds);
+
+    // Continue animation loop while there are animating items
+    const runAnimation = () => {
+      if (animState.animatingIds.size > 0) {
+        draw();
+        selectionAnimRafRef.current = requestAnimationFrame(runAnimation);
+      } else {
+        selectionAnimRafRef.current = null;
+      }
+    };
+
+    if (animState.animatingIds.size > 0 && selectionAnimRafRef.current === null) {
+      selectionAnimRafRef.current = requestAnimationFrame(runAnimation);
+    }
+
+    return () => {
+      if (selectionAnimRafRef.current !== null) {
+        cancelAnimationFrame(selectionAnimRafRef.current);
+        selectionAnimRafRef.current = null;
+      }
+    };
+  }, [selectedIds, draw]);
+
+  // Draw on viewport/state change
+  // Track what triggered this render for profiling
+  const prevViewportRef = useRef(viewport);
+  const prevObjectsRef = useRef(objects);
+  const prevSelectedIdsRef = useRef(selectedIds);
+  const prevImageLoadTriggerRef = useRef(imageLoadTrigger);
+  const prevGridSettingsRef = useRef(gridSettings);
+  const prevActiveSnapGuidesRef = useRef(activeSnapGuides);
+
+  useEffect(() => {
+    // Determine what triggered this render
+    if (prevViewportRef.current !== viewport) {
+      renderTriggerRef.current = 'viewport';
+    } else if (prevObjectsRef.current !== objects) {
+      renderTriggerRef.current = 'objects';
+    } else if (prevSelectedIdsRef.current !== selectedIds) {
+      renderTriggerRef.current = 'selection';
+    } else if (prevImageLoadTriggerRef.current !== imageLoadTrigger) {
+      renderTriggerRef.current = 'imageLoad';
+    } else if (prevGridSettingsRef.current !== gridSettings) {
+      renderTriggerRef.current = 'grid';
+    } else if (prevActiveSnapGuidesRef.current !== activeSnapGuides) {
+      renderTriggerRef.current = 'snapGuides';
+    }
+
+    // Update refs for next comparison
+    prevViewportRef.current = viewport;
+    prevObjectsRef.current = objects;
+    prevSelectedIdsRef.current = selectedIds;
+    prevImageLoadTriggerRef.current = imageLoadTrigger;
+    prevGridSettingsRef.current = gridSettings;
+    prevActiveSnapGuidesRef.current = activeSnapGuides;
+
     draw();
-  }, [draw]);
+  }, [draw, viewport, objects, selectedIds, imageLoadTrigger, gridSettings, activeSnapGuides]);
 
   // Handle keyboard events for space key (temporary panning)
   useEffect(() => {
@@ -683,7 +997,7 @@ export function Canvas() {
 
     window.addEventListener('keydown', handleKeyDown);
     window.addEventListener('keyup', handleKeyUp);
-    window.addEventListener('blur', handleBlur);
+    window.addEventListener('blur', handleBlur, { passive: true });
     return () => {
       window.removeEventListener('keydown', handleKeyDown);
       window.removeEventListener('keyup', handleKeyUp);
@@ -793,7 +1107,7 @@ export function Canvas() {
                 const absX = groupPos.x + child.x;
                 const absY = groupPos.y + child.y;
                 if (isPointInObject(canvasPos, child, absX, absY)) {
-                  return group;
+                  return obj; // Return the group when clicking on its child
                 }
               }
             }
@@ -1025,6 +1339,7 @@ export function Canvas() {
     getGridSettings: () => useCanvasStore.getState().gridSettings,
 
     setCursor: (cursor: string) => setToolCursor(cursor),
+    setHoveredObjectId: (id: string | null) => useCanvasStore.getState().setHoveredObjectId(id),
   }), [
     objects, selectedIds, viewport, editingGroupId,
     addObject, updateObject, updateObjects, setSelection, pushHistory,
@@ -1190,8 +1505,8 @@ export function Canvas() {
     }
   }, [isSpacePressed, activeTool, hitTest, screenToCanvas, setSelection, updateObject, playingVideoId, contextMenu]);
 
-  // Handle mouse move
-  const handleMouseMove = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
+  // Process mouse move - called from RAF throttle
+  const processMouseMove = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
     const canvas = canvasRef.current;
     if (!canvas) return;
 
@@ -1199,7 +1514,7 @@ export function Canvas() {
     const screenX = e.clientX - rect.left;
     const screenY = e.clientY - rect.top;
 
-    // Update cursor position
+    // Update cursor position (lightweight, ok to do every frame)
     const canvasCursorPos = screenToCanvas(screenX, screenY);
     setCursorPosition(canvasCursorPos);
 
@@ -1238,12 +1553,31 @@ export function Canvas() {
           setToolCursor(result.cursor);
         }
         if (result.requestRedraw) {
+          renderTriggerRef.current = 'toolOverlay';
           draw();
         }
         return;
       }
     }
   }, [isPanning, viewport, setViewport, screenToCanvas, setCursorPosition, draw]);
+
+  // Handle mouse move with RAF throttling for 60fps max during drag operations
+  const handleMouseMove = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
+    // Store the latest event
+    pendingMouseMoveRef.current = e;
+
+    // If RAF not scheduled, schedule it
+    if (mouseMoveRafRef.current === null) {
+      mouseMoveRafRef.current = requestAnimationFrame(() => {
+        mouseMoveRafRef.current = null;
+        const pendingEvent = pendingMouseMoveRef.current;
+        if (pendingEvent) {
+          pendingMouseMoveRef.current = null;
+          processMouseMove(pendingEvent);
+        }
+      });
+    }
+  }, [processMouseMove]);
 
   // Handle mouse up
   const handleMouseUp = useCallback((e?: React.MouseEvent<HTMLCanvasElement>) => {
@@ -1743,7 +2077,7 @@ export function Canvas() {
       {isDragOver && (
         <div className="drop-indicator">
           <div className="drop-indicator-content">
-            <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
               <rect x="3" y="3" width="18" height="18" rx="2" />
               <circle cx="8.5" cy="8.5" r="1.5" />
               <path d="M21 15l-5-5L5 21" />
@@ -1809,6 +2143,7 @@ export function Canvas() {
       )}
       <CursorPresence />
       <Minimap />
+      <RenderStatsOverlay />
     </main>
   );
 }

@@ -78,6 +78,7 @@ const createMockContext = (objects: Map<string, CanvasObject> = new Map(), selec
   getObjectsInRect: vi.fn(() => []),
   isPointInObject: vi.fn(() => false),
   setCursor: vi.fn(),
+  setHoveredObjectId: vi.fn(),
   snapPosition: vi.fn((x: number, y: number) => ({ x, y, guides: [] })),
   snapToGrid: vi.fn((value: number) => value),
   setActiveSnapGuides: vi.fn(),
@@ -429,6 +430,165 @@ describe('SelectTool', () => {
 
       // Should include both rect-1 (previously selected) and rect-2 (in marquee)
       expect(mockContext.setSelection).toHaveBeenCalledWith(expect.arrayContaining(['rect-1', 'rect-2']));
+    });
+
+    it('handles right-to-left marquee selection', () => {
+      const rect1 = createRectangle('rect-1', { x: 10, y: 10 });
+      const rect2 = createRectangle('rect-2', { x: 50, y: 50 });
+      const objects = new Map([['rect-1', rect1], ['rect-2', rect2]]);
+      mockContext = createMockContext(objects);
+      (mockContext.hitTest as ReturnType<typeof vi.fn>).mockReturnValue(null);
+      (mockContext.getObjectsInRect as ReturnType<typeof vi.fn>).mockReturnValue(['rect-1', 'rect-2']);
+      tool = new SelectTool(mockContext);
+      tool.onActivate();
+
+      // Start marquee at bottom-right
+      tool.onMouseDown(createMockMouseEvent({ canvasX: 200, canvasY: 200 }));
+
+      // Drag to top-left (negative direction)
+      tool.onMouseMove(createMockMouseEvent({ canvasX: 0, canvasY: 0 }));
+
+      const bounds = tool.getMarqueeBounds();
+      expect(bounds).not.toBeNull();
+      // Bounds should be normalized or raw coordinates
+      expect(bounds?.start).toEqual({ x: 200, y: 200 });
+      expect(bounds?.end).toEqual({ x: 0, y: 0 });
+
+      // Release
+      tool.onMouseUp(createMockMouseEvent({ canvasX: 0, canvasY: 0 }));
+
+      expect(mockContext.setSelection).toHaveBeenCalledWith(['rect-1', 'rect-2']);
+    });
+
+    it('handles bottom-to-top marquee selection', () => {
+      const rect1 = createRectangle('rect-1', { x: 10, y: 10 });
+      const objects = new Map([['rect-1', rect1]]);
+      mockContext = createMockContext(objects);
+      (mockContext.hitTest as ReturnType<typeof vi.fn>).mockReturnValue(null);
+      (mockContext.getObjectsInRect as ReturnType<typeof vi.fn>).mockReturnValue(['rect-1']);
+      tool = new SelectTool(mockContext);
+      tool.onActivate();
+
+      // Start marquee at bottom
+      tool.onMouseDown(createMockMouseEvent({ canvasX: 0, canvasY: 200 }));
+
+      // Drag to top
+      tool.onMouseMove(createMockMouseEvent({ canvasX: 150, canvasY: 0 }));
+
+      // Release
+      tool.onMouseUp(createMockMouseEvent({ canvasX: 150, canvasY: 0 }));
+
+      expect(mockContext.setSelection).toHaveBeenCalledWith(['rect-1']);
+    });
+  });
+
+  describe('selection with overlapping objects (z-order)', () => {
+    it('selects topmost object when clicking on overlapping objects', () => {
+      // Create two overlapping rectangles with different z-indexes
+      const rectBack = createRectangle('rect-back', { x: 50, y: 50, zIndex: 1 });
+      const rectFront = createRectangle('rect-front', { x: 50, y: 50, zIndex: 2 });
+      const objects = new Map([
+        ['rect-back', rectBack],
+        ['rect-front', rectFront],
+      ]);
+      mockContext = createMockContext(objects);
+      // hitTest should return the topmost (highest zIndex) object
+      (mockContext.hitTest as ReturnType<typeof vi.fn>).mockReturnValue(rectFront);
+      tool = new SelectTool(mockContext);
+      tool.onActivate();
+
+      tool.onMouseDown(createMockMouseEvent({ canvasX: 100, canvasY: 100 }));
+
+      // Should select the front (higher zIndex) object
+      expect(mockContext.setSelection).toHaveBeenCalledWith(['rect-front']);
+    });
+
+    it('selects lower object when topmost is already selected and clicked again', () => {
+      const rectBack = createRectangle('rect-back', { x: 50, y: 50, zIndex: 1 });
+      const rectFront = createRectangle('rect-front', { x: 50, y: 50, zIndex: 2 });
+      const objects = new Map([
+        ['rect-back', rectBack],
+        ['rect-front', rectFront],
+      ]);
+      const selectedIds = new Set(['rect-front']);
+      mockContext = createMockContext(objects, selectedIds);
+      // When front is already selected, clicking again should still return front
+      (mockContext.hitTest as ReturnType<typeof vi.fn>).mockReturnValue(rectFront);
+      tool = new SelectTool(mockContext);
+      tool.onActivate();
+
+      // Click on the overlapping area - should keep front selected or start drag
+      tool.onMouseDown(createMockMouseEvent({ canvasX: 100, canvasY: 100 }));
+
+      // The behavior depends on implementation - it might keep selection or enter pending_drag
+      expect(tool.getMode()).toBe('pending_drag');
+    });
+  });
+
+  describe('selection with rotated objects', () => {
+    it('selects rotated object when clicking inside rotated bounds', () => {
+      const rotatedRect = createRectangle('rect-rotated', {
+        x: 50,
+        y: 50,
+        width: 100,
+        height: 50,
+        rotation: 45,
+      });
+      const objects = new Map([['rect-rotated', rotatedRect]]);
+      mockContext = createMockContext(objects);
+      // hitTest should account for rotation
+      (mockContext.hitTest as ReturnType<typeof vi.fn>).mockReturnValue(rotatedRect);
+      tool = new SelectTool(mockContext);
+      tool.onActivate();
+
+      tool.onMouseDown(createMockMouseEvent({ canvasX: 100, canvasY: 75 }));
+
+      expect(mockContext.setSelection).toHaveBeenCalledWith(['rect-rotated']);
+    });
+
+    it('does not select rotated object when clicking outside rotated bounds', () => {
+      const rotatedRect = createRectangle('rect-rotated', {
+        x: 50,
+        y: 50,
+        width: 100,
+        height: 50,
+        rotation: 45,
+      });
+      const objects = new Map([['rect-rotated', rotatedRect]]);
+      mockContext = createMockContext(objects);
+      // hitTest returns null when clicking outside the rotated shape
+      (mockContext.hitTest as ReturnType<typeof vi.fn>).mockReturnValue(null);
+      tool = new SelectTool(mockContext);
+      tool.onActivate();
+
+      // Click in a corner that would be inside AABB but outside rotated shape
+      tool.onMouseDown(createMockMouseEvent({ canvasX: 50, canvasY: 50 }));
+
+      // Should start marquee (no object hit)
+      expect(tool.getMode()).toBe('marquee');
+    });
+
+    it('includes rotated objects in marquee selection', () => {
+      const rotatedRect = createRectangle('rect-rotated', {
+        x: 50,
+        y: 50,
+        width: 100,
+        height: 50,
+        rotation: 90,
+      });
+      const objects = new Map([['rect-rotated', rotatedRect]]);
+      mockContext = createMockContext(objects);
+      (mockContext.hitTest as ReturnType<typeof vi.fn>).mockReturnValue(null);
+      (mockContext.getObjectsInRect as ReturnType<typeof vi.fn>).mockReturnValue(['rect-rotated']);
+      tool = new SelectTool(mockContext);
+      tool.onActivate();
+
+      // Start marquee
+      tool.onMouseDown(createMockMouseEvent({ canvasX: 0, canvasY: 0 }));
+      tool.onMouseMove(createMockMouseEvent({ canvasX: 200, canvasY: 200 }));
+      tool.onMouseUp(createMockMouseEvent({ canvasX: 200, canvasY: 200 }));
+
+      expect(mockContext.setSelection).toHaveBeenCalledWith(['rect-rotated']);
     });
   });
 

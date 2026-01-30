@@ -6,9 +6,10 @@
   align-items: center;
   justify-content: space-between;
   padding: 0 12px;
-  font-size: var(--font-size-sm);
+  font-size: var(--font-size-xs);
   font-family: var(--font-mono);
   color: var(--color-text-muted);
+  opacity: 0.85;
 }
 
 .statusbar-left,
@@ -66,7 +67,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: all 0.15s ease;
+  transition: all 150ms ease-out;
 }
 
 .zoom-button:hover {
@@ -89,7 +90,7 @@
   font-size: var(--font-size-sm);
   font-family: var(--font-mono);
   cursor: pointer;
-  transition: all 0.15s ease;
+  transition: all 150ms ease-out;
   text-align: center;
   letter-spacing: var(--letter-spacing-wide);
 }
@@ -129,7 +130,7 @@
   font-size: var(--font-size-md);
   font-family: var(--font-mono);
   text-align: left;
-  transition: all 0.15s ease;
+  transition: all 150ms ease-out;
 }
 
 .zoom-menu button:hover {
@@ -188,7 +189,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: all 0.15s ease;
+  transition: all 150ms ease-out;
 }
 
 .grid-toggle:hover,

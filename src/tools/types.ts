@@ -79,6 +79,9 @@ export interface ToolContext {
 
   // Canvas element reference for cursor updates
   setCursor: (cursor: string) => void;
+
+  // Hover state for microinteractions
+  setHoveredObjectId: (id: string | null) => void;
 }
 
 /**
@@ -169,4 +172,14 @@ export interface SelectToolState extends ToolState {
   // Double-click tracking
   lastClickTime: number;
   lastClickObjectId: string | null;
+
+  // Drag ghost positions (original positions before drag)
+  dragGhosts: Array<{
+    id: string;
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+    rotation: number;
+  }> | null;
 }
