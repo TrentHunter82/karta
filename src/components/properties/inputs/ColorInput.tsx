@@ -115,15 +115,9 @@ export function ColorInput({
       }
     };
 
-    document.addEventListener('mousedown', handleClickOutside);
+    document.addEventListener('mousedown', handleClickOutside, { passive: true });
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [isOpen, onChangeEnd]);
-
-  const updateColorFromHsv = useCallback((newHsv: { h: number; s: number; v: number }) => {
-    const rgb = hsvToRgb(newHsv.h, newHsv.s, newHsv.v);
-    const hex = rgbToHex(rgb.r, rgb.g, rgb.b);
-    onChange(hex);
-  }, [onChange]);
 
   // SV picker handlers - use functional update to avoid stale closure
   const handleSVMouseDown = useCallback((e: React.MouseEvent) => {

@@ -217,13 +217,14 @@ export function TemplatePanel() {
       newObjectIds.push(newId);
 
       // Build the new object with required fields
+      // Type assertion is safe because TemplateObject mirrors CanvasObject properties
       const newObject = {
         ...obj,
         id: newId,
         x: obj.x + centerX - bounds.width / 2 - bounds.x,
         y: obj.y + centerY - bounds.height / 2 - bounds.y,
         zIndex: getNextZIndex()
-      };
+      } as unknown as CanvasObject;
 
       addObject(newObject);
     });

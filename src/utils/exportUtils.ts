@@ -5,7 +5,7 @@ import type {
 import {
   isGroupObject,
 } from '../types/canvas';
-import { calculateBoundingBox, type BoundingBox } from './geometryUtils';
+import { calculateBoundingBox } from './geometryUtils';
 
 // Re-export for backwards compatibility
 export { calculateBoundingBox };
@@ -382,6 +382,11 @@ export interface PNGExportOptions {
   backgroundColor?: string;
 }
 
+/**
+ * Downloads a blob as a file in the browser.
+ * @param blob - The blob to download
+ * @param filename - The filename for the download
+ */
 export function downloadBlob(blob: Blob, filename: string): void {
   const url = URL.createObjectURL(blob);
   const link = document.createElement('a');

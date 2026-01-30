@@ -1,6 +1,23 @@
-// src/stores/groupStore.ts
-// Manages group editing mode and provides grouping logic
-
+/**
+ * Group Store
+ *
+ * Manages group editing mode and provides pure functions for grouping
+ * and ungrouping operations.
+ *
+ * Key responsibilities:
+ * - Track which group is currently being edited (editingGroupId)
+ * - Calculate group creation data from selected objects
+ * - Calculate ungroup data to restore children to canvas root
+ * - Provide absolute position calculation for nested objects
+ *
+ * Architecture notes:
+ * - Group editing mode allows selecting/moving children within a group
+ * - Children have relative coordinates to their parent group
+ * - getAbsolutePosition traverses parent chain for true canvas coords
+ * - Pure calculation functions enable testing without store mocks
+ *
+ * @see canvasStore.ts - Calls calculateGroupData/calculateUngroupData
+ */
 import { create } from 'zustand';
 import type { CanvasObject, GroupObject } from '../types/canvas';
 import { isGroupObject } from '../types/canvas';
@@ -10,18 +27,25 @@ import { isGroupObject } from '../types/canvas';
  */
 export const getAbsolutePosition = (
   obj: CanvasObject,
-  objects: Map<string, CanvasObject>
+  objects: Map<string, CanvasObject>,
+  visited: Set<string> = new Set()
 ): { x: number; y: number } => {
   if (!obj.parentId) {
     return { x: obj.x, y: obj.y };
   }
+
+  // Cycle detection: if we've already visited this object, break the chain
+  if (visited.has(obj.id)) {
+    return { x: obj.x, y: obj.y };
+  }
+  visited.add(obj.id);
 
   const parent = objects.get(obj.parentId);
   if (!parent) {
     return { x: obj.x, y: obj.y };
   }
 
-  const parentPos = getAbsolutePosition(parent, objects);
+  const parentPos = getAbsolutePosition(parent, objects, visited);
   return {
     x: parentPos.x + obj.x,
     y: parentPos.y + obj.y
@@ -168,7 +192,6 @@ export const useGroupStore = create<GroupState>((set, get) => ({
   },
 
   exitGroupEditMode: () => {
-    const state = get();
     set({ editingGroupId: null });
   },
 }));

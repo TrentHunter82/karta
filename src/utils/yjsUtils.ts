@@ -137,7 +137,8 @@ export const yjsToObject = (yMap: Y.Map<unknown>): CanvasObject | null => {
   }
 
   // Sanitize coordinates to prevent extreme position issues
-  const sanitizedObj = sanitizeCoordinates(obj as CanvasObject);
+  // Type assertion is safe here because we've validated base and type-specific props above
+  const sanitizedObj = sanitizeCoordinates(obj as unknown as CanvasObject);
   return sanitizedObj;
 };
 
