@@ -142,6 +142,41 @@ describe('getAbsolutePosition', () => {
 
     expect(pos).toEqual({ x: 100, y: 200 });
   });
+
+  it('handles cyclic parent chain without infinite recursion', () => {
+    // Create a cyclic parent chain: A → B → A
+    const groupA = createGroup('group-a', ['group-b'], { x: 100, y: 100, parentId: 'group-b' });
+    const groupB = createGroup('group-b', ['group-a'], { x: 50, y: 50, parentId: 'group-a' });
+    const objects = new Map<string, CanvasObject>([
+      ['group-a', groupA],
+      ['group-b', groupB],
+    ]);
+
+    // Should not throw or cause stack overflow - returns a position without infinite loop
+    expect(() => {
+      const pos = getAbsolutePosition(groupA, objects);
+      // With cycle detection, should return some valid position
+      expect(typeof pos.x).toBe('number');
+      expect(typeof pos.y).toBe('number');
+      expect(Number.isFinite(pos.x)).toBe(true);
+      expect(Number.isFinite(pos.y)).toBe(true);
+    }).not.toThrow();
+  });
+
+  it('handles self-referencing parent without infinite recursion', () => {
+    // Create self-referencing parent: A → A
+    const group = createGroup('group-self', ['rect-1'], { x: 100, y: 100, parentId: 'group-self' });
+    const objects = new Map<string, CanvasObject>([
+      ['group-self', group],
+    ]);
+
+    // Should not throw or cause stack overflow
+    expect(() => {
+      const pos = getAbsolutePosition(group, objects);
+      expect(typeof pos.x).toBe('number');
+      expect(typeof pos.y).toBe('number');
+    }).not.toThrow();
+  });
 });
 
 describe('calculateGroupData', () => {

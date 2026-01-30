@@ -100,7 +100,7 @@ function safeDeepClone<T>(obj: T): T | null {
   try {
     return JSON.parse(JSON.stringify(obj));
   } catch {
-    console.warn('[Clipboard] Failed to clone object:', obj);
+    // Silently fail - caller handles null return
     return null;
   }
 }

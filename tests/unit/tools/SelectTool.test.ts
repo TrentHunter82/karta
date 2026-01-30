@@ -315,6 +315,76 @@ describe('SelectTool', () => {
       expect(mockContext.setSelection).toHaveBeenCalledWith(['rect-1']);
       expect(tool.getMode()).toBe('idle');
     });
+
+    it('handles zero-width objects without NaN', () => {
+      // Object with zero width - aspectRatio would be 0
+      // This triggers division by zero when proportional resize divides by aspectRatio
+      const rect = createRectangle('rect-1', { x: 50, y: 50, width: 0, height: 100 });
+      const objects = new Map([['rect-1', rect]]);
+      const selectedIds = new Set(['rect-1']);
+      mockContext = createMockContext(objects, selectedIds);
+      (mockContext.hitTestHandle as ReturnType<typeof vi.fn>).mockReturnValue('se');
+      tool = new SelectTool(mockContext);
+      tool.onActivate();
+
+      // Start resizing at corner
+      tool.onMouseDown(createMockMouseEvent({ canvasX: 50, canvasY: 150 }));
+
+      // Move mouse with larger deltaX than deltaY to trigger newHeight = newWidth / aspectRatio
+      // With aspectRatio = 0, this would produce Infinity without the fix
+      tool.onMouseMove(createMockMouseEvent({ canvasX: 150, canvasY: 180 }));
+
+      // Verify updateObjects was called and no NaN/Infinity values
+      expect(mockContext.updateObjects).toHaveBeenCalled();
+      const calls = (mockContext.updateObjects as ReturnType<typeof vi.fn>).mock.calls;
+      if (calls.length > 0) {
+        const lastCall = calls[calls.length - 1][0];
+        lastCall.forEach((update: { id: string; changes: Partial<RectangleObject> }) => {
+          if (update.changes.width !== undefined) {
+            expect(Number.isNaN(update.changes.width)).toBe(false);
+            expect(Number.isFinite(update.changes.width)).toBe(true);
+          }
+          if (update.changes.height !== undefined) {
+            expect(Number.isNaN(update.changes.height)).toBe(false);
+            expect(Number.isFinite(update.changes.height)).toBe(true);
+          }
+        });
+      }
+    });
+
+    it('handles zero-height objects without NaN', () => {
+      // Object with zero height - should not produce NaN/Infinity during resize
+      const rect = createRectangle('rect-1', { x: 50, y: 50, width: 100, height: 0 });
+      const objects = new Map([['rect-1', rect]]);
+      const selectedIds = new Set(['rect-1']);
+      mockContext = createMockContext(objects, selectedIds);
+      (mockContext.hitTestHandle as ReturnType<typeof vi.fn>).mockReturnValue('se');
+      tool = new SelectTool(mockContext);
+      tool.onActivate();
+
+      // Start resizing
+      tool.onMouseDown(createMockMouseEvent({ canvasX: 150, canvasY: 50 }));
+
+      // Move mouse to resize
+      tool.onMouseMove(createMockMouseEvent({ canvasX: 200, canvasY: 100 }));
+
+      // Verify updateObjects was called and no NaN values
+      expect(mockContext.updateObjects).toHaveBeenCalled();
+      const calls = (mockContext.updateObjects as ReturnType<typeof vi.fn>).mock.calls;
+      if (calls.length > 0) {
+        const lastCall = calls[calls.length - 1][0];
+        lastCall.forEach((update: { id: string; changes: Partial<RectangleObject> }) => {
+          if (update.changes.width !== undefined) {
+            expect(Number.isNaN(update.changes.width)).toBe(false);
+            expect(Number.isFinite(update.changes.width)).toBe(true);
+          }
+          if (update.changes.height !== undefined) {
+            expect(Number.isNaN(update.changes.height)).toBe(false);
+            expect(Number.isFinite(update.changes.height)).toBe(true);
+          }
+        });
+      }
+    });
   });
 
   describe('rotating', () => {
