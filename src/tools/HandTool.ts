@@ -1,4 +1,16 @@
-// HandTool - handles canvas panning
+/**
+ * Hand Tool
+ *
+ * Panning tool that allows users to drag the canvas viewport.
+ * Activated via keyboard shortcut (H) or when spacebar is held.
+ *
+ * Behavior:
+ * - Click and drag to pan the viewport
+ * - Cursor shows grab (idle) / grabbing (active)
+ * - Does not interact with objects
+ *
+ * @see SelectTool.ts - Has temporary hand mode via spacebar
+ */
 import { BaseTool } from './BaseTool';
 import type {
   ToolState,

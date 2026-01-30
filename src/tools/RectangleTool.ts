@@ -1,4 +1,15 @@
-// RectangleTool - handles rectangle drawing
+/**
+ * Rectangle Tool
+ *
+ * Creates rectangle objects via click-and-drag.
+ *
+ * Behavior:
+ * - Click and drag to define bounds
+ * - Hold Shift to constrain to square (1:1 aspect ratio)
+ * - Escape cancels drawing
+ * - Switches to select tool after creation
+ * - Minimum size enforced to prevent tiny objects
+ */
 import { BaseTool } from './BaseTool';
 import type {
   ToolState,

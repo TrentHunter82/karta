@@ -1,6 +1,23 @@
-// src/stores/viewportStore.ts
-// Manages viewport state: pan, zoom, and minimap visibility
-
+/**
+ * Viewport Store
+ *
+ * Manages pan, zoom, and minimap visibility for the canvas viewport.
+ * Extracted from canvasStore for separation of concerns.
+ *
+ * Key responsibilities:
+ * - Track viewport offset (x, y) and zoom level
+ * - Handle zoom operations (zoom in, out, to fit, to selection)
+ * - Apply zoom constraints (MIN_ZOOM to MAX_ZOOM)
+ * - Toggle minimap visibility
+ *
+ * Coordinate system:
+ * - viewport.x/y: offset in screen pixels
+ * - viewport.zoom: scale factor (1.0 = 100%)
+ * - Canvas coords = (screen coords - offset) / zoom
+ *
+ * @see canvasStore.ts - Main store delegates viewport state here
+ * @see constants/layout.ts - MIN_ZOOM, MAX_ZOOM values
+ */
 import { create } from 'zustand';
 import type { Viewport, CanvasObject } from '../types/canvas';
 import { MIN_ZOOM, MAX_ZOOM, DEFAULT_VIEWPORT_PADDING, CANVAS_WIDTH_OFFSET, CANVAS_HEIGHT_OFFSET } from '../constants/layout';

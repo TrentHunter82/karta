@@ -4,9 +4,24 @@ import { useSelectionStore } from '../../stores/selectionStore';
 import { useViewportStore } from '../../stores/viewportStore';
 import { useGroupStore } from '../../stores/groupStore';
 import { useToastStore } from '../../stores/toastStore';
-import type { CanvasObject } from '../../types/canvas';
+import type { CanvasObject, ImageObject, VideoObject } from '../../types/canvas';
 import { isTextObject, isGroupObject } from '../../types/canvas';
 import { MIN_ZOOM, MAX_ZOOM } from '../../constants/layout';
+import {
+  ZOOM_SENSITIVITY,
+  DOUBLE_CLICK_THRESHOLD_MS,
+  HANDLE_SIZE_PX,
+  ROTATION_HANDLE_OFFSET_PX,
+  FILE_DROP_OFFSET_INCREMENT,
+  EDGE_FADE_SIZE_PX,
+  SELECTION_ANIMATION_DURATION_MS,
+  PATH_SCALE_EPSILON,
+} from '../../constants/interaction';
+import {
+  MAX_IMPORTED_IMAGE_SIZE,
+  IMAGE_CACHE_MAX_SIZE,
+  ERROR_TOAST_DURATION_MS,
+} from '../../constants/rendering';
 import { CursorPresence } from './CursorPresence';
 import { Minimap } from './Minimap';
 import { ContextMenu } from '../ContextMenu';
@@ -17,8 +32,11 @@ import { renderProfiler, type RenderTrigger } from '../../utils/renderStats';
 import { RenderStatsOverlay } from './RenderStatsOverlay';
 import './Canvas.css';
 
+// EXTRACT: Move to src/utils/mediaCache.ts
+// Image/video caching logic is reusable and testable in isolation.
+// Would export: getOrLoadImage, imageCache, videoThumbnailCache, videoElementCache
+
 // Image cache for loaded images with LRU eviction
-const MAX_IMAGE_CACHE_SIZE = 50;
 const imageCache = new Map<string, HTMLImageElement>();
 const imageCacheOrder: string[] = []; // Track access order for LRU
 
@@ -35,7 +53,7 @@ function getOrLoadImage(src: string, onLoad: () => void): HTMLImageElement | nul
   }
 
   // Evict oldest if cache is full
-  while (imageCacheOrder.length >= MAX_IMAGE_CACHE_SIZE) {
+  while (imageCacheOrder.length >= IMAGE_CACHE_MAX_SIZE) {
     const oldest = imageCacheOrder.shift();
     if (oldest) {
       imageCache.delete(oldest);
@@ -65,28 +83,16 @@ function getOrLoadImage(src: string, onLoad: () => void): HTMLImageElement | nul
 const videoThumbnailCache = new Map<string, HTMLCanvasElement>();
 const videoElementCache = new Map<string, HTMLVideoElement>();
 
-// Zoom limits and sensitivity
-const ZOOM_SENSITIVITY = 0.001;
+// Local constants (not worth exporting)
 const CTRL_ZOOM_SENSITIVITY = 0.01;
-
-// Selection handle dimensions
-const HANDLE_SIZE = 8;
-const ROTATION_HANDLE_OFFSET = 20;
 const SELECTION_COLOR = '#0066ff';
-
-// Text rendering defaults
 const DEFAULT_FONT_WEIGHT = 400;
 const DEFAULT_LINE_HEIGHT = 1.2;
-
-// Double-click detection timing
-const DOUBLE_CLICK_THRESHOLD_MS = 300;
 const EDITING_START_DELAY_MS = 500;
 
-// Image import constraints
-const MAX_IMPORTED_IMAGE_SIZE = 800;
-
-// Toast durations
-const ERROR_TOAST_DURATION_MS = 5000;
+// Aliases for imported constants (for code clarity)
+const HANDLE_SIZE = HANDLE_SIZE_PX;
+const ROTATION_HANDLE_OFFSET = ROTATION_HANDLE_OFFSET_PX;
 
 // Handle positions for drawing selection box
 const HANDLE_POSITIONS = [
@@ -207,7 +213,33 @@ export function Canvas() {
     [viewport]
   );
 
+  // ============================================================================
+  // RENDERING PIPELINE
+  // ============================================================================
+  // The rendering pipeline consists of:
+  // 1. drawObject() - Renders individual canvas objects (shapes, text, images)
+  // 2. drawHoverHighlight() - Renders hover outline for non-selected objects
+  // 3. drawSelectionBox() - Renders selection UI (handles, rotation indicator)
+  // 4. draw() - Main render loop orchestrating all rendering phases
+  //
+  // Render order in draw():
+  // a) Clear canvas with gradient background
+  // b) Draw grid overlay (if enabled)
+  // c) Draw objects sorted by zIndex (back-to-front)
+  // d) Draw hover highlights
+  // e) Draw selection boxes
+  // f) Draw snap guides with flash animations
+  // g) Render active tool overlay (marquee, preview shapes)
+  // h) Draw vignette effect
+  // ============================================================================
+
+  // EXTRACT: Move to src/utils/objectRenderer.ts
+  // Large switch statement for rendering different object types. Each case
+  // could be a separate render function (renderRectangle, renderEllipse, etc.)
+  // making the code more modular and testable.
+
   // Draw a single object on the canvas
+  // Handles all object types: rectangle, ellipse, text, frame, path, image, video, line, arrow, group
   const drawObject = useCallback(
     (ctx: CanvasRenderingContext2D, obj: CanvasObject) => {
       const { zoom } = viewport;
@@ -343,8 +375,8 @@ export function Canvas() {
             }
             // Scale points to current width/height (allows resizing)
             // Use epsilon to avoid division overflow with tiny values
-            const scaleX = maxPointX > 0.001 ? width / maxPointX : zoom;
-            const scaleY = maxPointY > 0.001 ? height / maxPointY : zoom;
+            const scaleX = maxPointX > PATH_SCALE_EPSILON ? width / maxPointX : zoom;
+            const scaleY = maxPointY > PATH_SCALE_EPSILON ? height / maxPointY : zoom;
 
             ctx.beginPath();
             const firstPoint = obj.points[0];
@@ -524,6 +556,8 @@ export function Canvas() {
   );
 
   // Draw hover highlight for non-selected objects
+  // Shows a subtle orange glow outline when hovering over an object
+  // that is not currently selected (provides visual feedback)
   const drawHoverHighlight = useCallback(
     (ctx: CanvasRenderingContext2D, obj: CanvasObject) => {
       const { zoom } = viewport;
@@ -549,6 +583,9 @@ export function Canvas() {
   );
 
   // Draw selection box with handles
+  // Renders the blue selection outline, resize handles (8 corners/edges),
+  // and rotation handle (circle above top center). Includes entrance
+  // animation when objects are newly selected.
   const drawSelectionBox = useCallback(
     (ctx: CanvasRenderingContext2D, obj: CanvasObject) => {
       const { zoom } = viewport;
@@ -649,16 +686,22 @@ export function Canvas() {
   );
 
   // Memoize sorted objects for rendering - avoids sorting on every draw frame
+  // Only includes visible, top-level objects (not children of groups)
+  // Sorting by zIndex ensures correct back-to-front rendering order
   const sortedTopLevelObjects = useMemo(() => {
     return Array.from(objects.values())
       .filter((obj) => obj.visible !== false && !obj.parentId)
       .sort((a, b) => a.zIndex - b.zIndex);
   }, [objects]);
 
-  // Track render trigger for profiling
+  // Track render trigger for profiling (viewport change, objects change, etc.)
   const renderTriggerRef = useRef<RenderTrigger>('initial');
 
-  // Draw the canvas content
+  // ============================================================================
+  // MAIN RENDER LOOP
+  // ============================================================================
+  // Called on every animation frame when state changes. Orchestrates all
+  // rendering phases in correct order for proper layering.
   const draw = useCallback(() => {
     const canvas = canvasRef.current;
     const container = containerRef.current;
@@ -687,6 +730,10 @@ export function Canvas() {
     gradient.addColorStop(1, '#050505');
     ctx.fillStyle = gradient;
     ctx.fillRect(0, 0, rect.width, rect.height);
+
+    // EXTRACT: Move grid rendering to src/utils/gridRenderer.ts
+    // Grid drawing with edge fades is self-contained rendering logic.
+    // Would export: drawGrid(ctx, viewport, gridSettings, canvasRect)
 
     // Draw grid if visible
     if (gridSettings.visible) {
@@ -724,7 +771,7 @@ export function Canvas() {
       }
 
       // Apply subtle gradient fade at canvas edges for grid
-      const fadeSize = 80;
+      const fadeSize = EDGE_FADE_SIZE_PX;
 
       // Left edge fade
       const leftFade = ctx.createLinearGradient(0, 0, fadeSize, 0);
@@ -790,6 +837,10 @@ export function Canvas() {
       }
     });
 
+    // EXTRACT: Move snap guide rendering to src/utils/snapGuideRenderer.ts
+    // Snap guide visualization with flash animation is distinct rendering logic.
+    // Would export: drawSnapGuides(ctx, guides, viewport, flashState)
+
     // Draw snap guides with flash animation
     if (activeSnapGuides.length > 0) {
       const { zoom } = viewport;
@@ -811,10 +862,9 @@ export function Canvas() {
       let flashIntensity = 0;
       if (flashState.flashStartTime !== null) {
         const elapsed = now - flashState.flashStartTime;
-        const duration = 200; // ms
-        if (elapsed < duration) {
+        if (elapsed < SELECTION_ANIMATION_DURATION_MS) {
           // Flash pulse: quick bright to normal
-          flashIntensity = 1 - (elapsed / duration);
+          flashIntensity = 1 - (elapsed / SELECTION_ANIMATION_DURATION_MS);
         } else {
           flashState.flashStartTime = null;
         }
@@ -885,7 +935,7 @@ export function Canvas() {
 
     // End profiling frame
     endFrame();
-  }, [viewport, sortedTopLevelObjects, objects, selectedIds, hoveredObjectId, drawObject, drawHoverHighlight, drawSelectionBox, getAbsolutePosition, imageLoadTrigger, gridSettings, activeSnapGuides]);
+  }, [viewport, sortedTopLevelObjects, objects, selectedIds, hoveredObjectId, drawObject, drawHoverHighlight, drawSelectionBox, getAbsolutePosition, gridSettings, activeSnapGuides]);
 
   // Handle window resize (passive since no preventDefault)
   useEffect(() => {
@@ -1580,7 +1630,7 @@ export function Canvas() {
         return;
       }
     }
-  }, [isPanning, viewport, setViewport, screenToCanvas, setCursorPosition, draw]);
+  }, [isPanning, setViewport, screenToCanvas, setCursorPosition, draw]);
 
   // Handle mouse move with RAF throttling for 60fps max during drag operations
   const handleMouseMove = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
@@ -1678,6 +1728,11 @@ export function Canvas() {
     setContextMenu({ x: e.clientX, y: e.clientY });
   }, [hitTest, selectedIds, setSelection]);
 
+  // EXTRACT: Move to src/hooks/useFileDrop.ts
+  // File drop handling (images, videos) is self-contained and could be
+  // a custom hook returning { isDragOver, handlers }.
+  // Would include: handleDragOver, handleDragEnter, handleDragLeave, handleDrop
+
   // Handle drag over for file drops
   const handleDragOver = useCallback((e: React.DragEvent<HTMLCanvasElement>) => {
     e.preventDefault();
@@ -1731,8 +1786,6 @@ export function Canvas() {
     const totalFiles = imageFiles.length + videoFiles.length;
     if (totalFiles === 0) return;
 
-    const OFFSET_INCREMENT = 20;
-
     // Helper to read file as data URL
     const readFileAsDataUrl = (file: File): Promise<string> => {
       return new Promise((resolve, reject) => {
@@ -1774,8 +1827,8 @@ export function Canvas() {
     const processFiles = async () => {
       // Process images
       const imagePromises = imageFiles.map(async (file, index) => {
-        const fileOffsetX = index * OFFSET_INCREMENT;
-        const fileOffsetY = index * OFFSET_INCREMENT;
+        const fileOffsetX = index * FILE_DROP_OFFSET_INCREMENT;
+        const fileOffsetY = index * FILE_DROP_OFFSET_INCREMENT;
         try {
           const dataUrl = await readFileAsDataUrl(file);
           const dims = await loadImage(dataUrl);
@@ -1817,8 +1870,8 @@ export function Canvas() {
       // Process videos (offset continues from images)
       const videoBaseOffset = imageFiles.length;
       const videoPromises = videoFiles.map(async (file, index) => {
-        const fileOffsetX = (videoBaseOffset + index) * OFFSET_INCREMENT;
-        const fileOffsetY = (videoBaseOffset + index) * OFFSET_INCREMENT;
+        const fileOffsetX = (videoBaseOffset + index) * FILE_DROP_OFFSET_INCREMENT;
+        const fileOffsetY = (videoBaseOffset + index) * FILE_DROP_OFFSET_INCREMENT;
         try {
           const dataUrl = await readFileAsDataUrl(file);
           const dims = await loadVideo(dataUrl);
@@ -1876,6 +1929,11 @@ export function Canvas() {
     if (isSpacePressed || activeTool === 'hand') return 'grab';
     return toolCursor;
   };
+
+  // EXTRACT: Move to src/hooks/useTextEditing.ts (or TextEditOverlay component)
+  // Text editing logic including input handling, focus management, and
+  // dimension recalculation. Would return editing state and handlers.
+  // Could also be a TextEditOverlay component that encapsulates the input.
 
   // Text input handlers
   const handleTextInput = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {

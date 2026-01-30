@@ -1,4 +1,31 @@
-// SelectTool - handles selection, moving, resizing, rotating, and marquee selection
+/**
+ * Select Tool
+ *
+ * The primary interaction tool for the canvas. Handles selection,
+ * manipulation, and editing of objects.
+ *
+ * Key features:
+ * - Click to select single object
+ * - Shift+click to add/remove from multi-selection
+ * - Drag selected objects to move them
+ * - Drag corner/edge handles to resize
+ * - Drag rotation handle to rotate
+ * - Drag on empty space for marquee (box) selection
+ * - Double-click text to edit, group to enter group edit mode
+ * - Alt+drag to duplicate objects
+ *
+ * State machine:
+ * - idle: Waiting for input
+ * - dragging: Moving selected objects
+ * - resizing: Resizing via handle
+ * - rotating: Rotating via handle
+ * - marquee: Drawing selection box
+ *
+ * This is the most complex tool with extensive state management.
+ * Consider extracting handlers into separate classes for maintainability.
+ *
+ * @see types.ts - SelectToolState interface
+ */
 import { BaseTool } from './BaseTool';
 import type {
   ToolMouseEvent,
@@ -11,10 +38,11 @@ import type {
 import type { CanvasObject } from '../types/canvas';
 import { isTextObject } from '../types/canvas';
 import { ROTATION_SNAP_DEG } from '../constants/layout';
+import { DOUBLE_CLICK_THRESHOLD_MS } from '../constants/interaction';
 
 // Constants
 const MIN_OBJECT_SIZE = 10;
-const DOUBLE_CLICK_THRESHOLD = 300; // ms
+const DOUBLE_CLICK_THRESHOLD = DOUBLE_CLICK_THRESHOLD_MS;
 const DRAG_THRESHOLD = 3; // minimum pixels moved before drag starts
 const MIN_MARQUEE_SIZE = 2; // minimum marquee size to trigger selection
 
@@ -253,6 +281,10 @@ export class SelectTool extends BaseTool {
     this.setCursor('grab');
   }
 
+  // EXTRACT: Move resize logic to src/tools/handlers/ResizeHandler.ts
+  // Resize handling (startResize, handleResizeMove) is self-contained.
+  // Would be a class with start(), move(), and apply() methods.
+
   private startResize(obj: CanvasObject, handle: HandleType, canvasX: number, canvasY: number): void {
     this.ctx.pushHistory();
     this.state.mode = 'resizing';
@@ -385,6 +417,10 @@ export class SelectTool extends BaseTool {
     return { handled: true, cursor: 'move' };
   }
 
+  // EXTRACT: Move drag logic to src/tools/handlers/DragHandler.ts
+  // Drag handling (startDragging, handleDragMove, renderDragGhosts) manages
+  // object movement, snap guides, and ghost rendering. Could be a class.
+
   private startDragging(canvasX: number, canvasY: number, e: ToolMouseEvent): void {
     // Start in pending_drag mode - actual drag starts after threshold is crossed
     this.state.mode = 'pending_drag';
@@ -393,6 +429,10 @@ export class SelectTool extends BaseTool {
     this.state.lastPos = { x: e.screenX, y: e.screenY };
     this.setCursor('move');
   }
+
+  // EXTRACT: Move marquee logic to src/tools/handlers/MarqueeHandler.ts
+  // Marquee selection (startMarquee, handleMarqueeMove, finalizeMarquee,
+  // renderMarqueeRect) is a distinct selection mode with its own rendering.
 
   private startMarquee(
     canvasX: number,
@@ -485,14 +525,16 @@ export class SelectTool extends BaseTool {
     const gridSettings = this.ctx.getGridSettings();
     if (gridSettings.snapEnabled || gridSettings.snapToObjects) {
       const refId = selectedIds.values().next().value;
-      const refObj = objects.get(refId);
-      if (refObj) {
-        const rawX = refObj.x + dx;
-        const rawY = refObj.y + dy;
-        const snapped = this.ctx.snapPosition(rawX, rawY);
-        snapDx = dx + (snapped.x - rawX);
-        snapDy = dy + (snapped.y - rawY);
-        this.ctx.setActiveSnapGuides(snapped.guides);
+      if (refId) {
+        const refObj = objects.get(refId);
+        if (refObj) {
+          const rawX = refObj.x + dx;
+          const rawY = refObj.y + dy;
+          const snapped = this.ctx.snapPosition(rawX, rawY);
+          snapDx = dx + (snapped.x - rawX);
+          snapDy = dy + (snapped.y - rawY);
+          this.ctx.setActiveSnapGuides(snapped.guides);
+        }
       }
     }
 
@@ -702,6 +744,10 @@ export class SelectTool extends BaseTool {
 
     return { handled: true, cursor: handle ? HANDLE_CURSORS[handle] : 'default' };
   }
+
+  // EXTRACT: Move rotation logic to src/tools/handlers/RotateHandler.ts
+  // Rotation handling could be a simple class with start() and move() methods.
+  // Angle calculation and snapping logic is self-contained.
 
   private handleRotateMove(
     screenX: number,

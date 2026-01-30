@@ -1,4 +1,20 @@
-// Tool system types for Karta
+/**
+ * Tool System Types
+ *
+ * Type definitions for the tool system including:
+ * - ToolContext: Interface for tools to access canvas state/actions
+ * - ToolState: Base state all tools share
+ * - Event types: Mouse and keyboard event wrappers
+ * - Handle types: For resize and rotation operations
+ *
+ * Key interfaces:
+ * - ToolContext: Passed to tools, provides store access without direct imports
+ * - ToolEventResult: Returned from event handlers with redraw/cursor hints
+ * - SelectToolState: Extended state for the complex SelectTool
+ *
+ * @see BaseTool.ts - Uses these types
+ * @see Canvas.tsx - Creates the ToolContext
+ */
 import type { CanvasObject, Viewport, ToolType } from '../types/canvas';
 import type { GridSettings, SnapGuide } from '../stores/canvasStore';
 

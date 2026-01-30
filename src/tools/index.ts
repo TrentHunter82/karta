@@ -1,4 +1,16 @@
-// Tool system exports
+/**
+ * Tool System
+ *
+ * Central export point for the tool system. Provides all tool classes,
+ * the ToolManager, and shared types.
+ *
+ * Tool Architecture:
+ * - BaseTool: Abstract base class all tools extend
+ * - ToolManager: Routes events to active tool, handles switching
+ * - Concrete tools: SelectTool, HandTool, RectangleTool, etc.
+ *
+ * @see types.ts - ToolContext, ToolState, event interfaces
+ */
 export * from './types';
 export { BaseTool } from './BaseTool';
 export { ToolManager } from './ToolManager';

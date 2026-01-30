@@ -1,4 +1,25 @@
-// Tool Manager - orchestrates tool switching and event routing
+/**
+ * Tool Manager
+ *
+ * Central coordinator for all canvas tools. Manages tool registration,
+ * activation, and routes all mouse/keyboard events to the active tool.
+ *
+ * Key responsibilities:
+ * - Register tool instances by name
+ * - Handle tool switching with proper activate/deactivate lifecycle
+ * - Route mouse events (down, move, up, double-click) to active tool
+ * - Route keyboard events (down, up) to active tool
+ * - Delegate overlay rendering to active tool
+ *
+ * Usage:
+ * - Create with a ToolContext
+ * - Default tools are auto-registered unless disabled
+ * - Call setActiveTool() to switch tools
+ * - Forward events via onMouseDown(), onMouseMove(), etc.
+ *
+ * @see Canvas.tsx - Creates and uses ToolManager
+ * @see BaseTool.ts - Base class for all tools
+ */
 import type { BaseTool } from './BaseTool';
 import type {
   ToolContext,

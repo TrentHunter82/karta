@@ -1,4 +1,18 @@
-// FrameTool - handles frame drawing
+/**
+ * Frame Tool
+ *
+ * Creates frame container objects via click-and-drag.
+ * Frames are containers that can hold other objects (like Figma frames).
+ *
+ * Behavior:
+ * - Click and drag to define frame bounds
+ * - Created with default name "Frame"
+ * - Escape cancels drawing
+ * - Switches to select tool after creation
+ * - Minimum size enforced to prevent tiny frames
+ *
+ * @see FrameObject in types/canvas.ts
+ */
 import { BaseTool } from './BaseTool';
 import type {
   ToolState,

@@ -1,4 +1,15 @@
-// TextTool - handles text creation
+/**
+ * Text Tool
+ *
+ * Creates text objects on the canvas with a single click.
+ *
+ * Behavior:
+ * - Click to create a text object at cursor position
+ * - Immediately switches to select tool and enters text editing
+ * - Created text uses default dimensions until content is added
+ *
+ * @see Canvas.tsx - Handles text editing overlay
+ */
 import { BaseTool } from './BaseTool';
 import type {
   ToolState,

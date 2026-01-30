@@ -1,4 +1,16 @@
-// LineTool - handles line drawing
+/**
+ * Line Tool
+ *
+ * Creates line objects via click-and-drag.
+ *
+ * Behavior:
+ * - Click to set start point, drag to set end point
+ * - Hold Shift to snap to 45-degree angles
+ * - Escape cancels drawing
+ * - Switches to select tool after creation
+ *
+ * @see ArrowTool.ts - Similar but with arrowhead
+ */
 import { BaseTool } from './BaseTool';
 import { ANGLE_SNAP_45_RAD } from '../constants/layout';
 import type {

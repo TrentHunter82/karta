@@ -1,4 +1,17 @@
-// ArrowTool - handles arrow drawing
+/**
+ * Arrow Tool
+ *
+ * Creates arrow (line with arrowhead) objects via click-and-drag.
+ *
+ * Behavior:
+ * - Click to set start point, drag to set end point
+ * - Hold Shift to snap to 45-degree angles
+ * - Escape cancels drawing
+ * - Switches to select tool after creation
+ * - Arrowhead drawn at end point by default
+ *
+ * @see LineTool.ts - Similar but without arrowhead
+ */
 import { BaseTool } from './BaseTool';
 import { ANGLE_SNAP_45_RAD } from '../constants/layout';
 import type {

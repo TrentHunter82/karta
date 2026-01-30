@@ -1,3 +1,18 @@
+/**
+ * Template Store
+ *
+ * Manages reusable object templates that users can create, save, and
+ * instantiate on the canvas. Persisted to localStorage.
+ *
+ * Key responsibilities:
+ * - Store preset and user-created templates
+ * - Template CRUD operations (create, read, update, delete)
+ * - Serialize template objects for storage
+ * - Generate unique IDs for new instances when templates are placed
+ *
+ * Templates are partial CanvasObject definitions without id/zIndex,
+ * which are assigned at instantiation time.
+ */
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import type { ObjectType } from '../types/canvas';

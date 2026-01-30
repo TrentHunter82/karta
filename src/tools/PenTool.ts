@@ -1,4 +1,18 @@
-// PenTool - handles freehand path drawing
+/**
+ * Pen Tool
+ *
+ * Creates freehand path objects by recording mouse movement.
+ *
+ * Behavior:
+ * - Click and drag to draw a continuous path
+ * - Points are sampled as the mouse moves
+ * - Release mouse to complete the stroke
+ * - Escape cancels current drawing
+ * - Stays in pen tool after each stroke (continuous drawing mode)
+ * - Minimum 2 points required for valid path
+ *
+ * @see PathObject, PathPoint in types/canvas.ts
+ */
 import { BaseTool } from './BaseTool';
 import type {
   ToolState,

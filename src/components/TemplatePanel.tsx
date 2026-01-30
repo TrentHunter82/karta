@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { useTemplateStore, PRESET_TEMPLATES, type Template, type TemplateObject } from '../stores/templateStore';
 import { useCanvasStore } from '../stores/canvasStore';
+import type { CanvasObject } from '../types/canvas';
 import { CANVAS_WIDTH_OFFSET, CANVAS_HEIGHT_OFFSET, TEMPLATE_PANEL_WIDTH } from '../constants/layout';
 import './TemplatePanel.css';
 

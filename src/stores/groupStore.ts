@@ -183,7 +183,7 @@ interface GroupState {
   exitGroupEditMode: () => void;
 }
 
-export const useGroupStore = create<GroupState>((set, get) => ({
+export const useGroupStore = create<GroupState>((set, _get) => ({
   // Initial state
   editingGroupId: null,
 

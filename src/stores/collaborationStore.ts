@@ -1,3 +1,24 @@
+/**
+ * Collaboration Store
+ *
+ * Manages real-time collaboration via Yjs and y-websocket. Handles
+ * connection state, user presence (cursors), and synchronization.
+ *
+ * Key responsibilities:
+ * - Manage WebSocket connection to collaboration server
+ * - Track connection status (disconnected, connecting, connected)
+ * - Handle reconnection with exponential backoff
+ * - Manage user presence (name, color, cursor position)
+ * - Track remote users and their cursor positions
+ *
+ * Integration notes:
+ * - Y.Doc is shared with canvasStore for object synchronization
+ * - Circular dependency with canvasStore - use lazy getState() calls
+ * - Awareness protocol for presence/cursor sync
+ *
+ * @see canvasStore.ts - Main store that observes Y.Map changes
+ * @see yjsUtils.ts - Object serialization for Yjs
+ */
 import { create } from 'zustand';
 import * as Y from 'yjs';
 import { WebsocketProvider } from 'y-websocket';
@@ -158,7 +179,6 @@ export const useCollaborationStore = create<CollaborationState>((set, get) => ({
       provider.on('sync', (isSynced: boolean) => {
         if (isSynced) {
           // Sync completed successfully - document is now in sync with server
-          console.debug('[Collaboration] Document synced with server');
         } else {
           // Sync failed or lost - warn user about potential data inconsistency
           console.warn('[Collaboration] Sync failed or lost - document may be out of sync');

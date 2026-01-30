@@ -1,6 +1,18 @@
-// src/stores/selectionStore.ts
-// Manages selection state and provides alignment/distribution logic
-
+/**
+ * Selection Store
+ *
+ * Manages object selection state and provides alignment/distribution
+ * operations for multi-object layouts.
+ *
+ * Key responsibilities:
+ * - Track currently selected object IDs
+ * - Calculate alignment positions (left, right, top, bottom, centerH, centerV)
+ * - Calculate distribution spacing (horizontal, vertical)
+ * - Handle rotated object bounding boxes for accurate alignment
+ *
+ * This store is intentionally separate from canvasStore to keep selection
+ * logic isolated and testable.
+ */
 import { create } from 'zustand';
 import type { CanvasObject } from '../types/canvas';
 

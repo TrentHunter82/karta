@@ -1,10 +1,12 @@
 import { useCanvasStore } from '../../../stores/canvasStore';
+import { useSelectionStore } from '../../../stores/selectionStore';
 import { IconButton } from '../inputs/IconButton';
 
 export function LayoutSection() {
   const alignObjects = useCanvasStore((s) => s.alignObjects);
   const distributeObjects = useCanvasStore((s) => s.distributeObjects);
-  const selectedIds = useCanvasStore((s) => s.selectedIds);
+  // Subscribe directly to selectionStore for proper reactivity
+  const selectedIds = useSelectionStore((s) => s.selectedIds);
 
   const hasMultiple = selectedIds.size > 1;
   const hasThreeOrMore = selectedIds.size >= 3;

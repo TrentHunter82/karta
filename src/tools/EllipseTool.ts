@@ -1,4 +1,15 @@
-// EllipseTool - handles ellipse drawing
+/**
+ * Ellipse Tool
+ *
+ * Creates ellipse/circle objects via click-and-drag.
+ *
+ * Behavior:
+ * - Click and drag to define bounding box
+ * - Hold Shift to constrain to circle (1:1 aspect ratio)
+ * - Escape cancels drawing
+ * - Switches to select tool after creation
+ * - Minimum size enforced to prevent tiny objects
+ */
 import { BaseTool } from './BaseTool';
 import type {
   ToolState,

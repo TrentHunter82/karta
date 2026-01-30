@@ -1,3 +1,28 @@
+/**
+ * Canvas Store (Main Store)
+ *
+ * Central state management for the canvas application. This is the "god store"
+ * that coordinates all canvas-related state and operations.
+ *
+ * Key responsibilities:
+ * - Store all canvas objects (Map<id, CanvasObject>)
+ * - Manage active tool selection
+ * - Handle grid settings and snap guides
+ * - Coordinate with Yjs for real-time collaboration
+ * - Maintain spatial index (QuadTree) for efficient hit testing
+ * - Delegate to specialized stores (selection, viewport, history, etc.)
+ *
+ * Architecture notes:
+ * - This store grew organically and is a candidate for decomposition
+ * - Many methods delegate to helper stores for separation of concerns
+ * - spatialIndex must be rebuilt after any object position/size change
+ * - Uses isApplyingRemoteChanges flag to prevent Yjs echo loops
+ *
+ * @see selectionStore.ts - Selection and alignment logic
+ * @see viewportStore.ts - Pan/zoom state
+ * @see historyStore.ts - Undo/redo
+ * @see collaborationStore.ts - Yjs integration
+ */
 import { create } from 'zustand';
 import * as Y from 'yjs';
 import type { CanvasObject, Viewport, ToolType } from '../types/canvas';
@@ -172,6 +197,11 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
   isApplyingRemoteChanges: false,
   spatialIndex: null,
 
+  // EXTRACT: Move to src/stores/gridStore.ts
+  // Grid settings and snap guides are a self-contained feature domain.
+  // Would include: gridSettings state, activeSnapGuides, setGridSettings,
+  // setSnapEnabled, toggleGrid, setActiveSnapGuides, clearSnapGuides
+
   // Grid and snap initial state
   gridSettings: {
     visible: false,
@@ -186,6 +216,10 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
   get viewport() { return useViewportStore.getState().viewport; },
   get showMinimap() { return useViewportStore.getState().showMinimap; },
   get editingGroupId() { return useGroupStore.getState().editingGroupId; },
+
+  // EXTRACT: Move Yjs sync setup to collaborationStore or a dedicated yjsSyncStore
+  // The observer setup and change handling could be more centralized.
+  // This would reduce canvasStore size and isolate sync complexity.
 
   initializeYjsSync: () => {
     const state = get();
@@ -687,6 +721,10 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
     });
   },
 
+  // EXTRACT: Consider merging more deeply with selectionStore
+  // Alignment and distribution logic already has pure functions in selectionStore.
+  // The Yjs sync boilerplate could be wrapped in a helper to reduce duplication.
+
   // Alignment and distribution (using calculation functions from selectionStore)
   alignObjects: (alignment) => {
     if (get().isApplyingRemoteChanges) return;
@@ -743,6 +781,10 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
     });
 
   },
+
+  // EXTRACT: Consider consolidating grouping logic entirely in groupStore
+  // Grouping has pure calculation functions in groupStore, but the Yjs sync
+  // and state updates remain here. A transactionalAction helper could unify.
 
   // Grouping actions (using calculation functions from groupStore)
   getAbsolutePosition: (obj: CanvasObject) => getAbsolutePosition(obj, get().objects),

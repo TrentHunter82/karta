@@ -1,4 +1,24 @@
-// Abstract base class for all tools
+/**
+ * Base Tool
+ *
+ * Abstract base class that all canvas tools must extend. Provides the
+ * standard interface for mouse/keyboard event handling and tool state.
+ *
+ * Key responsibilities:
+ * - Define tool lifecycle (activate, deactivate, reset)
+ * - Provide mouse event hooks (onMouseDown, onMouseMove, onMouseUp)
+ * - Provide keyboard event hooks (onKeyDown, onKeyUp)
+ * - Manage tool-specific state and cursor
+ * - Provide render overlay hook for tool-specific visuals
+ *
+ * Subclass requirements:
+ * - Implement `name` getter for tool identification
+ * - Implement `getInitialState()` for tool-specific state
+ * - Override mouse handlers as needed for tool behavior
+ *
+ * @see ToolManager.ts - Registers and routes events to tools
+ * @see types.ts - ToolContext, ToolState, event types
+ */
 import type {
   ToolContext,
   ToolState,
