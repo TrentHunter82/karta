@@ -1375,8 +1375,8 @@ export function Canvas() {
     toolManagerRef.current.setActiveTool(activeTool);
   }, [activeTool]);
 
-  // Handle mouse wheel zoom
-  const handleWheel = useCallback((e: React.WheelEvent<HTMLCanvasElement>) => {
+  // Handle mouse wheel zoom (native event for non-passive listener)
+  const handleWheel = useCallback((e: WheelEvent) => {
     e.preventDefault();
 
     const canvas = canvasRef.current;
@@ -1401,6 +1401,15 @@ export function Canvas() {
     });
   }, [viewport, setViewport]);
 
+  // Attach wheel event listener with passive: false to allow preventDefault
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+
+    canvas.addEventListener('wheel', handleWheel, { passive: false });
+    return () => canvas.removeEventListener('wheel', handleWheel);
+  }, [handleWheel]);
+
   // Handle mouse down
   const handleMouseDown = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
     // Close context menu if open
@@ -1418,6 +1427,7 @@ export function Canvas() {
     // Middle mouse button or left button with space - panning
     if (e.button === 1 || (e.button === 0 && isSpacePressed)) {
       e.preventDefault();
+      e.stopPropagation();
       setIsPanning(true);
       lastMousePos.current = { x: e.clientX, y: e.clientY };
       return;
@@ -1528,14 +1538,15 @@ export function Canvas() {
     const canvasCursorPos = screenToCanvas(screenX, screenY);
     setCursorPosition(canvasCursorPos);
 
-    // Handle panning
+    // Handle panning - read latest viewport from store to avoid stale closure
     if (isPanning) {
       const dx = e.clientX - lastMousePos.current.x;
       const dy = e.clientY - lastMousePos.current.y;
 
+      const currentViewport = useViewportStore.getState().viewport;
       setViewport({
-        x: viewport.x + dx / viewport.zoom,
-        y: viewport.y + dy / viewport.zoom,
+        x: currentViewport.x + dx / currentViewport.zoom,
+        y: currentViewport.y + dy / currentViewport.zoom,
       });
 
       lastMousePos.current = { x: e.clientX, y: e.clientY };
@@ -2085,7 +2096,6 @@ export function Canvas() {
         ref={canvasRef}
         className="canvas"
         style={{ cursor: getCursorStyle() }}
-        onWheel={handleWheel}
         onMouseDown={handleMouseDown}
         onMouseMove={handleMouseMove}
         onMouseUp={handleMouseUp}
