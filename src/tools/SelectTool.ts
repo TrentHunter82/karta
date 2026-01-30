@@ -465,14 +465,15 @@ export class SelectTool extends BaseTool {
     selectedIds: Set<string>,
     viewport: { zoom: number }
   ): ToolEventResult {
-    if (!this.state.lastPos) {
+    const lastPos = this.state.lastPos;
+    if (!lastPos) {
       return { handled: false };
     }
 
     // Calculate canvas coordinate delta
     const screenPos = this.ctx.canvasToScreen(canvasX, canvasY);
-    const dx = (screenPos.x - this.state.lastPos.x) / viewport.zoom;
-    const dy = (screenPos.y - this.state.lastPos.y) / viewport.zoom;
+    const dx = (screenPos.x - lastPos.x) / viewport.zoom;
+    const dy = (screenPos.y - lastPos.y) / viewport.zoom;
 
     if (dx === 0 && dy === 0) {
       return { handled: true };
@@ -483,7 +484,7 @@ export class SelectTool extends BaseTool {
     let snapDy = dy;
     const gridSettings = this.ctx.getGridSettings();
     if (gridSettings.snapEnabled || gridSettings.snapToObjects) {
-      const refId = Array.from(selectedIds)[0];
+      const refId = selectedIds.values().next().value;
       const refObj = objects.get(refId);
       if (refObj) {
         const rawX = refObj.x + dx;
@@ -564,8 +565,8 @@ export class SelectTool extends BaseTool {
     let newWidth = startState.width;
     let newHeight = startState.height;
 
-    // Calculate aspect ratio for proportional resize (guard against division by zero)
-    const aspectRatio = startState.height > 0 ? startState.width / startState.height : 1;
+    // Calculate aspect ratio for proportional resize (guard against division by zero for both dimensions)
+    const aspectRatio = (startState.width > 0 && startState.height > 0) ? startState.width / startState.height : 1;
     const isCornerHandle = handle === 'nw' || handle === 'ne' || handle === 'sw' || handle === 'se';
     // Corner handles: proportional by default, Shift for free resize
     // Edge handles: always single dimension
@@ -873,10 +874,10 @@ export class SelectTool extends BaseTool {
       ctx.translate(-screenWidth / 2, -screenHeight / 2);
 
       // Draw ghost outline with dashed line
-      ctx.strokeStyle = 'rgba(255, 85, 0, 0.4)';
-      ctx.fillStyle = 'rgba(255, 85, 0, 0.05)';
-      ctx.lineWidth = 1;
-      ctx.setLineDash([4, 4]);
+      ctx.strokeStyle = 'rgba(255, 85, 0, 0.6)';
+      ctx.fillStyle = 'rgba(255, 85, 0, 0.15)';
+      ctx.lineWidth = 2;
+      ctx.setLineDash([6, 4]);
       ctx.fillRect(0, 0, screenWidth, screenHeight);
       ctx.strokeRect(0, 0, screenWidth, screenHeight);
 

@@ -48,6 +48,15 @@ function getOrLoadImage(src: string, onLoad: () => void): HTMLImageElement | nul
   imageCache.set(src, newImg);
   imageCacheOrder.push(src);
   newImg.onload = onLoad;
+  newImg.onerror = () => {
+    // Remove failed image from cache to prevent it from staying forever
+    imageCache.delete(src);
+    const idx = imageCacheOrder.indexOf(src);
+    if (idx !== -1) {
+      imageCacheOrder.splice(idx, 1);
+    }
+    console.warn(`[Canvas] Failed to load image: ${src}`);
+  };
   newImg.src = src;
   return null;
 }
@@ -206,7 +215,7 @@ export function Canvas() {
 
       ctx.save();
       ctx.translate(screenPos.x, screenPos.y);
-      ctx.rotate((obj.rotation * Math.PI) / 180);
+      ctx.rotate(((obj.rotation % 360) * Math.PI) / 180);
       ctx.globalAlpha = obj.opacity;
 
       const width = obj.width * zoom;
@@ -333,8 +342,9 @@ export function Canvas() {
               maxPointY = Math.max(maxPointY, p.y);
             }
             // Scale points to current width/height (allows resizing)
-            const scaleX = maxPointX > 0 ? width / maxPointX : zoom;
-            const scaleY = maxPointY > 0 ? height / maxPointY : zoom;
+            // Use epsilon to avoid division overflow with tiny values
+            const scaleX = maxPointX > 0.001 ? width / maxPointX : zoom;
+            const scaleY = maxPointY > 0.001 ? height / maxPointY : zoom;
 
             ctx.beginPath();
             const firstPoint = obj.points[0];
@@ -523,7 +533,7 @@ export function Canvas() {
 
       ctx.save();
       ctx.translate(screenPos.x, screenPos.y);
-      ctx.rotate((obj.rotation * Math.PI) / 180);
+      ctx.rotate(((obj.rotation % 360) * Math.PI) / 180);
 
       // Draw subtle glow effect with accent color
       ctx.shadowBlur = 12;
@@ -568,7 +578,7 @@ export function Canvas() {
 
       ctx.save();
       ctx.translate(screenPos.x, screenPos.y);
-      ctx.rotate((obj.rotation * Math.PI) / 180);
+      ctx.rotate(((obj.rotation % 360) * Math.PI) / 180);
 
       // Apply scale animation from center
       if (animProgress < 1) {
@@ -1581,6 +1591,12 @@ export function Canvas() {
 
   // Handle mouse up
   const handleMouseUp = useCallback((e?: React.MouseEvent<HTMLCanvasElement>) => {
+    // Always stop panning on mouse up (before tool handling)
+    const wasPanning = isPanning;
+    if (wasPanning) {
+      setIsPanning(false);
+    }
+
     if (toolManagerRef.current) {
       const canvas = canvasRef.current;
       let screenX = 0, screenY = 0, canvasX = 0, canvasY = 0;
@@ -1611,14 +1627,17 @@ export function Canvas() {
         return;
       }
     }
-
-    setIsPanning(false);
-  }, [screenToCanvas]);
+  }, [isPanning, screenToCanvas]);
 
   // Handle mouse leave
   const handleMouseLeave = useCallback(() => {
     setCursorPosition(null);
   }, [setCursorPosition]);
+
+  // Handle auxiliary click (middle button) - prevent browser autoscroll
+  const handleAuxClick = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+  }, []);
 
   // Handle context menu (right-click)
   const handleContextMenu = useCallback((e: React.MouseEvent) => {
@@ -1701,23 +1720,57 @@ export function Canvas() {
     const totalFiles = imageFiles.length + videoFiles.length;
     if (totalFiles === 0) return;
 
-    let offsetX = 0;
-    let offsetY = 0;
     const OFFSET_INCREMENT = 20;
-    let processedCount = 0;
-    let lastAddedId = '';
 
-    imageFiles.forEach((file) => {
-      const reader = new FileReader();
-      reader.onload = (event) => {
-        const dataUrl = event.target?.result as string;
-        if (!dataUrl) return;
+    // Helper to read file as data URL
+    const readFileAsDataUrl = (file: File): Promise<string> => {
+      return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = (event) => {
+          const result = event.target?.result;
+          if (typeof result === 'string') {
+            resolve(result);
+          } else {
+            reject(new Error('Invalid file data'));
+          }
+        };
+        reader.onerror = () => reject(new Error('Failed to read file'));
+        reader.readAsDataURL(file);
+      });
+    };
 
+    // Helper to load image and get dimensions
+    const loadImage = (dataUrl: string): Promise<{ width: number; height: number }> => {
+      return new Promise((resolve, reject) => {
         const img = new Image();
-        img.onload = () => {
-          let imgWidth = img.naturalWidth;
-          let imgHeight = img.naturalHeight;
+        img.onload = () => resolve({ width: img.naturalWidth, height: img.naturalHeight });
+        img.onerror = () => reject(new Error('Failed to load image'));
+        img.src = dataUrl;
+      });
+    };
 
+    // Helper to load video and get dimensions
+    const loadVideo = (dataUrl: string): Promise<{ width: number; height: number }> => {
+      return new Promise((resolve, reject) => {
+        const video = document.createElement('video');
+        video.onloadedmetadata = () => resolve({ width: video.videoWidth, height: video.videoHeight });
+        video.onerror = () => reject(new Error('Failed to load video'));
+        video.src = dataUrl;
+      });
+    };
+
+    // Process all files with Promise.all
+    const processFiles = async () => {
+      // Process images
+      const imagePromises = imageFiles.map(async (file, index) => {
+        const fileOffsetX = index * OFFSET_INCREMENT;
+        const fileOffsetY = index * OFFSET_INCREMENT;
+        try {
+          const dataUrl = await readFileAsDataUrl(file);
+          const dims = await loadImage(dataUrl);
+
+          let imgWidth = dims.width;
+          let imgHeight = dims.height;
           const maxSize = MAX_IMPORTED_IMAGE_SIZE;
           if (imgWidth > maxSize || imgHeight > maxSize) {
             const scale = Math.min(maxSize / imgWidth, maxSize / imgHeight);
@@ -1725,14 +1778,11 @@ export function Canvas() {
             imgHeight = Math.round(imgHeight * scale);
           }
 
-          const imageX = canvasPos.x - imgWidth / 2 + offsetX;
-          const imageY = canvasPos.y - imgHeight / 2 + offsetY;
-
           const newImage: ImageObject = {
             id: crypto.randomUUID(),
             type: 'image',
-            x: imageX,
-            y: imageY,
+            x: canvasPos.x - imgWidth / 2 + fileOffsetX,
+            y: canvasPos.y - imgHeight / 2 + fileOffsetY,
             width: imgWidth,
             height: imgHeight,
             rotation: 0,
@@ -1742,48 +1792,28 @@ export function Canvas() {
           };
 
           addObject(newImage);
-          lastAddedId = newImage.id;
-          processedCount++;
-
-          if (processedCount === totalFiles) {
-            setSelection([lastAddedId]);
-          }
-        };
-        img.onerror = () => {
+          return newImage.id;
+        } catch {
           useToastStore.getState().addToast({
             message: 'Failed to load image. Please try a different file.',
             type: 'error',
             duration: ERROR_TOAST_DURATION_MS
           });
-        };
-        img.src = dataUrl;
-      };
-      reader.onerror = () => {
-        useToastStore.getState().addToast({
-          message: 'Failed to read file. Please try again.',
-          type: 'error'
-        });
-      };
-      reader.readAsDataURL(file);
+          return null;
+        }
+      });
 
-      offsetX += OFFSET_INCREMENT;
-      offsetY += OFFSET_INCREMENT;
-    });
+      // Process videos (offset continues from images)
+      const videoBaseOffset = imageFiles.length;
+      const videoPromises = videoFiles.map(async (file, index) => {
+        const fileOffsetX = (videoBaseOffset + index) * OFFSET_INCREMENT;
+        const fileOffsetY = (videoBaseOffset + index) * OFFSET_INCREMENT;
+        try {
+          const dataUrl = await readFileAsDataUrl(file);
+          const dims = await loadVideo(dataUrl);
 
-    videoFiles.forEach((file) => {
-      const currentOffsetX = offsetX;
-      const currentOffsetY = offsetY;
-
-      const reader = new FileReader();
-      reader.onload = (event) => {
-        const dataUrl = event.target?.result as string;
-        if (!dataUrl) return;
-
-        const video = document.createElement('video');
-        video.onloadedmetadata = () => {
-          let vidWidth = video.videoWidth;
-          let vidHeight = video.videoHeight;
-
+          let vidWidth = dims.width;
+          let vidHeight = dims.height;
           const maxSize = MAX_IMPORTED_IMAGE_SIZE;
           if (vidWidth > maxSize || vidHeight > maxSize) {
             const scale = Math.min(maxSize / vidWidth, maxSize / vidHeight);
@@ -1791,14 +1821,11 @@ export function Canvas() {
             vidHeight = Math.round(vidHeight * scale);
           }
 
-          const videoX = canvasPos.x - vidWidth / 2 + currentOffsetX;
-          const videoY = canvasPos.y - vidHeight / 2 + currentOffsetY;
-
           const newVideo: VideoObject = {
             id: crypto.randomUUID(),
             type: 'video',
-            x: videoX,
-            y: videoY,
+            x: canvasPos.x - vidWidth / 2 + fileOffsetX,
+            y: canvasPos.y - vidHeight / 2 + fileOffsetY,
             width: vidWidth,
             height: vidHeight,
             rotation: 0,
@@ -1808,33 +1835,28 @@ export function Canvas() {
           };
 
           addObject(newVideo);
-          lastAddedId = newVideo.id;
-          processedCount++;
-
-          if (processedCount === totalFiles) {
-            setSelection([lastAddedId]);
-          }
-        };
-        video.onerror = () => {
+          return newVideo.id;
+        } catch {
           useToastStore.getState().addToast({
             message: 'Failed to load video. Format may not be supported.',
             type: 'error',
             duration: ERROR_TOAST_DURATION_MS
           });
-        };
-        video.src = dataUrl;
-      };
-      reader.onerror = () => {
-        useToastStore.getState().addToast({
-          message: 'Failed to read file. Please try again.',
-          type: 'error'
-        });
-      };
-      reader.readAsDataURL(file);
+          return null;
+        }
+      });
 
-      offsetX += OFFSET_INCREMENT;
-      offsetY += OFFSET_INCREMENT;
-    });
+      // Wait for all files to be processed
+      const results = await Promise.all([...imagePromises, ...videoPromises]);
+      const successfulIds = results.filter((id): id is string => id !== null);
+
+      // Select the last successfully added object
+      if (successfulIds.length > 0) {
+        setSelection([successfulIds[successfulIds.length - 1]]);
+      }
+    };
+
+    processFiles();
   }, [screenToCanvas, addObject, getNextZIndex, setSelection]);
 
   // Get cursor style
@@ -2068,6 +2090,7 @@ export function Canvas() {
         onMouseMove={handleMouseMove}
         onMouseUp={handleMouseUp}
         onMouseLeave={handleMouseLeave}
+        onAuxClick={handleAuxClick}
         onContextMenu={handleContextMenu}
         onDragOver={handleDragOver}
         onDragEnter={handleDragEnter}
