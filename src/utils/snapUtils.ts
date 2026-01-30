@@ -55,6 +55,12 @@ export function computeSnappedPosition(
       .filter(obj => !selectedIds.has(obj.id) && obj.visible !== false && !obj.parentId);
 
     for (const obj of otherObjects) {
+      // Skip objects with invalid dimensions that could produce Infinity/NaN
+      if (!Number.isFinite(obj.width) || !Number.isFinite(obj.height) ||
+          obj.width <= 0 || obj.height <= 0) {
+        continue;
+      }
+
       const objLeft = obj.x;
       const objCenter = obj.x + obj.width / 2;
       const objRight = obj.x + obj.width;

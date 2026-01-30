@@ -97,6 +97,12 @@ export const useCollaborationStore = create<CollaborationState>((set, get) => ({
   connect: (roomId: string, serverUrl: string = DEFAULT_SERVER_URL) => {
     const state = get();
 
+    // Clear any pending disconnection toast timeout from previous session
+    if (disconnectionToastTimeout) {
+      clearTimeout(disconnectionToastTimeout);
+      disconnectionToastTimeout = null;
+    }
+
     // Disconnect existing provider if any
     if (state.provider) {
       state.provider.destroy();
@@ -151,6 +157,16 @@ export const useCollaborationStore = create<CollaborationState>((set, get) => ({
       // Handle sync status
       provider.on('sync', (isSynced: boolean) => {
         if (isSynced) {
+          // Sync completed successfully - document is now in sync with server
+          console.debug('[Collaboration] Document synced with server');
+        } else {
+          // Sync failed or lost - warn user about potential data inconsistency
+          console.warn('[Collaboration] Sync failed or lost - document may be out of sync');
+          const currentState = get();
+          // Only warn if we were previously connected (not during initial connection)
+          if (currentState.connectionStatus === 'connected') {
+            console.error('[Collaboration] Lost sync while connected - data may be inconsistent');
+          }
         }
       });
 

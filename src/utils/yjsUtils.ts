@@ -127,12 +127,12 @@ export const yjsToObject = (yMap: Y.Map<unknown>): CanvasObject | null => {
   });
 
   if (!isValidBaseObject(obj)) {
-    console.warn('[yjsUtils] Invalid object from Yjs: missing or invalid base properties', obj.id);
+    console.warn('[yjsUtils] Invalid object from Yjs: missing or invalid base properties', obj.id?.toString() ?? 'unknown');
     return null;
   }
 
   if (!isValidTypeSpecificProps(obj)) {
-    console.warn('[yjsUtils] Invalid object from Yjs: missing or invalid type-specific properties', obj.id, obj.type);
+    console.warn('[yjsUtils] Invalid object from Yjs: missing or invalid type-specific properties', obj.id?.toString() ?? 'unknown', obj.type ?? 'unknown');
     return null;
   }
 

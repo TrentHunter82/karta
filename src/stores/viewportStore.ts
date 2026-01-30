@@ -71,6 +71,12 @@ export const useViewportStore = create<ViewportState>((set, get) => ({
     // Calculate bounding box of all objects
     const bounds = calculateBoundingBox(objects);
 
+    // Guard against zero dimensions to prevent Infinity
+    if (bounds.width <= 0 || bounds.height <= 0) {
+      set({ viewport: { x: 0, y: 0, zoom: 1 } });
+      return;
+    }
+
     // Get canvas dimensions
     const canvasWidth = window.innerWidth - CANVAS_WIDTH_OFFSET;
     const canvasHeight = window.innerHeight - CANVAS_HEIGHT_OFFSET;
@@ -108,6 +114,12 @@ export const useViewportStore = create<ViewportState>((set, get) => ({
     }
 
     const bounds = calculateBoundingBox(selectedObjects);
+
+    // Guard against zero dimensions to prevent Infinity
+    if (bounds.width <= 0 || bounds.height <= 0) {
+      get().zoomToFit(objects);
+      return;
+    }
 
     // Get canvas dimensions
     const canvasWidth = window.innerWidth - CANVAS_WIDTH_OFFSET;
