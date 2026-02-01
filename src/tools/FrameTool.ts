@@ -10,6 +10,7 @@
  * - Escape cancels drawing
  * - Switches to select tool after creation
  * - Minimum size enforced to prevent tiny frames
+ * - Supports auto-resize to content via resizeToContent()
  *
  * @see FrameObject in types/canvas.ts
  */
@@ -22,6 +23,11 @@ import type {
   Position,
 } from './types';
 import type { FrameObject } from '../types/canvas';
+import {
+  DEFAULT_FRAME_FILL,
+  DEFAULT_FRAME_STROKE,
+  DEFAULT_FRAME_STROKE_WIDTH,
+} from '../constants/colors';
 
 const MIN_OBJECT_SIZE = 10;
 
@@ -92,9 +98,9 @@ export class FrameTool extends BaseTool {
       rotation: 0,
       opacity: 1,
       zIndex: -1000, // Frames always render behind other objects
-      fill: '#2a2a2a',
-      stroke: '#3a3a3a',
-      strokeWidth: 1,
+      fill: DEFAULT_FRAME_FILL,
+      stroke: DEFAULT_FRAME_STROKE,
+      strokeWidth: DEFAULT_FRAME_STROKE_WIDTH,
       name: 'Frame',
     };
 
@@ -182,5 +188,78 @@ export class FrameTool extends BaseTool {
       width: shapeWidth,
       height: shapeHeight,
     });
+  }
+
+  /**
+   * Resize a frame to fit its contents with optional padding.
+   * Can be called externally to auto-resize a frame.
+   * @param frameId - The ID of the frame to resize
+   * @param padding - Padding around content (default: 20)
+   * @returns true if frame was resized, false if no contents or frame not found
+   */
+  resizeToContent(frameId: string, padding: number = 20): boolean {
+    const objects = this.ctx.getObjects();
+    const frame = objects.get(frameId);
+
+    if (!frame || frame.type !== 'frame') {
+      return false;
+    }
+
+    // Get objects inside the frame
+    const contentIds = this.ctx.getObjectsInsideFrame(frameId);
+    if (contentIds.length === 0) {
+      return false;
+    }
+
+    // Calculate bounding box of all content
+    let minX = Infinity;
+    let minY = Infinity;
+    let maxX = -Infinity;
+    let maxY = -Infinity;
+
+    for (const id of contentIds) {
+      const obj = objects.get(id);
+      if (!obj) continue;
+
+      const objMinX = obj.x;
+      const objMinY = obj.y;
+      const objMaxX = obj.x + obj.width;
+      const objMaxY = obj.y + obj.height;
+
+      minX = Math.min(minX, objMinX);
+      minY = Math.min(minY, objMinY);
+      maxX = Math.max(maxX, objMaxX);
+      maxY = Math.max(maxY, objMaxY);
+    }
+
+    if (minX === Infinity) {
+      return false;
+    }
+
+    // Calculate new frame bounds with padding
+    const newX = minX - padding;
+    const newY = minY - padding;
+    const newWidth = (maxX - minX) + (padding * 2);
+    const newHeight = (maxY - minY) + (padding * 2);
+
+    // Only update if dimensions changed significantly
+    const EPSILON = 0.5;
+    if (
+      Math.abs(frame.x - newX) > EPSILON ||
+      Math.abs(frame.y - newY) > EPSILON ||
+      Math.abs(frame.width - newWidth) > EPSILON ||
+      Math.abs(frame.height - newHeight) > EPSILON
+    ) {
+      this.ctx.pushHistory();
+      this.ctx.updateObject(frameId, {
+        x: newX,
+        y: newY,
+        width: newWidth,
+        height: newHeight,
+      });
+      return true;
+    }
+
+    return false;
   }
 }

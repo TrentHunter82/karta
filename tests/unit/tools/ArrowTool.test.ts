@@ -63,6 +63,31 @@ describe('ArrowTool', () => {
       expect(addedObj.arrowSize).toBe(1);
     });
 
+    it('creates arrow with white stroke for dark theme visibility', () => {
+      const event = createMockMouseEvent({ canvasX: 50, canvasY: 50 });
+      tool.onMouseDown(event);
+
+      const addedObj = vi.mocked(mockContext.addObject).mock.calls[0][0];
+      expect(addedObj.stroke).toBe('#ffffff');
+    });
+
+    it('creates arrow with stroke width of 2 for visibility', () => {
+      const event = createMockMouseEvent({ canvasX: 50, canvasY: 50 });
+      tool.onMouseDown(event);
+
+      const addedObj = vi.mocked(mockContext.addObject).mock.calls[0][0];
+      expect(addedObj.strokeWidth).toBe(2);
+    });
+
+    it('creates arrow with triangle arrowhead style by default', () => {
+      const event = createMockMouseEvent({ canvasX: 50, canvasY: 50 });
+      tool.onMouseDown(event);
+
+      const addedObj = vi.mocked(mockContext.addObject).mock.calls[0][0];
+      expect(addedObj.arrowEndStyle).toBe('triangle');
+      expect(addedObj.arrowStartStyle).toBe('none');
+    });
+
     it('does not handle non-left mouse button', () => {
       const event = createMockMouseEvent({ button: 2 });
       const result = tool.onMouseDown(event);

@@ -5,15 +5,22 @@
  *
  * Behavior:
  * - Click to set start point, drag to set end point
- * - Hold Shift to snap to 45-degree angles
+ * - Hold Shift to snap to 15-degree angles (more precision)
  * - Escape cancels drawing
  * - Switches to select tool after creation
  * - Arrowhead drawn at end point by default
+ * - Supports multiple arrowhead styles (triangle, open, diamond, circle)
+ * - Figma-style snapping to object edges and centers
  *
  * @see LineTool.ts - Similar but without arrowhead
  */
 import { BaseTool } from './BaseTool';
-import { ANGLE_SNAP_45_RAD } from '../constants/layout';
+import { ANGLE_SNAP_15_RAD } from '../constants/layout';
+import {
+  DEFAULT_LINE_STROKE,
+  DEFAULT_LINE_STROKE_WIDTH,
+} from '../constants/colors';
+import { computeArrowEndpointSnap } from '../utils/snapUtils';
 import type {
   ToolState,
   ToolMouseEvent,
@@ -22,6 +29,7 @@ import type {
   Position,
 } from './types';
 import type { ArrowObject } from '../types/canvas';
+import type { SnapGuide } from '../stores/canvasStore';
 
 const MIN_OBJECT_SIZE = 10;
 
@@ -39,7 +47,7 @@ interface ArrowToolState extends ToolState {
 /**
  * ArrowTool handles arrow drawing via click and drag.
  * - Click and drag to draw an arrow
- * - Shift key constrains to 45° angles
+ * - Shift key constrains to 15° angles
  * - Escape cancels the current drawing
  * - Switches to select tool after creation
  */
@@ -76,10 +84,42 @@ export class ArrowTool extends BaseTool {
     }
 
     this.state.isDrawing = true;
-    const snapped = this.ctx.snapPosition(e.canvasX, e.canvasY);
-    this.state.startPos = { x: snapped.x, y: snapped.y };
-    this.state.endPos = { x: snapped.x, y: snapped.y };
+
+    // Try arrow endpoint snapping first (Figma-style snap to object edges/centers)
+    const objects = this.ctx.getObjects();
+    const arrowSnap = computeArrowEndpointSnap(
+      e.canvasX,
+      e.canvasY,
+      objects,
+      new Set() // No objects to exclude for start point
+    );
+
+    let startX: number, startY: number;
+    const guides: SnapGuide[] = [];
+
+    if (arrowSnap.snapped) {
+      startX = arrowSnap.x;
+      startY = arrowSnap.y;
+      // Add visual snap indicator
+      guides.push({
+        type: 'point',
+        position: 0,
+        pointX: arrowSnap.x,
+        pointY: arrowSnap.y,
+        sourceId: arrowSnap.targetObjectId,
+      });
+    } else {
+      // Fall back to grid snapping
+      const snapped = this.ctx.snapPosition(e.canvasX, e.canvasY);
+      startX = snapped.x;
+      startY = snapped.y;
+      guides.push(...snapped.guides);
+    }
+
+    this.state.startPos = { x: startX, y: startY };
+    this.state.endPos = { x: startX, y: startY };
     this.state.shiftKey = e.shiftKey;
+    this.ctx.setActiveSnapGuides(guides);
 
     // Create preview arrow
     const id = crypto.randomUUID();
@@ -88,15 +128,15 @@ export class ArrowTool extends BaseTool {
     const arrow: ArrowObject = {
       id,
       type: 'arrow',
-      x: snapped.x,
-      y: snapped.y,
+      x: startX,
+      y: startY,
       width: 1,
       height: 1,
       rotation: 0,
       opacity: 1,
       zIndex: this.ctx.getNextZIndex(),
-      stroke: '#ffffff',
-      strokeWidth: 2,
+      stroke: DEFAULT_LINE_STROKE,
+      strokeWidth: DEFAULT_LINE_STROKE_WIDTH,
       x1: 0,
       y1: 0,
       x2: 0,
@@ -104,6 +144,8 @@ export class ArrowTool extends BaseTool {
       arrowStart: false,
       arrowEnd: true,
       arrowSize: 1,
+      arrowStartStyle: 'none',
+      arrowEndStyle: 'triangle',
     };
 
     this.ctx.addObject(arrow);
@@ -119,22 +161,49 @@ export class ArrowTool extends BaseTool {
     let endX = e.canvasX;
     let endY = e.canvasY;
 
-    // Shift key constrains to 45° angles
+    // Shift key constrains to 15° angles for more precise control
     if (e.shiftKey) {
       const dx = endX - this.state.startPos.x;
       const dy = endY - this.state.startPos.y;
       const angle = Math.atan2(dy, dx);
       const length = Math.sqrt(dx * dx + dy * dy);
-      // Snap to 45° increments
-      const snappedAngle = Math.round(angle / ANGLE_SNAP_45_RAD) * ANGLE_SNAP_45_RAD;
+      // Snap to 15° increments (0°, 15°, 30°, 45°, 60°, 75°, 90°, etc.)
+      const snappedAngle = Math.round(angle / ANGLE_SNAP_15_RAD) * ANGLE_SNAP_15_RAD;
       endX = this.state.startPos.x + length * Math.cos(snappedAngle);
       endY = this.state.startPos.y + length * Math.sin(snappedAngle);
     }
 
-    const snapped = this.ctx.snapPosition(endX, endY);
-    this.state.endPos = { x: snapped.x, y: snapped.y };
+    // Try arrow endpoint snapping first (Figma-style snap to object edges/centers)
+    const objects = this.ctx.getObjects();
+    const arrowSnap = computeArrowEndpointSnap(
+      endX,
+      endY,
+      objects,
+      new Set([this.state.previewId]) // Exclude the arrow being drawn
+    );
+
+    const guides: SnapGuide[] = [];
+
+    if (arrowSnap.snapped && !e.shiftKey) {
+      // Use arrow snap (but not when Shift is held for angle snapping)
+      this.state.endPos = { x: arrowSnap.x, y: arrowSnap.y };
+      // Add visual snap indicator
+      guides.push({
+        type: 'point',
+        position: 0,
+        pointX: arrowSnap.x,
+        pointY: arrowSnap.y,
+        sourceId: arrowSnap.targetObjectId,
+      });
+    } else {
+      // Fall back to grid snapping
+      const snapped = this.ctx.snapPosition(endX, endY);
+      this.state.endPos = { x: snapped.x, y: snapped.y };
+      guides.push(...snapped.guides);
+    }
+
     this.state.shiftKey = e.shiftKey;
-    this.ctx.setActiveSnapGuides(snapped.guides);
+    this.ctx.setActiveSnapGuides(guides);
 
     this.updatePreview();
 

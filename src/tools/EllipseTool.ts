@@ -19,6 +19,11 @@ import type {
   Position,
 } from './types';
 import type { EllipseObject } from '../types/canvas';
+import {
+  DEFAULT_SHAPE_FILL,
+  DEFAULT_SHAPE_STROKE,
+  DEFAULT_SHAPE_STROKE_WIDTH,
+} from '../constants/colors';
 
 const MIN_OBJECT_SIZE = 10;
 
@@ -73,8 +78,9 @@ export class EllipseTool extends BaseTool {
     }
 
     this.state.isDrawing = true;
-    this.state.startPos = { x: e.canvasX, y: e.canvasY };
-    this.state.endPos = { x: e.canvasX, y: e.canvasY };
+    const snapped = this.ctx.snapPosition(e.canvasX, e.canvasY);
+    this.state.startPos = { x: snapped.x, y: snapped.y };
+    this.state.endPos = { x: snapped.x, y: snapped.y };
     this.state.shiftKey = e.shiftKey;
 
     // Create preview ellipse
@@ -84,16 +90,16 @@ export class EllipseTool extends BaseTool {
     const ellipse: EllipseObject = {
       id,
       type: 'ellipse',
-      x: e.canvasX,
-      y: e.canvasY,
+      x: snapped.x,
+      y: snapped.y,
       width: 0,
       height: 0,
       rotation: 0,
       opacity: 1,
       zIndex: this.ctx.getNextZIndex(),
-      fill: '#4a4a4a',
-      stroke: '#666666',
-      strokeWidth: 0,
+      fill: DEFAULT_SHAPE_FILL,
+      stroke: DEFAULT_SHAPE_STROKE,
+      strokeWidth: DEFAULT_SHAPE_STROKE_WIDTH,
     };
 
     this.ctx.addObject(ellipse);
@@ -106,8 +112,10 @@ export class EllipseTool extends BaseTool {
       return { handled: false };
     }
 
-    this.state.endPos = { x: e.canvasX, y: e.canvasY };
+    const snapped = this.ctx.snapPosition(e.canvasX, e.canvasY);
+    this.state.endPos = { x: snapped.x, y: snapped.y };
     this.state.shiftKey = e.shiftKey;
+    this.ctx.setActiveSnapGuides(snapped.guides);
 
     this.updatePreview();
 
@@ -132,6 +140,7 @@ export class EllipseTool extends BaseTool {
     }
 
     // Reset state
+    this.ctx.setActiveSnapGuides([]);
     this.state.isDrawing = false;
     this.state.startPos = null;
     this.state.endPos = null;

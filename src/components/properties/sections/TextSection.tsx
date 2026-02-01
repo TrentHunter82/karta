@@ -1,7 +1,7 @@
 import { useCanvasStore } from '../../../stores/canvasStore';
 import { NumberInput } from '../inputs/NumberInput';
 import { ColorInput } from '../inputs/ColorInput';
-import { SelectInput } from '../inputs/SelectInput';
+import { FontSelect } from '../inputs/FontSelect';
 import { getSharedValue, getSharedNumber } from '../utils';
 import { measureTextDimensions } from '../../../utils/textMeasurement';
 import type { TextObject } from '../../../types/canvas';
@@ -9,16 +9,6 @@ import type { TextObject } from '../../../types/canvas';
 interface TextSectionProps {
   objects: TextObject[];
 }
-
-const FONT_FAMILIES = [
-  { value: 'Inter, system-ui, sans-serif', label: 'Inter' },
-  { value: 'Arial, sans-serif', label: 'Arial' },
-  { value: 'Helvetica, sans-serif', label: 'Helvetica' },
-  { value: 'Georgia, serif', label: 'Georgia' },
-  { value: 'Times New Roman, serif', label: 'Times New Roman' },
-  { value: 'Courier New, monospace', label: 'Courier New' },
-  { value: 'SF Mono, Monaco, Consolas, monospace', label: 'SF Mono' },
-];
 
 export function TextSection({ objects }: TextSectionProps) {
   const updateObject = useCanvasStore((s) => s.updateObject);
@@ -31,20 +21,20 @@ export function TextSection({ objects }: TextSectionProps) {
   const lineHeight = getSharedValue(objects, (o) => o.lineHeight);
   const fill = getSharedValue(objects, (o) => o.fill ?? '#ffffff');
 
-  const handleFontFamilyChange = (value: string | number) => {
+  const handleFontFamilyChange = (family: string) => {
     pushHistory();
     updateObjects(objects.map(obj => {
       const dimensions = measureTextDimensions({
         text: obj.text,
         fontSize: obj.fontSize,
-        fontFamily: value as string,
+        fontFamily: family,
         fontWeight: obj.fontWeight,
         fontStyle: obj.fontStyle,
         lineHeight: obj.lineHeight,
       });
       return {
         id: obj.id,
-        changes: { fontFamily: value as string, width: dimensions.width, height: dimensions.height }
+        changes: { fontFamily: family, width: dimensions.width, height: dimensions.height }
       };
     }));
   };
@@ -157,10 +147,9 @@ export function TextSection({ objects }: TextSectionProps) {
         <span className="section-title">Text</span>
       </div>
       <div className="section-content">
-        <SelectInput
+        <FontSelect
           label="Font"
           value={fontFamily}
-          options={FONT_FAMILIES}
           onChange={handleFontFamilyChange}
         />
 

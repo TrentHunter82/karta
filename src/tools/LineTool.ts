@@ -5,14 +5,18 @@
  *
  * Behavior:
  * - Click to set start point, drag to set end point
- * - Hold Shift to snap to 45-degree angles
+ * - Hold Shift to snap to 15-degree angles (more precision)
  * - Escape cancels drawing
  * - Switches to select tool after creation
  *
  * @see ArrowTool.ts - Similar but with arrowhead
  */
 import { BaseTool } from './BaseTool';
-import { ANGLE_SNAP_45_RAD } from '../constants/layout';
+import { ANGLE_SNAP_15_RAD } from '../constants/layout';
+import {
+  DEFAULT_LINE_STROKE,
+  DEFAULT_LINE_STROKE_WIDTH,
+} from '../constants/colors';
 import type {
   ToolState,
   ToolMouseEvent,
@@ -38,7 +42,7 @@ interface LineToolState extends ToolState {
 /**
  * LineTool handles line drawing via click and drag.
  * - Click and drag to draw a line
- * - Shift key constrains to 45° angles
+ * - Shift key constrains to 15° angles
  * - Escape cancels the current drawing
  * - Switches to select tool after creation
  */
@@ -94,8 +98,8 @@ export class LineTool extends BaseTool {
       rotation: 0,
       opacity: 1,
       zIndex: this.ctx.getNextZIndex(),
-      stroke: '#ffffff',
-      strokeWidth: 2,
+      stroke: DEFAULT_LINE_STROKE,
+      strokeWidth: DEFAULT_LINE_STROKE_WIDTH,
       x1: 0,
       y1: 0,
       x2: 0,
@@ -115,14 +119,14 @@ export class LineTool extends BaseTool {
     let endX = e.canvasX;
     let endY = e.canvasY;
 
-    // Shift key constrains to 45° angles
+    // Shift key constrains to 15° angles for more precise control
     if (e.shiftKey) {
       const dx = endX - this.state.startPos.x;
       const dy = endY - this.state.startPos.y;
       const angle = Math.atan2(dy, dx);
       const length = Math.sqrt(dx * dx + dy * dy);
-      // Snap to 45° increments
-      const snappedAngle = Math.round(angle / ANGLE_SNAP_45_RAD) * ANGLE_SNAP_45_RAD;
+      // Snap to 15° increments (0°, 15°, 30°, 45°, 60°, 75°, 90°, etc.)
+      const snappedAngle = Math.round(angle / ANGLE_SNAP_15_RAD) * ANGLE_SNAP_15_RAD;
       endX = this.state.startPos.x + length * Math.cos(snappedAngle);
       endY = this.state.startPos.y + length * Math.sin(snappedAngle);
     }

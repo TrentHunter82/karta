@@ -78,6 +78,33 @@ describe('RectangleTool', () => {
       expect(addedObj.height).toBe(0);
     });
 
+    it('creates rectangle with transparent fill (brand style)', () => {
+      const event = createMockMouseEvent({ canvasX: 50, canvasY: 50 });
+      tool.onMouseDown(event);
+
+      const addedObj = vi.mocked(mockContext.addObject).mock.calls[0][0];
+      // Transparent fill for lightweight appearance per brand guidelines
+      expect(addedObj.fill).toBe('transparent');
+    });
+
+    it('creates rectangle with TE Orange accent stroke (brand color)', () => {
+      const event = createMockMouseEvent({ canvasX: 50, canvasY: 50 });
+      tool.onMouseDown(event);
+
+      const addedObj = vi.mocked(mockContext.addObject).mock.calls[0][0];
+      // TE Orange (#FF5500) for brand consistency
+      expect(addedObj.stroke).toBe('#FF5500');
+    });
+
+    it('creates rectangle with visible stroke width of 2', () => {
+      const event = createMockMouseEvent({ canvasX: 50, canvasY: 50 });
+      tool.onMouseDown(event);
+
+      const addedObj = vi.mocked(mockContext.addObject).mock.calls[0][0];
+      // 2px stroke for visibility on dark canvas
+      expect(addedObj.strokeWidth).toBe(2);
+    });
+
     it('does not handle non-left mouse button', () => {
       const event = createMockMouseEvent({ button: 2 }); // right button
       const result = tool.onMouseDown(event);

@@ -78,6 +78,33 @@ describe('EllipseTool', () => {
       expect(addedObj.height).toBe(0);
     });
 
+    it('creates ellipse with transparent fill (brand style)', () => {
+      const event = createMockMouseEvent({ canvasX: 50, canvasY: 50 });
+      tool.onMouseDown(event);
+
+      const addedObj = vi.mocked(mockContext.addObject).mock.calls[0][0];
+      // Transparent fill for lightweight appearance per brand guidelines
+      expect(addedObj.fill).toBe('transparent');
+    });
+
+    it('creates ellipse with TE Orange accent stroke (brand color)', () => {
+      const event = createMockMouseEvent({ canvasX: 50, canvasY: 50 });
+      tool.onMouseDown(event);
+
+      const addedObj = vi.mocked(mockContext.addObject).mock.calls[0][0];
+      // TE Orange (#FF5500) for brand consistency
+      expect(addedObj.stroke).toBe('#FF5500');
+    });
+
+    it('creates ellipse with visible stroke width of 2', () => {
+      const event = createMockMouseEvent({ canvasX: 50, canvasY: 50 });
+      tool.onMouseDown(event);
+
+      const addedObj = vi.mocked(mockContext.addObject).mock.calls[0][0];
+      // 2px stroke for visibility on dark canvas
+      expect(addedObj.strokeWidth).toBe(2);
+    });
+
     it('does not handle non-left mouse button', () => {
       const event = createMockMouseEvent({ button: 2 }); // right button
       const result = tool.onMouseDown(event);
@@ -211,6 +238,42 @@ describe('EllipseTool', () => {
 
       expect(result.handled).toBe(false);
       expect(mockContext.deleteObject).not.toHaveBeenCalled();
+    });
+
+    it('updates preview when Shift key is pressed during drawing', () => {
+      // Start drawing
+      const downEvent = createMockMouseEvent({ canvasX: 50, canvasY: 50 });
+      tool.onMouseDown(downEvent);
+
+      // Move first
+      const moveEvent = createMockMouseEvent({ canvasX: 150, canvasY: 80 });
+      tool.onMouseMove(moveEvent);
+
+      // Then press Shift
+      const shiftEvent = createMockKeyboardEvent({ key: 'Shift' });
+      const result = tool.onKeyDown(shiftEvent);
+
+      expect(result.handled).toBe(true);
+      expect(result.requestRedraw).toBe(true);
+    });
+  });
+
+  describe('onKeyUp', () => {
+    it('updates preview when Shift key is released during drawing', () => {
+      // Start drawing
+      const downEvent = createMockMouseEvent({ canvasX: 50, canvasY: 50 });
+      tool.onMouseDown(downEvent);
+
+      // Move first
+      const moveEvent = createMockMouseEvent({ canvasX: 150, canvasY: 80 });
+      tool.onMouseMove(moveEvent);
+
+      // Release Shift
+      const shiftEvent = createMockKeyboardEvent({ key: 'Shift' });
+      const result = tool.onKeyUp(shiftEvent);
+
+      expect(result.handled).toBe(true);
+      expect(result.requestRedraw).toBe(true);
     });
   });
 });

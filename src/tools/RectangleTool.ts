@@ -19,6 +19,11 @@ import type {
   Position,
 } from './types';
 import type { RectangleObject } from '../types/canvas';
+import {
+  DEFAULT_SHAPE_FILL,
+  DEFAULT_SHAPE_STROKE,
+  DEFAULT_SHAPE_STROKE_WIDTH,
+} from '../constants/colors';
 
 const MIN_OBJECT_SIZE = 10;
 
@@ -92,9 +97,9 @@ export class RectangleTool extends BaseTool {
       rotation: 0,
       opacity: 1,
       zIndex: this.ctx.getNextZIndex(),
-      fill: '#4a4a4a',
-      stroke: '#666666',
-      strokeWidth: 0,
+      fill: DEFAULT_SHAPE_FILL,
+      stroke: DEFAULT_SHAPE_STROKE,
+      strokeWidth: DEFAULT_SHAPE_STROKE_WIDTH,
     };
 
     this.ctx.addObject(rect);
