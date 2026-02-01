@@ -1,6 +1,7 @@
 import { PenTool } from '../../../src/tools/PenTool';
 import type { ToolContext } from '../../../src/tools/types';
 import { createMockContext, createMockMouseEvent, createMockKeyboardEvent } from './testUtils';
+import { usePenToolStore } from '../../../src/stores/penToolStore';
 
 describe('PenTool', () => {
   let tool: PenTool;
@@ -221,6 +222,138 @@ describe('PenTool', () => {
 
       // Points should be normalized (first point at 0,0)
       expect(lastUpdate[1].points[0]).toEqual({ x: 0, y: 0 });
+    });
+  });
+
+  describe('smoothing integration', () => {
+    beforeEach(() => {
+      // Reset store to default settings before each test
+      usePenToolStore.getState().resetSettings();
+    });
+
+    it('applies smoothing on mouse up producing optimized points', () => {
+      // Enable smoothing
+      usePenToolStore.getState().setSettings({ type: 'chaikin', amount: 0.5 });
+
+      const downEvent = createMockMouseEvent({ canvasX: 0, canvasY: 0 });
+      tool.onMouseDown(downEvent);
+
+      // Add many points to simulate drawing
+      for (let i = 1; i <= 20; i++) {
+        const moveEvent = createMockMouseEvent({ canvasX: i * 10, canvasY: i * 5 });
+        tool.onMouseMove(moveEvent);
+      }
+
+      tool.onMouseUp(createMockMouseEvent());
+
+      // Get the final update with optimized points
+      const updateCalls = vi.mocked(mockContext.updateObject).mock.calls;
+      const finalUpdate = updateCalls[updateCalls.length - 1][1];
+
+      // Should have valid optimized points
+      expect(finalUpdate.points).toBeDefined();
+      expect(finalUpdate.points.length).toBeGreaterThan(0);
+    });
+
+    it('tracks velocity during drawing', () => {
+      const downEvent = createMockMouseEvent({ canvasX: 0, canvasY: 0 });
+      tool.onMouseDown(downEvent);
+
+      // Add points with simulated time delay
+      const moveEvent1 = createMockMouseEvent({ canvasX: 50, canvasY: 0 });
+      tool.onMouseMove(moveEvent1);
+
+      const moveEvent2 = createMockMouseEvent({ canvasX: 100, canvasY: 0 });
+      tool.onMouseMove(moveEvent2);
+
+      // Velocities are tracked internally - path should complete successfully
+      tool.onMouseUp(createMockMouseEvent());
+
+      expect(mockContext.deleteObject).not.toHaveBeenCalled();
+    });
+
+    it('applies stabilizer mode when enabled', () => {
+      // Enable spring stabilizer
+      usePenToolStore.getState().setSettings({
+        stabilizerMode: 'spring',
+        stabilizerStrength: 0.5,
+      });
+
+      const downEvent = createMockMouseEvent({ canvasX: 0, canvasY: 0 });
+      tool.onMouseDown(downEvent);
+
+      // Move in a pattern
+      for (let i = 1; i <= 10; i++) {
+        const moveEvent = createMockMouseEvent({ canvasX: i * 10, canvasY: i * 10 });
+        tool.onMouseMove(moveEvent);
+      }
+
+      tool.onMouseUp(createMockMouseEvent());
+
+      // Should complete without errors
+      expect(mockContext.deleteObject).not.toHaveBeenCalled();
+      expect(mockContext.updateObject).toHaveBeenCalled();
+    });
+
+    it('produces valid PathObject with smooth curves', () => {
+      usePenToolStore.getState().setSettings({ type: 'chaikin', amount: 0.8 });
+
+      const downEvent = createMockMouseEvent({ canvasX: 50, canvasY: 50 });
+      tool.onMouseDown(downEvent);
+
+      // Draw a curve pattern
+      for (let i = 1; i <= 15; i++) {
+        const x = 50 + i * 10;
+        const y = 50 + Math.sin(i * 0.5) * 30;
+        tool.onMouseMove(createMockMouseEvent({ canvasX: x, canvasY: y }));
+      }
+
+      tool.onMouseUp(createMockMouseEvent());
+
+      // Verify the path object was created with valid properties
+      const updateCalls = vi.mocked(mockContext.updateObject).mock.calls;
+      const finalUpdate = updateCalls[updateCalls.length - 1][1];
+
+      expect(finalUpdate.points).toBeDefined();
+      expect(Array.isArray(finalUpdate.points)).toBe(true);
+      expect(finalUpdate.points.length).toBeGreaterThan(1);
+
+      // All points should have valid coordinates
+      for (const point of finalUpdate.points) {
+        expect(Number.isFinite(point.x)).toBe(true);
+        expect(Number.isFinite(point.y)).toBe(true);
+      }
+    });
+
+    it('includes variable width data when pressure simulation enabled', () => {
+      usePenToolStore.getState().setSettings({
+        pressureSimulation: true,
+        minWidth: 1,
+        maxWidth: 10,
+      });
+
+      const downEvent = createMockMouseEvent({ canvasX: 0, canvasY: 0 });
+      tool.onMouseDown(downEvent);
+
+      for (let i = 1; i <= 10; i++) {
+        tool.onMouseMove(createMockMouseEvent({ canvasX: i * 15, canvasY: i * 10 }));
+      }
+
+      tool.onMouseUp(createMockMouseEvent());
+
+      const updateCalls = vi.mocked(mockContext.updateObject).mock.calls;
+      const finalUpdate = updateCalls[updateCalls.length - 1][1];
+
+      // Should include variable width data
+      expect(finalUpdate.variableWidth).toBe(true);
+      expect(finalUpdate.widths).toBeDefined();
+      expect(Array.isArray(finalUpdate.widths)).toBe(true);
+
+      // Widths should be within min/max bounds
+      for (const width of finalUpdate.widths) {
+        expect(width).toBeGreaterThanOrEqual(1);
+        expect(width).toBeLessThanOrEqual(10);
+      }
     });
   });
 });
