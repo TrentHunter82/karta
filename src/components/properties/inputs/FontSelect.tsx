@@ -13,6 +13,7 @@ const CATEGORY_ORDER: FontCategory[] = [
   'sans-serif',
   'serif',
   'display',
+  'retro',
   'handwritten',
   'monospace',
 ];

@@ -9,6 +9,7 @@ import { FrameSection } from './sections/FrameSection';
 import { LineSection } from './sections/LineSection';
 import { LayoutSection } from './sections/LayoutSection';
 import { LayerSection } from './sections/LayerSection';
+import { BrushSection } from './sections/BrushSection';
 import {
   exportToSVG,
   downloadSVG,
@@ -350,6 +351,7 @@ export const PropertiesPanel = memo(function PropertiesPanel() {
   const [isCollapsed, setIsCollapsed] = useState(false);
   const selectedIds = useSelectionStore((state) => state.selectedIds);
   const objects = useCanvasStore((state) => state.objects);
+  const activeTool = useCanvasStore((state) => state.activeTool);
 
   const selectedObjects = Array.from(selectedIds)
     .map((id) => objects.get(id))
@@ -373,6 +375,9 @@ export const PropertiesPanel = memo(function PropertiesPanel() {
           <div className="panel-header">
             <span className="panel-title">Properties</span>
           </div>
+
+          {/* Show brush settings when pen tool is active */}
+          {activeTool === 'pen' && <BrushSection />}
 
           {selectedObjects.length === 0 ? (
             <div className="properties-empty">

@@ -263,15 +263,12 @@ function generateBezier(
   const A: [PathPoint, PathPoint][] = [];
   for (let i = 0; i < points.length; i++) {
     const t = u[i];
-    const t2 = t * t;
-    const t3 = t2 * t;
     const mt = 1 - t;
     const mt2 = mt * mt;
-    const mt3 = mt2 * mt;
 
     A.push([
       scale(leftTangent, 3 * mt2 * t),
-      scale(rightTangent, 3 * mt * t2),
+      scale(rightTangent, 3 * mt * t * t),
     ]);
   }
 

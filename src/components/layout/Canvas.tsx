@@ -11,7 +11,8 @@ import {
   ZOOM_SENSITIVITY,
   DOUBLE_CLICK_THRESHOLD_MS,
   HANDLE_SIZE_PX,
-  ROTATION_HANDLE_OFFSET_PX,
+  ROTATION_ZONE_INNER_PX,
+  ROTATION_ZONE_OUTER_PX,
   FILE_DROP_OFFSET_INCREMENT,
   EDGE_FADE_SIZE_PX,
   SELECTION_ANIMATION_DURATION_MS,
@@ -92,7 +93,6 @@ const EDITING_START_DELAY_MS = 500;
 
 // Aliases for imported constants (for code clarity)
 const HANDLE_SIZE = HANDLE_SIZE_PX;
-const ROTATION_HANDLE_OFFSET = ROTATION_HANDLE_OFFSET_PX;
 
 // Handle positions for drawing selection box
 const HANDLE_POSITIONS = [
@@ -657,28 +657,8 @@ export function Canvas() {
         ctx.strokeRect(handleX, handleY, HANDLE_SIZE, HANDLE_SIZE);
       });
 
-      // Draw rotation handle
-      const rotationHandleY = -ROTATION_HANDLE_OFFSET;
-
-      ctx.beginPath();
-      ctx.moveTo(width / 2, 0);
-      ctx.lineTo(width / 2, rotationHandleY);
-      ctx.strokeStyle = SELECTION_COLOR;
-      ctx.stroke();
-
-      ctx.beginPath();
-      ctx.arc(width / 2, rotationHandleY, HANDLE_SIZE / 2, 0, Math.PI * 2);
-      // Radial gradient for sphere-like rotation handle
-      const rotGradient = ctx.createRadialGradient(
-        width / 2 - 1, rotationHandleY - 1, 0,
-        width / 2, rotationHandleY, HANDLE_SIZE / 2
-      );
-      rotGradient.addColorStop(0, '#ffffff');
-      rotGradient.addColorStop(1, '#d0d0d0');
-      ctx.fillStyle = rotGradient;
-      ctx.fill();
-      ctx.strokeStyle = SELECTION_COLOR;
-      ctx.stroke();
+      // Rotation is now triggered by hovering outside corners (Photoshop/InDesign style)
+      // No dedicated rotation handle visual needed
 
       ctx.restore();
     },
@@ -1228,13 +1208,15 @@ export function Canvas() {
     [viewport, canvasToScreen]
   );
 
-  // Hit test for rotation handle
+  // Hit test for rotation zones (Photoshop/InDesign style - outside corners)
   const hitTestRotationHandle = useCallback(
     (screenX: number, screenY: number, obj: CanvasObject): ToolRotationHandle => {
       const { zoom } = viewport;
       const screenPos = canvasToScreen(obj.x, obj.y);
       const width = obj.width * zoom;
+      const height = obj.height * zoom;
 
+      // Inverse rotate screen coordinates to local space
       const cos = Math.cos((-obj.rotation * Math.PI) / 180);
       const sin = Math.sin((-obj.rotation * Math.PI) / 180);
 
@@ -1244,13 +1226,25 @@ export function Canvas() {
       const localX = dx * cos - dy * sin;
       const localY = dx * sin + dy * cos;
 
-      const rotationHandleX = width / 2;
-      const rotationHandleY = -ROTATION_HANDLE_OFFSET;
+      // Corner positions in local space
+      const corners: Array<{ type: ToolRotationHandle; x: number; y: number }> = [
+        { type: 'rotate-nw', x: 0, y: 0 },
+        { type: 'rotate-ne', x: width, y: 0 },
+        { type: 'rotate-se', x: width, y: height },
+        { type: 'rotate-sw', x: 0, y: height },
+      ];
 
-      const hitRadius = HANDLE_SIZE / 2 + 4;
-      const distSq = (localX - rotationHandleX) ** 2 + (localY - rotationHandleY) ** 2;
-      if (distSq <= hitRadius ** 2) {
-        return 'rotation';
+      // Check each corner for rotation zone
+      for (const corner of corners) {
+        const distSq = (localX - corner.x) ** 2 + (localY - corner.y) ** 2;
+        const dist = Math.sqrt(distSq);
+
+        // Rotation zone is between inner and outer radius from corner
+        // Inner radius starts after resize handle area
+        // Outer radius defines max rotation zone extent
+        if (dist >= ROTATION_ZONE_INNER_PX && dist <= ROTATION_ZONE_OUTER_PX) {
+          return corner.type;
+        }
       }
 
       return null;

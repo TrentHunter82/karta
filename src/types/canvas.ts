@@ -58,6 +58,8 @@ export interface PathPoint {
 export interface PathObject extends BaseObject {
   type: 'path';
   points: PathPoint[];
+  widths?: number[];      // Variable width per point (for pressure simulation)
+  variableWidth?: boolean; // Whether path uses variable width
 }
 
 export interface ImageObject extends BaseObject {
@@ -83,6 +85,9 @@ export interface LineObject extends BaseObject {
   y2: number;
 }
 
+/** Arrowhead style options */
+export type ArrowheadStyle = 'none' | 'triangle' | 'open' | 'diamond' | 'circle';
+
 export interface ArrowObject extends BaseObject {
   type: 'arrow';
   x1: number; // Start point relative to object origin
@@ -92,6 +97,8 @@ export interface ArrowObject extends BaseObject {
   arrowStart: boolean; // Arrowhead at start
   arrowEnd: boolean;   // Arrowhead at end (default: true)
   arrowSize: number;   // Size multiplier (default: 1)
+  arrowStartStyle?: ArrowheadStyle; // Style for start arrowhead
+  arrowEndStyle?: ArrowheadStyle;   // Style for end arrowhead
 }
 
 export interface PolygonObject extends BaseObject {

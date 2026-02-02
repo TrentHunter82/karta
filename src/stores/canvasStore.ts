@@ -59,10 +59,14 @@ export interface GridSettings {
  * Helps users see alignment with grid or other objects.
  */
 export interface SnapGuide {
-  /** Direction of the guide line */
-  type: 'horizontal' | 'vertical';
-  /** Position in canvas coordinates */
+  /** Direction of the guide line or point indicator */
+  type: 'horizontal' | 'vertical' | 'point';
+  /** Position in canvas coordinates (for horizontal/vertical lines) */
   position: number;
+  /** Point X coordinate (for 'point' type) */
+  pointX?: number;
+  /** Point Y coordinate (for 'point' type) */
+  pointY?: number;
   /** ID of the object this guide aligns with (if snap-to-object) */
   sourceId?: string;
 }

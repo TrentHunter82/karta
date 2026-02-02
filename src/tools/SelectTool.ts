@@ -58,6 +58,31 @@ const HANDLE_CURSORS: Record<NonNullable<HandleType>, string> = {
   w: 'ew-resize',
 };
 
+// Rotation cursor SVG - curved arrow (Photoshop/InDesign style)
+// Creates data URI for inline SVG cursor
+const createRotationCursor = (rotation: number): string => {
+  // SVG curved arrow pointing for rotation
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" style="transform: rotate(${rotation}deg)">
+    <g fill="none" stroke="black" stroke-width="2" stroke-linecap="round">
+      <path d="M12 3C7 3 3 7 3 12"/>
+      <path d="M3 7V3H7"/>
+    </g>
+    <g fill="none" stroke="white" stroke-width="1" stroke-linecap="round">
+      <path d="M12 3C7 3 3 7 3 12"/>
+      <path d="M3 7V3H7"/>
+    </g>
+  </svg>`;
+  return `url("data:image/svg+xml,${encodeURIComponent(svg)}") 12 12, pointer`;
+};
+
+// Rotation cursors for each corner (rotated appropriately)
+const ROTATION_CURSORS: Record<string, string> = {
+  'rotate-nw': createRotationCursor(0),
+  'rotate-ne': createRotationCursor(90),
+  'rotate-se': createRotationCursor(180),
+  'rotate-sw': createRotationCursor(270),
+};
+
 /**
  * SelectTool handles all selection-related interactions:
  * - Click to select single object
@@ -129,18 +154,19 @@ export class SelectTool extends BaseTool {
       const selectedObj = objects.get(selectedId);
 
       if (selectedObj && !selectedObj.locked) {
-        // Check rotation handle first
-        const rotationHandle = this.ctx.hitTestRotationHandle(screenX, screenY, selectedObj);
-        if (rotationHandle) {
-          this.startRotation(selectedObj, screenX, screenY);
-          return { handled: true, cursor: 'grab' };
-        }
-
-        // Check resize handles
+        // Check resize handles first (they take priority)
         const handle = this.ctx.hitTestHandle(screenX, screenY, selectedObj);
         if (handle) {
           this.startResize(selectedObj, handle, canvasX, canvasY);
           return { handled: true, cursor: HANDLE_CURSORS[handle] };
+        }
+
+        // Check rotation zones (outside corners - Photoshop/InDesign style)
+        const rotationHandle = this.ctx.hitTestRotationHandle(screenX, screenY, selectedObj);
+        if (rotationHandle) {
+          const cursor = ROTATION_CURSORS[rotationHandle] || 'grab';
+          this.startRotation(selectedObj, screenX, screenY);
+          return { handled: true, cursor };
         }
       }
     }
@@ -851,20 +877,21 @@ export class SelectTool extends BaseTool {
       const selectedObj = objects.get(selectedId);
 
       if (selectedObj) {
-        // Check rotation handle first
-        const rotHandle = this.ctx.hitTestRotationHandle(screenX, screenY, selectedObj);
-        if (rotHandle) {
-          this.setCursor('grab');
-          this.ctx.setHoveredObjectId(null);
-          return { handled: true, cursor: 'grab' };
-        }
-
-        // Check resize handles
+        // Check resize handles first (they take priority over rotation zones)
         const handle = this.ctx.hitTestHandle(screenX, screenY, selectedObj);
         if (handle) {
           this.setCursor(HANDLE_CURSORS[handle]);
           this.ctx.setHoveredObjectId(null);
           return { handled: true, cursor: HANDLE_CURSORS[handle] };
+        }
+
+        // Check rotation zones (outside corners - Photoshop/InDesign style)
+        const rotHandle = this.ctx.hitTestRotationHandle(screenX, screenY, selectedObj);
+        if (rotHandle) {
+          const cursor = ROTATION_CURSORS[rotHandle] || 'grab';
+          this.setCursor(cursor);
+          this.ctx.setHoveredObjectId(null);
+          return { handled: true, cursor };
         }
       }
     }

@@ -42,9 +42,15 @@ export interface Position {
 export type HandleType = 'nw' | 'n' | 'ne' | 'e' | 'se' | 's' | 'sw' | 'w' | null;
 
 /**
- * Rotation handle type
+ * Rotation zone type - Photoshop/InDesign style rotation from corners
+ * Each corner has a rotation zone outside the resize handle area
  */
-export type RotationHandle = 'rotation' | null;
+export type RotationZone = 'rotate-nw' | 'rotate-ne' | 'rotate-se' | 'rotate-sw';
+
+/**
+ * Rotation handle type (includes zone identifier)
+ */
+export type RotationHandle = RotationZone | null;
 
 /**
  * Context provided to tools for accessing and modifying canvas state
